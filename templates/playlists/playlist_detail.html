@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ playlist.name }} • Playlist • Casset{% endblock %}
+{% block content %}
+<div class="grid">
+  <section class="card">
+    <h1>{{ playlist.name }}</h1>
+    <p class="muted small">{{ items|length }} tracks</p>
+
+    <div class="list">
+      {% for t in items %}
+        <div class="row">
+          <div style="min-width:0">
+            <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              {{ t.title }}
+            </a>
+            <div class="muted small">@{{ t.creator.username }} • {{ t.play_count }} plays</div>
+          </div>
+
+          {% if t.audio %}
+            <a class="btn btn--primary" href="#"
+               data-play="1"
+               data-src="{{ t.audio.url }}"
+               data-title="{{ t.title }}"
+               data-by="@{{ t.creator.username }}"
+               data-track="{{ t.id }}"
+               data-cover="{% if t.cover %}<img src='{{ t.cover.url }}' />{% endif %}">
+               Play
+            </a>
+          {% endif %}
+        </div>
+      {% empty %}
+        <div class="row"><span class="muted">این پلی‌لیست خالیه.</span></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <aside class="card">
+    <h2>Actions</h2>
+    <div class="list">
+      <div class="row"><a class="btn btn--ghost" href="/library/">Back to Library</a></div>
+    </div>
+  </aside>
+</div>
+{% endblock %}

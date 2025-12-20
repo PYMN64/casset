@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Dashboard • Casset{% endblock %}
+
+{% block content %}
+<div class="grid" style="grid-template-columns: 1.4fr 1fr; align-items:start">
+  <section class="card">
+    <h1 data-i18n="dashboard">داشبورد</h1>
+    <p class="muted small">بازده ۳۰ روز اخیر (از {{ since }})</p>
+
+    <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px">
+      <div class="card" style="padding:14px">
+        <div class="muted small">Points (30d)</div>
+        <div style="font-size:28px;font-weight:900">{{ total_points }}</div>
+      </div>
+      <div class="card" style="padding:14px">
+        <div class="muted small">Revenue (30d)</div>
+        <div style="font-size:28px;font-weight:900">{{ total_revenue }}</div>
+      </div>
+    </div>
+
+    <h2 class="mt">تفکیک پوینت‌ها</h2>
+    <div class="list">
+      <div class="row"><span>موزیک</span><strong>{{ points_by_type.music|default:0 }}</strong></div>
+      <div class="row"><span>پادکست</span><strong>{{ points_by_type.podcast|default:0 }}</strong></div>
+      <div class="row"><span>کتاب</span><strong>{{ points_by_type.book|default:0 }}</strong></div>
+      <div class="row"><span>ویدیو</span><strong>{{ points_by_type.video|default:0 }}</strong></div>
+    </div>
+
+    <h2 class="mt">تفکیک درآمد</h2>
+    <div class="list">
+      <div class="row"><span>موزیک</span><strong>{{ revenue_by_type.music|default:0 }}</strong></div>
+      <div class="row"><span>پادکست</span><strong>{{ revenue_by_type.podcast|default:0 }}</strong></div>
+      <div class="row"><span>کتاب</span><strong>{{ revenue_by_type.book|default:0 }}</strong></div>
+      <div class="row"><span>ویدیو</span><strong>{{ revenue_by_type.video|default:0 }}</strong></div>
+    </div>
+
+    <p class="muted small mt">این داده‌ها فقط برای شما و ادمین قابل مشاهده است.</p>
+  </section>
+
+  <aside class="card">
+    <h2>میانبرها</h2>
+    <div class="list">
+      <div class="row"><a class="btn btn--ghost" href="/upload/">آپلود محتوا</a></div>
+      <div class="row"><a class="btn btn--primary" href="/creator/apply/">کاست بساز پول دربیار</a></div>
+      <div class="row"><a class="btn btn--ghost" href="/library/">کتابخانه</a></div>
+      <div class="row"><a class="btn btn--ghost" href="/settings/">تنظیمات پروفایل</a></div>
+      <div class="row"><a class="btn btn--primary" href="/discover/">کشف</a></div>
+    </div>
+
+    <hr>
+
+    <h3>VIP</h3>
+    <p class="muted small">سقف آپلود رایگان: {{ platform.free_upload_minutes }} دقیقه. (بیشتر = VIP)</p>
+  </aside>
+</div>
+{% endblock %}

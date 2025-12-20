@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Login • Casset{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>ورود</h1>
+  <p class="muted">به اکانتت وارد شو.</p>
+
+  <form method="post" class="list">
+    {% csrf_token %}
+    <div class="item" style="display:block">
+      <div class="muted" style="font-size:12px">Username</div>
+      {{ form.username }}
+    </div>
+    <div class="item" style="display:block">
+      <div class="muted" style="font-size:12px">Password</div>
+      {{ form.password }}
+    </div>
+
+    {% if form.non_field_errors %}
+      <div class="item"><span class="muted">{{ form.non_field_errors }}</span></div>
+    {% endif %}
+
+    <div class="item">
+      <button class="btn primary" type="submit">ورود</button>
+      <a class="btn" href="/register/">ساخت اکانت</a>
+    </div>
+
+    <div class="item" style="gap:8px;flex-wrap:wrap">
+      <a class="btn" href="/phone/">ورود با موبایل (OTP)</a>
+      <a class="btn" href="/google/">ورود با گوگل</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

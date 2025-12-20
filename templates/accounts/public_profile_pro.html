@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}@{{ user_obj.username }} • Casset{% endblock %}
+
+{% block content %}
+<section class="profile-hero">
+  <div class="profile-cover" style="{% if profile.cover %}background-image:url('{{ profile.cover.url }}');{% endif %}">
+    <div class="profile-hero__inner">
+      <div class="profile-avatar">
+        {% if profile.avatar %}
+          <img src="{{ profile.avatar.url }}" alt="{{ profile.public_name }}">
+        {% else %}
+          <div class="avatar-fallback">@</div>
+        {% endif %}
+      </div>
+
+      <div class="profile-meta">
+        <h1 class="profile-name">{{ profile.public_name }}</h1>
+        <div class="profile-handle">@{{ user_obj.username }}</div>
+        {% if profile.bio %}<div class="profile-bio">{{ profile.bio }}</div>{% endif %}
+      </div>
+
+      {% if request.user.is_authenticated and request.user.id != user_obj.id %}
+        <button class="btn btn--primary" data-follow="1" data-creator="{{ user_obj.username }}">
+          Follow <span class="muted" id="followCount">{{ stats.followers }}</span>
+        </button>
+      {% endif %}
+
+      {% if request.user.is_authenticated and request.user.id != user_obj.id %}
+        <form class="profile-report" method="post" action="{% url 'report_profile' username=user_obj.username %}">
+          {% csrf_token %}
+          <input type="hidden" name="reason" value="impersonation">
+          <button class="btn btn--ghost" type="submit">Report</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="profile-tabs">
+    <a class="tab tab--active" href="#all">All</a>
+    <a class="tab" href="#tracks">Tracks</a>
+    <a class="tab" href="#playlists">Playlists</a>
+    <a class="tab" href="#albums">Albums</a>
+    <a class="tab" href="#reposts">Reposts</a>
+  </div>
+</section>
+
+<div class="grid profile-grid">
+  <main class="card" id="all">
+    <div class="profile-stats">
+      <div><div class="muted small">Followers</div><div class="stat">{{ stats.followers }}</div></div>
+      <div><div class="muted small">Following</div><div class="stat">{{ stats.following }}</div></div>
+      <div><div class="muted small">Plays</div><div class="stat">{{ stats.plays }}</div></div>
+      <div><div class="muted small">Likes</div><div class="stat">{{ stats.likes }}</div></div>
+    </div>
+
+    <h2 class="mt">Recent</h2>
+    <div class="track-list">
+      {% for t in tracks %}
+        <div class="track-row">
+          <button class="play-btn" data-play="{{ t.id }}" data-src="{{ t.audio_src }}" data-title="{{ t.title }}" data-cover="{{ t.cover_src }}">▶</button>
+          <div class="track-info">
+            <div class="track-title">{{ t.title }}</div>
+            <div class="muted small">{{ t.created_at|date:"Y-m-d" }} • {{ t.play_count }} plays • {{ t.like_count }} likes</div>
+            <div class="wave-placeholder"></div>
+          </div>
+          <div class="track-actions">
+            <button class="icon-btn" title="Add to queue" data-queue="{{ t.id }}">＋</button>
+            <button class="icon-btn" title="Like" data-like="{{ t.id }}">♥</button>
+          </div>
+        </div>
+      {% empty %}
+        <div class="muted">هیچ محتوایی منتشر نشده.</div>
+      {% endfor %}
+    </div>
+  </main>
+
+  <aside class="card">
+    <h3>Who to follow</h3>
+    <div class="suggested">
+      {% for u in suggested_creators %}
+        <div class="suggest-row">
+          <a href="/@{{ u.username }}/">@{{ u.username }}</a>
+          {% if request.user.is_authenticated and request.user.id != u.id %}
+            <button class="btn btn--ghost btn--sm" data-follow="1" data-creator="{{ u.username }}">Follow</button>
+          {% endif %}
+        </div>
+      {% empty %}
+        <div class="muted small">فعلاً پیشنهادی نداریم.</div>
+      {% endfor %}
+    </div>
+
+    <hr>
+
+    {% if request.user.is_authenticated and request.user.id == user_obj.id %}
+      <h3>Your points</h3>
+      <p class="muted small">این امتیازها فقط برای شما و ادمین نمایش داده می‌شود.</p>
+      <div class="stat">{{ profile.points }}</div>
+    {% endif %}
+  </aside>
+</div>
+
+<style>
+.profile-cover{min-height:220px;background-size:cover;background-position:center;background-color:#2a2a2a;border-radius:16px;padding:18px;}
+.profile-hero__inner{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.profile-avatar{width:96px;height:96px;border-radius:50%;overflow:hidden;background:#111;display:flex;align-items:center;justify-content:center}
+.profile-avatar img{width:100%;height:100%;object-fit:cover}
+.avatar-fallback{font-size:42px;opacity:.7}
+.profile-tabs{display:flex;gap:18px;padding:10px 6px;margin-top:6px}
+.tab{opacity:.7}
+.tab--active{opacity:1;border-bottom:2px solid currentColor;padding-bottom:6px}
+.profile-stats{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px}
+.profile-stats .stat{font-size:22px;font-weight:700}
+.track-row{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.play-btn{width:36px;height:36px;border-radius:50%}
+.wave-placeholder{height:36px;margin-top:8px;border-radius:10px;background:linear-gradient(90deg, rgba(255,255,255,.08), rgba(255,255,255,.03))}
+.icon-btn{background:transparent;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:6px 10px}
+.suggest-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0}
+.btn--sm{padding:6px 10px;font-size:12px}
+.profile-report{margin-left:auto}
+</style>
+{% endblock %}

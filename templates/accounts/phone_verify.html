@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}تایید کد • Casset{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:520px;margin:0 auto">
+  <h1>تایید کد</h1>
+  <p class="muted small">کد ۶ رقمی را وارد کن.</p>
+
+  <form method="post" class="stack gap-2">
+    {% csrf_token %}
+    {{ form.phone_number }}
+    <div>
+      <div class="muted small">کد</div>
+      {{ form.code }}
+    </div>
+    <button class="btn btn--primary" type="submit">ورود</button>
+  </form>
+
+  <p class="muted small" style="margin-top:12px">
+    کد نرسید؟ <a href="/phone/">دوباره درخواست بده</a>
+  </p>
+</section>
+{% endblock %}

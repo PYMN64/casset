@@ -1,0 +1,344 @@
+{% load static %}
+<!doctype html>
+<html lang="fa" dir="rtl" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0a10" />
+  <meta name="play-threshold-seconds" content="59" />
+
+  <title>{% block title %}Casset{% endblock %}</title>
+
+  <link rel="manifest" href="{% static 'manifest.webmanifest' %}">
+  <link rel="apple-touch-icon" href="{% static 'icons/icon.svg' %}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'app.css' %}" />
+  {% block head %}{% endblock %}
+
+  
+  <style>
+    /* ---- Orange Noir tweaks + responsive bottom nav ---- */
+    .bottomnav{display:none}
+    @media (max-width: 920px){
+      .bottomnav{display:flex}
+    }
+
+    /* Text colors: keep text white in BOTH themes.
+       In light theme only header (topbar) text becomes dark for contrast. */
+    html[data-theme="light"]{
+      --text: #ffffff;
+      --muted: rgba(255,255,255,.78);
+    }
+    html[data-theme="light"] .topbar,
+    html[data-theme="light"] .topbar .brand__name,
+    html[data-theme="light"] .topbar .chip__text,
+    html[data-theme="light"] .topbar a,
+    html[data-theme="light"] .topbar button,
+    html[data-theme="light"] .topbar input{
+      color:#0a0712 !important;
+    }
+    html[data-theme="light"] .topbar .icon{ fill:#0a0712 !important; }
+
+    /* RTL/LTR helpers */
+    html[dir="rtl"] .ltr-only{display:none}
+    html[dir="ltr"] .rtl-only{display:none}
+
+    /* Replace scattered inline styles with small utilities */
+    .row-wrap{justify-content:flex-start;gap:10px;flex-wrap:wrap}
+    .row-top{align-items:flex-start;gap:14px}
+
+    /* File input polish */
+    input[type="file"]{
+      width:100%;
+      padding:12px 12px;
+      background: var(--panel, rgba(255,255,255,.04));
+      border: 1px solid rgba(255,147,56,.55);
+      border-radius: 14px;
+      color: var(--text);
+      outline: none;
+    }
+    input[type="file"]::file-selector-button{
+      border: 0;
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin-inline-end: 10px;
+      background: linear-gradient(135deg, rgba(255,147,56,1), rgba(255,185,120,1));
+      color: #090812;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    input[type="file"]::file-selector-button:hover{filter: brightness(1.05)}
+  </style>
+
+  {# Preferred: platform.playback_point_percent (0..100). Fallback: play_award_percent (0..1) #}
+  <meta name="play-threshold-percent" content="{% if platform.playback_point_percent %}{{ platform.playback_point_percent }}{% else %}{{ platform.play_award_percent|default:0.6 }}{% endif %}">
+</head>
+<body>
+  <a class="skiplink" href="#main">رفتن به محتوا</a>
+
+  <!-- SVG icon set -->
+  <svg class="icons" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+    <symbol id="i-search" viewBox="0 0 24 24">
+      <path d="M10.5 3a7.5 7.5 0 1 0 4.7 13.3l4.5 4.4a1 1 0 0 0 1.4-1.4l-4.4-4.5A7.5 7.5 0 0 0 10.5 3zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11z"/>
+    </symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24">
+      <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm3.7 6.3-2 7a1 1 0 0 1-.7.7l-7 2a.6.6 0 0 1-.8-.8l2-7a1 1 0 0 1 .7-.7l7-2a.6.6 0 0 1 .8.8zM10 14l4-4-5 2z"/>
+    </symbol>
+    <symbol id="i-library" viewBox="0 0 24 24">
+      <path d="M6 4h2v16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm4 0h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-8V4zm2 4v2h6V8h-6z"/>
+    </symbol>
+    <symbol id="i-playlist" viewBox="0 0 24 24">
+      <path d="M4 6h12v2H4V6zm0 4h12v2H4v-2zm0 4h8v2H4v-2zm15-2v-2h2v2h2v2h-2v2h-2v-2h-2v-2h2z"/>
+    </symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24">
+      <path d="M12 3l5 5h-3v6h-4V8H7l5-5zm-7 16h14v2H5v-2z"/>
+    </symbol>
+    <symbol id="i-dashboard" viewBox="0 0 24 24">
+      <path d="M4 13h8v8H4v-8zm10-10h6v10h-6V3zM4 3h8v8H4V3zm10 12h6v6h-6v-6z"/>
+    </symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24">
+      <path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.1a1 1 0 0 0 .4-1.3l-2-3.4a1 1 0 0 0-1.2-.4l-2 1a7.8 7.8 0 0 0-1.7-1l-.3-2.2A1 1 0 0 0 13.6 2h-3.2a1 1 0 0 0-1 .8l-.3 2.2a7.8 7.8 0 0 0-1.7 1l-2-1a1 1 0 0 0-1.2.4l-2 3.4a1 1 0 0 0 .4 1.3l2 1.1a7.7 7.7 0 0 0 0 2l-2 1.1a1 1 0 0 0-.4 1.3l2 3.4a1 1 0 0 0 1.2.4l2-1a7.8 7.8 0 0 0 1.7 1l.3 2.2a1 1 0 0 0 1 .8h3.2a1 1 0 0 0 1-.8l.3-2.2a7.8 7.8 0 0 0 1.7-1l2 1a1 1 0 0 0 1.2-.4l2-3.4a1 1 0 0 0-.4-1.3L19.4 13zM12 16a4 4 0 1 1 4-4 4 4 0 0 1-4 4z"/>
+    </symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24">
+      <path d="M12 18a6 6 0 1 1 6-6 6 6 0 0 1-6 6zm0-16h0v3h0V2zm0 17h0v3h0v-3zM4.2 5.6l2.1 2.1-2.1-2.1zm11.6 11.6 2.1 2.1-2.1-2.1zM2 12h3H2zm17 0h3-3zM4.2 18.4l2.1-2.1-2.1 2.1zm11.6-11.6 2.1-2.1-2.1 2.1z"/>
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24">
+      <path d="M21 14.4A8.7 8.7 0 0 1 9.6 3a7.5 7.5 0 1 0 11.4 11.4z"/>
+    </symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 5h2v14H6V5zm12 0v14l-10-7 10-7z"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M16 5h2v14h-2V5zM6 19V5l10 7-10 7z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7V5zm6 0h4v14h-4V5z"/></symbol>
+    <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M17 3h4v4h-2V5.4l-3.6 3.6a2 2 0 0 1-1.4.6H10a2 2 0 0 0-1.4.6L3 15.4V13l4.2-4.2A4 4 0 0 1 10 7h3.6l2.8-2.8H17V3zM3 7h2l4.6 4.6-1.4 1.4L3 7zm14 14h4v-4h-2v1.6l-3.6-3.6a2 2 0 0 0-1.4-.6H10a2 2 0 0 1-1.4-.6L3 8.6V11l4.2 4.2A4 4 0 0 0 10 17h3.6l2.8 2.8H17v1.2z"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M7 7h11V4l4 4-4 4V9H7a3 3 0 0 0-3 3v1H2v-1a5 5 0 0 1 5-5zm10 10H6v3l-4-4 4-4v3h11a3 3 0 0 0 3-3v-1h2v1a5 5 0 0 1-5 5z"/></symbol>
+    <symbol id="i-queue" viewBox="0 0 24 24"><path d="M3 6h14v2H3V6zm0 4h14v2H3v-2zm0 4h10v2H3v-2zm16 0v-2h2v2h2v2h-2v2h-2v-2h-2v-2h2z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z"/></symbol>
+    <symbol id="i-lang" viewBox="0 0 24 24">
+      <path d="M12 2a10 10 0 100 20 10 10 0 000-20Zm7.2 9h-3.02a15.6 15.6 0 00-1.02-4.1A8.03 8.03 0 0119.2 11ZM12 4.1c.83 1.08 1.53 2.78 1.92 4.9H10.1c.39-2.12 1.09-3.82 1.9-4.9ZM4.8 13h3.02c.2 1.47.63 2.9 1.27 4.1A8.03 8.03 0 014.8 13Zm3.02-2H4.8a8.03 8.03 0 014.3-4.1c-.64 1.2-1.07 2.63-1.28 4.1Zm2.28 2h3.82c-.39 2.12-1.1 3.82-1.92 4.9-.82-1.08-1.52-2.78-1.9-4.9Zm3.82-2H10.1c.38-2.12 1.08-3.82 1.9-4.9.83 1.08 1.53 2.78 1.92 4.9Zm1.25 6.1c.64-1.2 1.07-2.63 1.28-4.1h3.02a8.03 8.03 0 01-4.3 4.1Z"/>
+    </symbol>
+</svg>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="brand" href="/" aria-label="Casset">
+        <span class="brand__name">Casset</span><span class="brand__dot" aria-hidden="true"></span>
+      </a>
+
+      <form class="search" action="/search/" method="get" role="search">
+        <button class="iconbtn iconbtn--ghost" type="submit" aria-label="جستجو">
+          <svg class="icon"><use href="#i-search"/></svg>
+        </button>
+        <input class="search__input" type="search" name="q" placeholder="جستجو در موزیک، پادکست، کتاب…" autocomplete="off">
+      </form>
+
+      <div class="topbar__actions">
+        <button class="iconbtn" type="button" id="langToggle" aria-label="Language"><svg class="icon"><use href="#i-lang"/></svg></button><button class="iconbtn iconbtn--ghost" id="themeToggle" type="button" aria-label="تغییر تم">
+          <svg class="icon" id="themeIcon"><use href="#i-moon"/></svg>
+        </button>
+
+        {% if request.user.is_authenticated %}
+          <a class="chip" href="/@{{ request.user.username }}/" title="پروفایل">
+            <svg class="icon"><use href="#i-user"/></svg>
+            <span class="chip__text">@{{ request.user.username }}</span>
+          </a>
+          <a class="btn btn--ghost" href="/logout/">خروج</a>
+        {% else %}
+          <a class="btn btn--ghost" href="/login/">ورود</a>
+          <a class="btn btn--primary" href="/register/">ثبت‌نام</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <div class="appshell">
+    <aside class="sidebar" aria-label="Sidebar">
+      <nav class="sidenav">
+        <a class="sidenav__link" href="/discover/"><svg class="icon"><use href="#i-compass"/></svg><span>کشف</span></a>
+        <a class="sidenav__link" href="/search/"><svg class="icon"><use href="#i-search"/></svg><span>جستجو</span></a>
+        <a class="sidenav__link" href="/library/"><svg class="icon"><use href="#i-library"/></svg><span>کتابخانه</span></a>
+        <a class="sidenav__link" href="/library/#playlists"><svg class="icon"><use href="#i-playlist"/></svg><span>پلی‌لیست‌ها</span></a>
+        <a class="sidenav__link" href="/upload/"><svg class="icon"><use href="#i-upload"/></svg><span>آپلود</span></a>
+        {% if request.user.is_authenticated %}
+          <a class="sidenav__link" href="/dashboard/"><svg class="icon"><use href="#i-dashboard"/></svg><span>داشبورد</span></a>
+          <a class="sidenav__link" href="/settings/"><svg class="icon"><use href="#i-settings"/></svg><span>تنظیمات</span></a>
+        {% endif %}
+      </nav>
+      <div class="sidebar__hint">
+        <div class="muted small">Now Playing</div>
+        <div class="sidebar__np" id="sidebarNowPlaying">—</div>
+      </div>
+    </aside>
+
+    <main id="main" class="page">
+      {% if messages %}
+        <div class="stack gap-2">
+          {% for message in messages %}
+            <div class="alert">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- Player bar -->
+  <div id="playerbar" class="playerbar" style="display:none">
+    <div class="playerbar__inner">
+      <div class="playerbar__left">
+        <div id="pbCover" class="playerbar__cover" aria-hidden="true"></div>
+        <div class="playerbar__meta">
+          <div id="pbTitle" class="playerbar__title">—</div>
+          <div id="pbBy" class="playerbar__by muted">—</div>
+          <div id="pbPos" class="playerbar__pos muted"></div>
+        </div>
+      </div>
+
+      <div class="playerbar__controls">
+        <a class="iconbtn" href="#" id="pbPrev" aria-label="قبلی"><svg class="icon"><use href="#i-prev"/></svg></a>
+        <button class="iconbtn iconbtn--primary" type="button" id="pbPlayPause" aria-label="پخش/توقف">
+          <svg class="icon" id="pbPlayIcon"><use href="#i-play"/></svg>
+        </button>
+        <a class="iconbtn" href="#" id="pbNext" aria-label="بعدی"><svg class="icon"><use href="#i-next"/></svg></a>
+      </div>
+
+      <div class="playerbar__tools">
+        <a class="iconbtn" href="#" id="pbShuffle" aria-label="Shuffle"><svg class="icon"><use href="#i-shuffle"/></svg></a>
+        <a class="iconbtn" href="#" id="pbRepeat" aria-label="Repeat"><svg class="icon"><use href="#i-repeat"/></svg></a>
+        <a class="iconbtn" href="#" id="pbQueue" aria-label="Queue"><svg class="icon"><use href="#i-queue"/></svg></a>
+      </div>
+
+      <audio id="globalAudio" preload="none"></audio>
+    </div>
+  </div>
+
+  <!-- Bottom nav (mobile) -->
+  <nav class="bottomnav" aria-label="Bottom">
+    <a class="bottomnav__link" href="/discover/"><svg class="icon"><use href="#i-compass"/></svg><span>کشف</span></a>
+    <a class="bottomnav__link" href="/search/"><svg class="icon"><use href="#i-search"/></svg><span>جستجو</span></a>
+    <a class="bottomnav__link" href="/library/"><svg class="icon"><use href="#i-library"/></svg><span>کتابخانه</span></a>
+    <a class="bottomnav__link" href="/dashboard/"><svg class="icon"><use href="#i-dashboard"/></svg><span>داشبورد</span></a>
+    <a class="bottomnav__link" href="/accounts/settings/"><svg class="icon"><use href="#i-user"/></svg><span>پروفایل</span></a>
+  </nav>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" style="display:none">
+    <div id="toastInner" class="toast__inner"></div>
+  </div>
+
+  <script src="{% static 'app.js' %}"></script>
+  <script>
+    // Theme toggle (dark/light)
+    (function(){
+      const root = document.documentElement;
+      const btn = document.getElementById("themeToggle");
+      const icon = document.getElementById("themeIcon");
+      function apply(t){
+        root.setAttribute("data-theme", t);
+        try { localStorage.setItem("theme", t); } catch(e){}
+        if(icon){
+          icon.innerHTML = '';
+          const use = document.createElementNS("http://www.w3.org/2000/svg","use");
+          use.setAttribute("href", t === "dark" ? "#i-moon" : "#i-sun");
+          icon.appendChild(use);
+        }
+      }
+      let saved = null;
+      try { saved = localStorage.getItem("theme"); } catch(e){}
+      if(!saved){
+        const prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+        saved = prefersLight ? "light" : "dark";
+      }
+      apply(saved);
+      if(btn){
+        btn.addEventListener("click", ()=>{
+          const cur = root.getAttribute("data-theme") || "dark";
+          apply(cur === "dark" ? "light" : "dark");
+        });
+      }
+    })();
+
+    // Service worker (PWA)
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("{% static 'sw.js' %}").catch(()=>{});
+      });
+    }
+
+    // Global play/pause button sync (playerbar)
+    (function(){
+      const b = document.getElementById("pbPlayPause");
+      const a = document.getElementById("globalAudio");
+      const ic = document.getElementById("pbPlayIcon");
+      const np = document.getElementById("sidebarNowPlaying");
+      if(!b || !a) return;
+      function setIcon(paused){
+        if(!ic) return;
+        ic.innerHTML = '';
+        const use = document.createElementNS("http://www.w3.org/2000/svg","use");
+        use.setAttribute("href", paused ? "#i-play" : "#i-pause");
+        ic.appendChild(use);
+      }
+      function sync(){
+        setIcon(a.paused);
+      }
+      b.addEventListener("click", ()=>{ if(a.paused) a.play().catch(()=>{}); else a.pause(); });
+      a.addEventListener("play", sync);
+      a.addEventListener("pause", sync);
+      a.addEventListener("loadedmetadata", ()=>{
+        sync();
+        if(np){
+          const title = document.getElementById("pbTitle");
+          np.textContent = title ? title.textContent : "—";
+        }
+      });
+      sync();
+    })();
+  </script>
+
+  {% block scripts %}{% endblock %}
+
+  <script>
+    // Simple i18n (FA default) + RTL/LTR toggle
+    (function(){
+      const dict = {
+        fa: {
+          discover:"کشف", search:"جستجو", library:"کتابخانه", dashboard:"داشبورد", profile:"پروفایل",
+          playlists:"پلی‌لیست‌ها", upload:"آپلود", settings:"تنظیمات"
+        },
+        en: {
+          discover:"Discover", search:"Search", album:"Album", library:"Library", dashboard:"Dashboard", profile:"Profile",
+          playlists:"Playlists", upload:"Upload", settings:"Settings"
+        }
+      };
+      function applyLang(lang){
+        const html = document.documentElement;
+        html.lang = lang;
+        html.dir = (lang === "fa") ? "rtl" : "ltr";
+        // swap text
+        document.querySelectorAll("[data-i18n]").forEach(el=>{
+          if(el.closest(".topbar,.sidenav,.bottomnav")) return;
+          const key = el.getAttribute("data-i18n");
+          if(dict[lang] && dict[lang][key]) el.textContent = dict[lang][key];
+        });
+        localStorage.setItem("lang", lang);
+      }
+      const stored = localStorage.getItem("lang") || "fa";
+      applyLang(stored);
+      const btn = document.getElementById("langToggle");
+      if(btn){
+        btn.addEventListener("click", ()=>{
+          const next = (document.documentElement.lang === "fa") ? "en" : "fa";
+          applyLang(next);
+        });
+      }
+    })();
+  </script>
+
+</body>
+</html>

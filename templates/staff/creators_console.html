@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="max-width:1100px;">
+  <h1 style="margin:16px 0;">پنل سازنده‌ها</h1>
+
+  <form method="get" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+    <input type="text" name="q" value="{{ q }}" placeholder="جستجو..." style="flex:1; min-width:260px; padding:10px; border-radius:10px; border:1px solid #ddd;">
+    <select name="status" style="padding:10px; border-radius:10px; border:1px solid #ddd;">
+      <option value="">همه</option>
+      <option value="pending" {% if status == "pending" %}selected{% endif %}>در انتظار بررسی</option>
+      <option value="approved" {% if status == "approved" %}selected{% endif %}>تأیید شده</option>
+    </select>
+    <button class="btn btn-primary" type="submit">اعمال</button>
+  </form>
+
+  <div style="overflow:auto; border:1px solid #eee; border-radius:12px;">
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="background:#fafafa;">
+          <th style="padding:10px; text-align:right;">سازنده</th>
+          <th style="padding:10px; text-align:right;">هندل</th>
+          <th style="padding:10px; text-align:right;">وضعیت</th>
+          <th style="padding:10px; text-align:right;">تعداد محتوا</th>
+          <th style="padding:10px; text-align:right;">پخش معتبر</th>
+          <th style="padding:10px; text-align:right;">جزئیات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in profiles %}
+          <tr style="border-top:1px solid #eee;">
+            <td style="padding:10px;">
+              <div><strong>{{ p.public_name }}</strong></div>
+              <div style="opacity:.7; font-size:12px;">{{ p.user.username }}</div>
+            </td>
+            <td style="padding:10px;">{% if p.public_handle %}<a href="/{{ p.public_handle }}/" target="_blank">/{{ p.public_handle }}/</a>{% else %}-{% endif %}</td>
+            <td style="padding:10px;">{{ p.creator_status }}</td>
+            <td style="padding:10px;">{{ p.tracks_count }}</td>
+            <td style="padding:10px;">{{ p.valid_plays|default:0 }}</td>
+            <td style="padding:10px;"><a class="btn btn-sm btn-outline" href="{% url 'staff:creator_detail' p.user_id %}">مشاهده</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" style="padding:14px;">موردی یافت نشد.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

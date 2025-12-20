@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ track.title }} • Casset{% endblock %}
+{% block content %}
+<div class="grid">
+  <section class="card">
+    <h1>{{ track.title }}</h1>
+    <p class="muted small">
+      by <a href="/artist/{{ track.creator.username }}/"><u>@{{ track.creator.username }}</u></a>
+      • {{ track.play_count }} plays
+    </p>
+
+    {% if track.audio %}
+      <div class="list">
+        <div class="row" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
+          <a class="btn btn--primary" href="#"
+             data-play="1"
+             data-src="{{ track.audio.url }}"
+             data-title="{{ track.title }}"
+             data-by="@{{ track.creator.username }}"
+             data-track="{{ track.id }}"
+             data-cover="{% if track.cover %}<img src='{{ track.cover.url }}' />{% endif %}">
+             Play in bar
+          </a>
+
+          <a class="btn btn--ghost" href="#"
+             data-like="1"
+             data-track="{{ track.id }}">
+             ♥ Like <span class="muted" id="likeCount">{{ track.like_count }}</span>
+          </a>
+
+          <a class="btn btn--ghost" href="#"
+             data-pl-open="1"
+             data-track="{{ track.id }}"
+             data-title="{{ track.title }}">
+             ＋ Playlist
+          </a>
+
+          {% if can_download %}
+            <a class="btn btn--ghost" href="/download/{{ track.id }}/">Download</a>
+          {% endif %}
+        </div>
+
+        <div class="row" style="display:block">
+          <audio controls preload="none" style="width:100%" data-track="{{ track.id }}">
+            <source src="{{ track.audio.url }}" type="audio/mpeg">
+          </audio>
+        </div>
+      </div>
+    {% else %}
+      <div class="row"><span class="muted">Audio فایل ندارد.</span></div>
+    {% endif %}
+
+    {% if track.description %}
+      <h2 style="margin-top:14px">About</h2>
+      <p class="muted">{{ track.description }}</p>
+    {% endif %}
+  </section>
+
+  <aside class="card">
+    <h2>Creator</h2>
+    <div class="list">
+      <div class="row">
+        <div style="min-width:0">
+          <div style="font-weight:900">
+            {{ track.creator.get_full_name|default:track.creator.username }}
+          </div>
+          <div class="muted small">@{{ track.creator.username }}</div>
+        </div>
+        <a class="btn btn--ghost" href="/artist/{{ track.creator.username }}/">View</a>
+      </div>
+
+      <div class="row" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
+        <a class="btn btn--primary" href="/artist/{{ track.creator.username }}/">Profile</a>
+      </div>
+    </div>
+  </aside>
+</div>
+{% endblock %}

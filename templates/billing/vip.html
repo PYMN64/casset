@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}VIP • Casset{% endblock %}
+{% block content %}
+<div class="grid">
+  <section class="card">
+    <h1>VIP</h1>
+    <p class="muted">دانلود + تجربه بهتر</p>
+
+    <div class="list">
+      <div class="item">
+        <span>دانلود ترک‌ها</span>
+        <span class="muted">✅ برای VIP</span>
+      </div>
+      <div class="item">
+        <span>بدون محدودیت</span>
+        <span class="muted">✅</span>
+      </div>
+      <div class="item">
+        <span>کیفیت بهتر (فاز بعد)</span>
+        <span class="muted">⏳</span>
+      </div>
+    </div>
+
+    <div class="item" style="justify-content:flex-start;gap:10px">
+      <a class="btn" href="/tracks/">Browse</a>
+      <a class="btn primary" href="/vip/activate-dev/">فعال‌سازی VIP (Dev)</a>
+    </div>
+  </section>
+
+  <aside class="card">
+    <h2>Status</h2>
+    <div class="list">
+      <div class="item">
+        <span>VIP Active</span>
+        <span class="muted">
+          {% if profile.has_vip %}YES{% else %}NO{% endif %}
+        </span>
+      </div>
+      <div class="item">
+        <span>Until</span>
+        <span class="muted">{{ profile.vip_until|default:"—" }}</span>
+      </div>
+    </div>
+  </aside>
+</div>
+{% endblock %}

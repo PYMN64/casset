@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Casset">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffb44c"></stop>
+      <stop offset="1" stop-color="#ff6a3d"></stop>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="#0b0f14"></rect>
+  <circle cx="256" cy="256" r="170" fill="url(#g)" opacity="0.18"></circle>
+  <path d="M328 180c-22-20-48-30-78-30-26 0-49 7-69 22-20 14-34 33-42 56-8 23-9 47-3 72 6 25 18 46 36 63 19 17 41 28 66 32 25 5 49 4 73-4 24-8 44-22 60-42l-42-30c-8 10-18 18-31 22-13 5-26 6-39 3-13-3-24-9-34-18-9-9-16-20-19-33-3-13-3-26 1-38 4-12 11-22 21-29 10-8 22-12 35-12 16 0 30 5 42 15l23-31z" fill="#ffb44c"></path>
+  <text x="256" y="365" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="44" fill="#e8eef6" opacity="0.9">CASSET</text>
+</svg>

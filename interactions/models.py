@@ -1,0 +1,108 @@
+from django.conf import settings
+from django.db import models
+
+
+class TrackLike(models.Model):
+    """A simple like on a Track."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="track_likes"
+    )
+    track = models.ForeignKey(
+        "tracks.Track", on_delete=models.CASCADE, related_name="likes"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "track"], name="uniq_like_user_track"
+            )
+        ]
+
+
+class CreatorFollow(models.Model):
+    """Follow relation between users."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="following"
+    )
+    creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="followers"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "creator"], name="uniq_follow_user_creator"
+            )
+        ]
+
+
+class TrackFavorite(models.Model):
+    """User saved (favorite) tracks."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="favorites"
+    )
+    track = models.ForeignKey(
+        "tracks.Track", on_delete=models.CASCADE, related_name="favorited_by"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "track"], name="uniq_fav_user_track"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "created_at"], name="fav_user_created"),
+        ]
+
+
+class Comment(models.Model):
+    """Comments on tracks.
+
+    Later we can generalize this to multiple content types, but Track-only keeps
+    MVP stable and prevents migration churn.
+    """
+
+    track = models.ForeignKey(
+        "tracks.Track", on_delete=models.CASCADE, related_name="comments"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="comments"
+    )
+    body = models.TextField(max_length=1500)
+    is_public = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["track", "created_at"], name="cmt_track_created"),
+        ]
+
+    def __str__(self) -> str:
+        return f"Comment#{self.pk} track={self.track_id}"
+
+
+class CommentLike(models.Model):
+    """Likes for comments."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="comment_likes"
+    )
+    comment = models.ForeignKey(
+        "interactions.Comment", on_delete=models.CASCADE, related_name="likes"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "comment"], name="uniq_like_user_comment"
+            )
+        ]

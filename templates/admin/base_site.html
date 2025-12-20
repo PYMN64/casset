@@ -1,0 +1,17 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'app.css' %}">
+  <style>
+    body{ background: #0b0a10 !important; color:#fff !important; }
+    #header{ background: rgba(20,18,29,.92) !important; border-bottom:1px solid rgba(255,147,56,.35); }
+    #header a:link, #header a:visited{ color:#fff !important; }
+    .module h2, .module caption, .inline-group h2{ background: rgba(255,147,56,.14) !important; }
+    .button, input[type=submit], input[type=button], .submit-row input{
+      background: linear-gradient(135deg, #ff9338, #ffb978) !important;
+      border: 0 !important; color:#090812 !important; font-weight:900 !important;
+      border-radius: 12px !important;
+    }
+  </style>
+{% endblock %}

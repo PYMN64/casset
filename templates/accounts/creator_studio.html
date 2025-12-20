@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Creator Studio • Casset{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:900px;margin:0 auto">
+  <h1>Creator Studio</h1>
+  <p class="muted small">مدیریت محتوا، آمار و آماده‌سازی درآمد.</p>
+
+  <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
+    <div class="card" style="padding:14px">
+      <div class="muted small">وضعیت سازنده</div>
+      <div style="font-weight:900;font-size:18px">{{ profile.creator_status }}</div>
+    </div>
+    <div class="card" style="padding:14px">
+      <div class="muted small">میانبرها</div>
+      <div class="row row-wrap">
+        <a class="btn btn--primary" href="/upload/">آپلود محتوا</a>
+        <a class="btn btn--ghost" href="/my/tracks/">ترک‌های من</a>
+        <a class="btn btn--ghost" href="/payout/">درخواست برداشت</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:14px;margin-top:12px">
+    <div class="muted small">آدرس صفحه شما (Shareable)</div>
+    {% if profile.public_handle %}
+      <div style="font-weight:800;font-size:16px">/{{ profile.public_handle }}/</div>
+      <a class="btn btn--ghost" href="/{{ profile.public_handle }}/">مشاهده پروفایل عمومی</a>
+    {% else %}
+      <p class="muted small" style="margin:6px 0 10px">برای اینکه پیج شما با لینک ساده مثل <b>casset.ir/username</b> باز شود، یک یوزرنیم عمومی انتخاب کن.</p>
+      <a class="btn btn--primary" href="/creator/handle/">انتخاب یوزرنیم عمومی</a>
+    {% endif %}
+  </div>
+
+  <div class="card" style="padding:14px;margin-top:12px">
+    <h2 style="margin:0 0 8px">محتوای اخیر</h2>
+    <div class="list">
+      {% for t in tracks %}
+        <div class="item" style="justify-content:space-between">
+          <div>
+            <div style="font-weight:800">{{ t.title }}</div>
+            <div class="muted small">{{ t.content_type }} • {{ t.status }} • {{ t.visibility }} • plays={{ t.play_count }} • likes={{ t.like_count }}</div>
+          </div>
+          <div class="row row-wrap">
+            <a class="btn btn--ghost" href="/my/tracks/{{ t.id }}/edit/">Edit</a>
+            {% if t.status == "draft" or t.status == "rejected" or t.status == "pending" %}
+              <form method="post" action="/my/tracks/{{ t.id }}/submit/" style="display:inline">
+                {% csrf_token %}
+                <button class="btn btn--primary" type="submit">Send</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      {% empty %}
+        <div class="item"><span class="muted">هنوز محتوایی نداری.</span></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card" style="padding:14px;margin-top:12px">
+    <h2 style="margin:0 0 8px">آمار ۳۰ روز اخیر</h2>
+    <div class="list">
+      {% for d in daily %}
+        <div class="item" style="justify-content:space-between">
+          <div class="muted">{{ d.day }}</div>
+          <div>plays: <b>{{ d.plays }}</b> • points: <b>{{ d.points|default:0 }}</b></div>
+        </div>
+      {% empty %}
+        <div class="item"><span class="muted">داده‌ای برای نمایش نیست.</span></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <hr style="margin:16px 0">
+  <a class="btn btn--ghost" href="/dashboard/">بازگشت به داشبورد</a>
+</section>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Tracks • Casset{% endblock %}
+{% block content %}
+<div class="grid">
+  <section class="card">
+    <h1>Tracks</h1>
+    <p class="muted small">آخرین ترک‌های تاییدشده</p>
+
+    <div class="list">
+      {% for t in tracks %}
+        <div class="row">
+          <div style="display:flex;gap:12px;align-items:center;min-width:0">
+            <span class="dot"></span>
+            <div style="min-width:0">
+              <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                {{ t.title }}
+              </a>
+              <div class="muted small">
+                {{ t.play_count }} plays •
+                <a href="/artist/{{ t.creator.username }}/"><u>@{{ t.creator.username }}</u></a>
+              </div>
+            </div>
+          </div>
+
+          {% if t.audio %}
+            <a class="btn btn--primary" href="#"
+               data-play="1"
+               data-src="{{ t.audio.url }}"
+               data-title="{{ t.title }}"
+               data-by="@{{ t.creator.username }}"
+               data-track="{{ t.id }}"
+               data-cover="{% if t.cover %}<img src='{{ t.cover.url }}' />{% endif %}">
+               Play
+            </a>
+          {% endif %}
+        </div>
+      {% empty %}
+        <div class="row"><span class="muted">هیچ ترکی ثبت نشده.</span></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <aside class="card">
+    <h2>Genres</h2>
+    <p class="muted small">فیلتر ساده</p>
+
+    <div class="list">
+      <div class="row">
+        <a class="btn btn--ghost" href="/tracks/">همه</a>
+        {% if active_genre %}<span class="muted small">فعال: {{ active_genre.name }}</span>{% endif %}
+      </div>
+
+      {% for g in genres %}
+        <div class="row">
+          <a class="btn btn--ghost" href="/tracks/?genre={{ g.slug }}">{{ g.name }}</a>
+          <span class="muted small">{{ g.tracks.count }} tracks</span>
+        </div>
+      {% empty %}
+        <div class="row"><span class="muted">ژانری موجود نیست.</span></div>
+      {% endfor %}
+    </div>
+  </aside>
+</div>
+{% endblock %}

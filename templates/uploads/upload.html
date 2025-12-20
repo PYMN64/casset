@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Upload • Casset{% endblock %}
+{% block content %}
+<div class="grid">
+  <section class="card">
+    <h1 data-i18n="upload">آپلود</h1>
+    <p class="muted small">
+      نوع محتوا را انتخاب کن. (سقف رایگان: {{ setting.free_upload_minutes }} دقیقه)
+    </p>
+
+    {% if form.non_field_errors %}
+      <div class="alert">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="stack gap-2" id="uploadForm">
+      {% csrf_token %}
+
+      <label class="muted small">Content type</label>
+      {{ form.content_type }}
+
+      <label class="muted small">Title</label>
+      {{ form.title }}
+
+      <label class="muted small">Description</label>
+      {{ form.description }}
+
+      <div class="row row-wrap">
+        <div style="min-width:180px">
+          <label class="muted small">Language (optional)</label>
+          {{ form.language }}
+        </div>
+        <div style="min-width:180px">
+          <label class="muted small">Explicit</label>
+          {{ form.explicit }}
+        </div>
+        <div style="min-width:200px">
+          <label class="muted small">Visibility</label>
+          {{ form.visibility }}
+        </div>
+      </div>
+
+      <label class="muted small">Album (optional)</label>
+      {{ form.album }}
+
+      <label class="muted small">Genres</label>
+      {{ form.genres }}
+
+      <label class="muted small">Tags</label>
+      {{ form.tags_text }}
+
+      <div class="row row-wrap">
+        <div style="min-width:180px">
+          <label class="muted small">Duration (minutes)</label>
+          {{ form.duration_minutes }}
+          <div class="muted small">برای محاسبه سقف 180 دقیقه.</div>
+        </div>
+        <div style="min-width:180px">
+          <label class="muted small">Allow comments</label>
+          {{ form.allow_comments }}
+        </div>
+      </div>
+
+      <div id="audioBox">
+        <label class="muted small">Audio file</label>
+        {{ form.audio }}
+        {% if form.audio.errors %}<div class="err">{{ form.audio.errors }}</div>{% endif %}
+      </div>
+
+      <div id="videoBox" style="display:none">
+        <label class="muted small">Video file</label>
+        {{ form.video }}
+        {% if form.video.errors %}<div class="err">{{ form.video.errors }}</div>{% endif %}
+      </div>
+
+      <label class="muted small">Cover</label>
+      {{ form.cover }}
+
+      <div class="row row-wrap">
+        <button class="btn btn--primary" type="submit">Save draft</button>
+        <a class="btn btn--ghost" href="/my/tracks/">My Tracks</a>
+      </div>
+    </form>
+  </section>
+
+  <aside class="card">
+    <h2>Note</h2>
+    <ul class="muted small">
+      <li>بعد از ذخیره، محتوا به‌صورت پیش‌نویس ذخیره می‌شود. از صفحه «ترک‌های من» آن را برای بررسی ارسال کن.</li>
+      <li>برای پخش و امتیازدهی، کاربران باید وارد حساب شوند.</li>
+      <li>امتیاز سازنده وقتی ثبت می‌شود که شنونده حداقل {{ setting.playback_point_percent }}٪ از محتوا را پخش کند.</li>
+    </ul>
+  </aside>
+</div>
+
+<script>
+(function(){
+  const ct = document.getElementById("id_content_type");
+  const audioBox = document.getElementById("audioBox");
+  const videoBox = document.getElementById("videoBox");
+  function sync(){
+    const v = ct ? ct.value : "music";
+    if(v === "video"){
+      videoBox.style.display = "";
+      audioBox.style.display = "none";
+    }else{
+      videoBox.style.display = "none";
+      audioBox.style.display = "";
+    }
+  }
+  if(ct){ ct.addEventListener("change", sync); }
+  sync();
+})();
+</script>
+{% endblock %}

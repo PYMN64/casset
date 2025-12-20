@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}ایجاد پروفایل • Casset{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:720px;margin:0 auto">
+  <h1>ایجاد پروفایل</h1>
+  <p class="muted small">برای شروع، چند اطلاعات اولیه را تکمیل کن.</p>
+
+  <form method="post" class="stack gap-2">
+    {% csrf_token %}
+    <div class="row row-top" style="gap:12px;flex-wrap:wrap">
+      <div style="min-width:240px;flex:1">
+        <div class="muted small">نام</div>
+        {{ form.first_name }}
+      </div>
+      <div style="min-width:240px;flex:1">
+        <div class="muted small">نام خانوادگی</div>
+        {{ form.last_name }}
+      </div>
+    </div>
+
+
+    <div class="row row-top" style="gap:12px;flex-wrap:wrap">
+      <div style="min-width:240px;flex:1">
+        <div class="muted small">نام نمایشی</div>
+        {{ form.display_name }}
+      </div>
+      <div style="min-width:240px;flex:1">
+        <div class="muted small">ایمیل</div>
+        {{ form.email }}
+      </div>
+    </div>
+
+    <div>
+      <div class="muted small">علاقه‌مندی برای پیشنهاد محتوا</div>
+      <div class="list" style="margin-top:8px">
+        {% for value,label in form.interests.field.choices %}
+          <label class="row" style="justify-content:flex-start;gap:10px">
+            <input type="checkbox"
+                   name="interests"
+                   value="{{ value }}"
+                   {% if value in selected_interests %}checked{% endif %}
+                   {% if value in disabled_interest_types %}disabled{% endif %}>
+            <span>
+              {{ label }}
+              {% if value in disabled_interest_types %}
+                <span class="muted small">(به‌زودی)</span>
+              {% endif %}
+            </span>
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <hr>
+    <h2 style="margin:0">شبکه‌های اجتماعی</h2>
+
+    <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
+      <div>
+        <div class="muted small">اینستاگرام</div>
+        {{ form.instagram_url }}
+      </div>
+      <div>
+        <div class="muted small">تلگرام</div>
+        {{ form.telegram_url }}
+      </div>
+      <div>
+        <div class="muted small">یوتیوب</div>
+        {{ form.youtube_url }}
+      </div>
+      <div>
+        <div class="muted small">توییتر / X</div>
+        {{ form.twitter_url }}
+      </div>
+    </div>
+
+    <div>
+      <div class="muted small">وبسایت</div>
+      {{ form.website_url }}
+    </div>
+
+    <hr>
+    <div class="row" style="justify-content:flex-end;gap:10px;flex-wrap:wrap">
+      <button class="btn btn--ghost" type="submit" name="next_action" value="viewer">
+        من عضو میشم محتوا ببینم
+      </button>
+      <button class="btn btn--primary" type="submit" name="next_action" value="creator">
+        من عضو میشم محتوا بسازم
+      </button>
+    </div>
+  </form>
+</section>
+{% endblock %}

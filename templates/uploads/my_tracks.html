@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}My Tracks • Casset{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>ترک‌های من</h1>
+  <p class="muted">وضعیت‌ها: draft / submitted / approved / rejected / takedown / blocked</p>
+
+  <div class="item">
+    <a class="btn primary" href="/upload/">Upload new</a>
+    <a class="btn" href="/tracks/">Browse</a>
+  </div>
+
+  <div class="list">
+    {% for t in tracks %}
+      <div class="item" style="flex-direction:column;align-items:stretch">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+          {% if t.status == "approved" and t.visibility != "private" %}
+            <a href="/t/{{ t.slug }}/" style="font-weight:900">{{ t.title }}</a>
+          {% else %}
+            <span style="font-weight:900">{{ t.title }}</span>
+          {% endif %}
+          <span class="muted" style="font-size:12px">
+            Status: <b style="color:var(--text)">{{ t.status }}</b>
+            • Visibility: <b style="color:var(--text)">{{ t.visibility }}</b>
+          </span>
+        </div>
+
+        {% if t.status == "rejected" and t.reject_reason %}
+          <div class="muted" style="font-size:12px">Reject reason: {{ t.reject_reason }}</div>
+        {% endif %}
+
+        <div class="row row-wrap" style="margin-top:8px">
+          <a class="btn btn--ghost" href="/my/tracks/{{ t.id }}/edit/">Edit</a>
+          {% if t.status == "draft" or t.status == "rejected" or t.status == "pending" %}
+            <form method="post" action="/my/tracks/{{ t.id }}/submit/" style="display:inline">
+              {% csrf_token %}
+              <button class="btn btn--primary" type="submit">Send for review</button>
+            </form>
+          {% elif t.status == "submitted" or t.status == "pending" %}
+            <span class="muted small">در صف بررسی</span>
+          {% endif %}
+        </div>
+
+        <div class="muted" style="font-size:12px">
+          {% for g in t.genres.all %}
+            <span style="border:1px solid rgba(255,122,24,.2);padding:2px 8px;border-radius:999px;margin-left:6px;display:inline-block">{{ g.name }}</span>
+          {% empty %}
+            <span>—</span>
+          {% endfor %}
+        </div>
+      </div>
+    {% empty %}
+      <div class="item"><span class="muted">هنوز چیزی آپلود نکردی.</span></div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

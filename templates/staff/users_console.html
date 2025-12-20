@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="max-width:1100px;">
+  <h1 style="margin:16px 0;">پنل کاربران</h1>
+
+  <form method="get" style="display:flex; gap:8px; margin-bottom:16px;">
+    <input type="text" name="q" value="{{ q }}" placeholder="جستجو: یوزرنیم، نام، ایمیل، هندل..." style="flex:1; padding:10px; border-radius:10px; border:1px solid #ddd;">
+    <button class="btn btn-primary" type="submit">جستجو</button>
+  </form>
+
+  <div style="overflow:auto; border:1px solid #eee; border-radius:12px;">
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="background:#fafafa;">
+          <th style="padding:10px; text-align:right;">کاربر</th>
+          <th style="padding:10px; text-align:right;">ایمیل</th>
+          <th style="padding:10px; text-align:right;">تلفن</th>
+          <th style="padding:10px; text-align:right;">Creator</th>
+          <th style="padding:10px; text-align:right;">هندل</th>
+          <th style="padding:10px; text-align:right;">تعداد محتوا</th>
+          <th style="padding:10px; text-align:right;">پخش معتبر</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in profiles %}
+          <tr style="border-top:1px solid #eee;">
+            <td style="padding:10px;">
+              <div><strong>{{ p.public_name }}</strong></div>
+              <div style="opacity:.7; font-size:12px;">{{ p.user.username }}</div>
+            </td>
+            <td style="padding:10px;">{{ p.user.email }}</td>
+            <td style="padding:10px;">{% if p.phone_number %}{{ p.phone_number|slice:":4" }}***{% else %}-{% endif %}</td>
+            <td style="padding:10px;">{{ p.creator_status }}</td>
+            <td style="padding:10px;">{% if p.public_handle %}<a href="/{{ p.public_handle }}/" target="_blank">/{{ p.public_handle }}/</a>{% else %}-{% endif %}</td>
+            <td style="padding:10px;">{{ p.tracks_count }}</td>
+            <td style="padding:10px;">{{ p.valid_plays|default:0 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" style="padding:14px;">کاربری یافت نشد.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

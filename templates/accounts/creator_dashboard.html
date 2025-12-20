@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:16px">
+  <h1 style="margin:0 0 8px 0">داشبورد کریتور</h1>
+  <p style="opacity:.8;margin:0 0 16px 0">بازه: {{ start_key }} تا {{ today_key }}</p>
+
+  <div class="card" style="padding:14px;border-radius:16px;margin-bottom:14px">
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="opacity:.7">Plays (30 روز)</div>
+        <div style="font-size:28px;font-weight:700">{{ total_plays }}</div>
+      </div>
+      <div>
+        <div style="opacity:.7">Unique (تقریبی)</div>
+        <div style="font-size:28px;font-weight:700">{{ total_uniques }}</div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <div style="opacity:.7;margin-bottom:6px">روند Plays</div>
+      <svg viewBox="0 0 300 60" width="100%" height="60" preserveAspectRatio="none">
+        {% with max=1 %}
+        {% for p in series %}{% if p.plays > max %}{% with max=p.plays %}{% endwith %}{% endif %}{% endfor %}
+        {% endwith %}
+        {% comment %} ساده: به جای max با CSS نسبی نمایش می‌دیم {% endcomment %}
+        {% for p in series %}
+          {% with x=forloop.counter0 %}
+          <rect x="{{ x|add:x }}" y="{{ 60|add:-p.plays }}" width="2" height="{{ p.plays }}" opacity="0.6"></rect>
+          {% endwith %}
+        {% endfor %}
+      </svg>
+      <div style="opacity:.6;font-size:12px;margin-top:6px">نکته: Unique بر اساس ip_hash است (MVP).</div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:14px;border-radius:16px">
+    <h2 style="margin:0 0 10px 0;font-size:18px">Top Tracks (30 روز)</h2>
+    {% if top_tracks %}
+      <div style="display:flex;flex-direction:column;gap:10px">
+        {% for t in top_tracks %}
+          <a href="/t/{{ t.track__slug }}/" style="display:flex;justify-content:space-between;gap:12px;text-decoration:none">
+            <div style="font-weight:600">{{ t.track__title }}</div>
+            <div style="opacity:.75">{{ t.plays }} plays • {{ t.uniques }} unique</div>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div style="opacity:.7">هنوز دیتایی برای این بازه نداریم.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

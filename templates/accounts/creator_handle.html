@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}انتخاب یوزرنیم عمومی • Casset{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:720px;margin:0 auto">
+  <h1>انتخاب یوزرنیم عمومی</h1>
+  <p class="muted small">
+    این یوزرنیم برای لینک مستقیم صفحه‌ی شما استفاده می‌شود: <b>casset.ir/username</b>.
+    {% if profile.public_handle %}
+      <br><span class="muted small">یوزرنیم شما قبلاً ثبت شده و قابل تغییر نیست.</span>
+    {% endif %}
+  </p>
+
+  <form method="post" class="stack" style="gap:12px">
+    {% csrf_token %}
+    <div>
+      <label class="label">یوزرنیم عمومی</label>
+      {{ form.public_handle }}
+      {% if form.public_handle.errors %}
+        <div class="error">{{ form.public_handle.errors }}</div>
+      {% endif %}
+      <div class="muted small" style="margin-top:6px">فقط حروف انگلیسی، عدد، _ و - (حداقل ۳ کاراکتر)</div>
+    </div>
+
+    <div class="row" style="display:flex;gap:10px;align-items:center">
+      <button class="btn btn--primary" type="submit">ذخیره</button>
+      <a class="btn btn--ghost" href="/creator/studio/">انصراف</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

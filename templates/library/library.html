@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Library • Casset{% endblock %}
+{% block content %}
+<div class="grid">
+  <section class="card">
+    <h1 data-i18n="album">آلبوم</h1>
+    <p class="muted small">پلی‌لیست‌ها و ذخیره‌ها</p>
+
+    <form class="row" method="post" action="/api/v1/playlist/create/" style="gap:10px;flex-wrap:wrap">
+      {% csrf_token %}
+      <input name="name" placeholder="نام پلی‌لیست جدید…" style="flex:1;min-width:220px" />
+      <button class="btn btn--primary" type="submit">Create</button>
+    </form>
+
+    <div class="list" style="margin-top:12px">
+      {% for p in playlists %}
+        <div class="row">
+          <div style="min-width:0">
+            <a href="/p/{{ p.id }}/" style="font-weight:900">{{ p.name }}</a>
+            <div class="muted small">{{ p.item_count }} tracks</div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <a class="btn btn--ghost" href="/p/{{ p.id }}/">Open</a>
+            <form method="post" action="/api/v1/playlist/delete/" style="margin:0">
+              {% csrf_token %}
+              <input type="hidden" name="playlist_id" value="{{ p.id }}">
+              <button class="btn btn--ghost" type="submit">Delete</button>
+            </form>
+          </div>
+        </div>
+      {% empty %}
+        <div class="row"><span class="muted">پلی‌لیستی نداری.</span></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <aside class="card">
+    <h2>Tip</h2>
+    <p class="muted small">برای افزودن ترک به پلی‌لیست، داخل ترک روی “Playlist +” بزن.</p>
+  </aside>
+</div>
+{% endblock %}

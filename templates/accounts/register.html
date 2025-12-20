@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Register • Casset{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>ثبت‌نام</h1>
+  <p class="muted">یک اکانت بساز. هم شنونده‌ای، هم می‌تونی Creator Mode رو فعال کنی.</p>
+
+  <form method="post" class="list">
+    {% csrf_token %}
+
+    <div class="item" style="display:block">
+      <div class="muted" style="font-size:12px">Username</div>
+      {{ form.username }}
+      <div class="muted" style="font-size:12px">{{ form.username.errors }}</div>
+    </div>
+
+    <div class="item" style="display:block">
+      <div class="muted" style="font-size:12px">Email (optional)</div>
+      {{ form.email }}
+      <div class="muted" style="font-size:12px">{{ form.email.errors }}</div>
+    </div>
+
+    <div class="item" style="display:block">
+      <div class="muted" style="font-size:12px">Password</div>
+      {{ form.password1 }}
+      <div class="muted" style="font-size:12px">{{ form.password1.errors }}</div>
+    </div>
+
+    <div class="item" style="display:block">
+      <div class="muted" style="font-size:12px">Repeat Password</div>
+      {{ form.password2 }}
+      <div class="muted" style="font-size:12px">{{ form.password2.errors }}</div>
+    </div>
+
+    <div class="item">
+      <button class="btn primary" type="submit">ساخت اکانت</button>
+      <a class="btn" href="/login/">ورود</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
