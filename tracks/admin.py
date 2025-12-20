@@ -3,7 +3,19 @@ from .models import Track, Genre, Album
 
 @admin.register(Genre)
 class GenreAdmin(admin.ModelAdmin):
-    search_fields = ('name','slug')
+    list_display = (
+        "id",
+        "name_fa",
+        "name_en",
+        "slug",
+        "content_type",
+        "is_active",
+        "order",
+        "parent",
+    )
+    list_filter = ("content_type", "is_active")
+    search_fields = ("name", "name_fa", "name_en", "slug")
+    ordering = ("content_type", "order", "name_fa")
 
 @admin.register(Album)
 class AlbumAdmin(admin.ModelAdmin):

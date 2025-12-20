@@ -4,15 +4,32 @@ from django.utils.text import slugify
 
 
 class Genre(models.Model):
+    class ContentType(models.TextChoices):
+        MUSIC = "music", "Music"
+        PODCAST = "podcast", "Podcast"
+        AUDIOBOOK = "audiobook", "Audiobook"
+        VIDEO = "video", "Video"
+
     name = models.CharField(max_length=64, unique=True)
     slug = models.SlugField(max_length=80, unique=True)
+    content_type = models.CharField(
+        max_length=16, choices=ContentType.choices, default=ContentType.MUSIC
+    )
+    name_fa = models.CharField(max_length=64, blank=True)
+    name_en = models.CharField(max_length=64, blank=True)
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children"
+    )
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["content_type", "order", "name_fa"]
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name, allow_unicode=True)
+            base_name = self.name or self.name_fa or self.name_en or "genre"
+            self.slug = slugify(base_name, allow_unicode=True)
         super().save(*args, **kwargs)
 
     def __str__(self):
