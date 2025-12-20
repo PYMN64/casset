@@ -3,36 +3,11 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
+    # This migration was superseded by 0010_alter_genre_options_remove_track_author_name_and_more
+    # and later migrations. It is intentionally kept as a no-op to keep the
+    # migration graph consistent without trying to remove non-existent fields.
     dependencies = [
-        ("tracks", "0009_genre_per_content_and_book_format"),
+        ("tracks", "0011_remove_genre_author_name_and_more"),
     ]
 
-    operations = [
-        migrations.RemoveField(
-            model_name="genre",
-            name="book_format",
-        ),
-        migrations.RemoveField(
-            model_name="genre",
-            name="author_name",
-        ),
-        migrations.RemoveField(
-            model_name="genre",
-            name="translator_name",
-        ),
-        migrations.AddField(
-            model_name="track",
-            name="book_format",
-            field=models.CharField(choices=[("text", "Text"), ("audiobook", "Audiobook")], default="text", max_length=16),
-        ),
-        migrations.AddField(
-            model_name="track",
-            name="author_name",
-            field=models.CharField(blank=True, max_length=140),
-        ),
-        migrations.AddField(
-            model_name="track",
-            name="translator_name",
-            field=models.CharField(blank=True, max_length=140),
-        ),
-    ]
+    operations = []
