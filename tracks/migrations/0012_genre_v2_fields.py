@@ -33,36 +33,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name="genre",
-            name="content_type",
-            field=models.CharField(choices=[("music", "Music"), ("podcast", "Podcast"), ("audiobook", "Audiobook"), ("video", "Video")], default="music", max_length=16),
-        ),
-        migrations.AddField(
-            model_name="genre",
-            name="name_fa",
-            field=models.CharField(blank=True, max_length=64),
-        ),
-        migrations.AddField(
-            model_name="genre",
-            name="name_en",
-            field=models.CharField(blank=True, max_length=64),
-        ),
-        migrations.AddField(
-            model_name="genre",
-            name="parent",
-            field=models.ForeignKey(blank=True, null=True, on_delete=models.SET_NULL, related_name="children", to="tracks.genre"),
-        ),
-        migrations.AddField(
-            model_name="genre",
-            name="is_active",
-            field=models.BooleanField(default=True),
-        ),
-        migrations.AddField(
-            model_name="genre",
-            name="order",
-            field=models.PositiveIntegerField(default=0),
-        ),
         migrations.AlterModelOptions(
             name="genre",
             options={"ordering": ["content_type", "order", "name_fa"]},
