@@ -5,7 +5,10 @@ def ensure_genre_name(apps, schema_editor):
     connection = schema_editor.connection
     table_name = apps.get_model("tracks", "Genre")._meta.db_table
     with connection.cursor() as cursor:
-        columns = {col.name for col in connection.introspection.get_table_description(cursor, table_name)}
+        columns = {
+            col.name
+            for col in connection.introspection.get_table_description(cursor, table_name)
+        }
     Genre = apps.get_model("tracks", "Genre")
 
     if "name" not in columns:
@@ -30,6 +33,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="genre",
             name="name",
-            field=models.CharField(max_length=64, unique=True),
+            field=models.CharField(max_length=64, blank=True),
         ),
     ]

@@ -30,6 +30,10 @@ class TrackUploadForm(forms.ModelForm):
         # limit album choices to creator
         if user is not None:
             self.fields['album'].queryset = Album.objects.filter(creator=user)
+        # genre labels: prefer Persian name, then English, then slug
+        self.fields["genres"].label_from_instance = (
+            lambda g: g.name_fa or g.name_en or g.slug
+        )
         # disable unavailable content types based on platform setting
         s = PlatformSetting.get_solo()
         allowed = []

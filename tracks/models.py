@@ -10,7 +10,7 @@ class Genre(models.Model):
         AUDIOBOOK = "audiobook", "Audiobook"
         VIDEO = "video", "Video"
 
-    name = models.CharField(max_length=64, unique=True)
+    name = models.CharField(max_length=64, blank=True)
     slug = models.SlugField(max_length=80, unique=True)
     content_type = models.CharField(
         max_length=16, choices=ContentType.choices, default=ContentType.MUSIC
@@ -33,7 +33,7 @@ class Genre(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return self.name
+        return self.name_fa or self.name or self.name_en or self.slug
 
 
 class Tag(models.Model):
