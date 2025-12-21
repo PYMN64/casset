@@ -1,4 +1,4 @@
-from django.conf import settings
+﻿from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -6,7 +6,7 @@ from django.utils import timezone
 class Plan(models.Model):
     code = models.CharField(max_length=40, unique=True)  # vip_monthly
     name = models.CharField(max_length=80)
-    price_display = models.CharField(max_length=40, default="—")
+    price_display = models.CharField(max_length=40, default="N/A")
     is_active = models.BooleanField(default=True)
 
     def __str__(self):

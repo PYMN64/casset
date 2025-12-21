@@ -22,6 +22,11 @@ class PlatformSetting(models.Model):
     free_upload_minutes = models.PositiveIntegerField(default=180)
     creator_daily_upload_limit = models.PositiveIntegerField(default=20)
 
+    # Monetization thresholds
+    min_payout_amount = models.PositiveIntegerField(default=0)
+    min_payout_points_30d = models.PositiveIntegerField(default=0)
+    min_valid_plays_30d = models.PositiveIntegerField(default=0)
+
     # Points awarding threshold
     # Legacy (0.0 - 1.0)
     play_award_percent = models.FloatField(default=0.60)

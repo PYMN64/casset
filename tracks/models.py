@@ -1,22 +1,63 @@
 from django.conf import settings
 from django.db import models
 from django.utils.text import slugify
+from django.utils.translation import get_language
 
 
 class Genre(models.Model):
-    name = models.CharField(max_length=64, unique=True)
+    class ContentType(models.TextChoices):
+        MUSIC = "music", "Music"
+        PODCAST = "podcast", "Podcast"
+        AUDIOBOOK = "book", "Book"
+        VIDEO = "video", "Video"
+
+    name_fa = models.CharField(max_length=64)
+    name_en = models.CharField(max_length=64, blank=True)
     slug = models.SlugField(max_length=80, unique=True)
+    content_type = models.CharField(
+        max_length=16,
+        choices=ContentType.choices,
+        default=ContentType.MUSIC,
+    )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="children",
+    )
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+    author_name = models.CharField(max_length=140, blank=True)
+    translator_name = models.CharField(max_length=140, blank=True)
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["content_type", "order", "name_fa"]
+        indexes = [
+            models.Index(
+                fields=["content_type", "is_active", "parent", "order"],
+                name="tracks_genr_content_db8b6c_idx",
+            ),
+        ]
+
+    def display_name(self, lang: str | None = None) -> str:
+        lang = lang or get_language() or ""
+        if lang.lower().startswith("en"):
+            return self.name_en or self.name_fa
+        return self.name_fa or self.name_en
+
+    @property
+    def name(self) -> str:
+        return self.display_name()
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name, allow_unicode=True)
+            base = self.name_en or self.name_fa or "genre"
+            self.slug = slugify(base, allow_unicode=True)
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return self.name
+        return self.display_name()
 
 
 class Tag(models.Model):
@@ -47,7 +88,7 @@ class Album(models.Model):
     class ContentType(models.TextChoices):
         MUSIC = 'music', 'Music'
         PODCAST = 'podcast', 'Podcast'
-        AUDIOBOOK = 'audiobook', 'Audiobook'
+        AUDIOBOOK = 'book', 'Book'
         VIDEO = 'video', 'Video'
 
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='albums')
@@ -68,7 +109,7 @@ class Track(models.Model):
     class ContentType(models.TextChoices):
         MUSIC = 'music', 'Music'
         PODCAST = 'podcast', 'Podcast'
-        AUDIOBOOK = 'audiobook', 'Audiobook'
+        AUDIOBOOK = 'book', 'Book'
         VIDEO = 'video', 'Video'
 
     class Status(models.TextChoices):
@@ -117,6 +158,11 @@ class Track(models.Model):
     def audio_src(self):
         return self.audio.url if self.audio else ""
 
+    @property
+    def content_type_label(self) -> str:
+        if self.content_type == Track.ContentType.AUDIOBOOK:
+            return "Audiobook"
+        return self.get_content_type_display()
 
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
     reject_reason = models.CharField(max_length=240, blank=True)

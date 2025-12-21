@@ -1,23 +1,23 @@
-{% extends "base.html" %}
-{% block title %}تایید کد • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Verify Phone | Casset{% endblock %}
 
 {% block content %}
 <section class="card" style="max-width:520px;margin:0 auto">
-  <h1>تایید کد</h1>
-  <p class="muted small">کد ۶ رقمی را وارد کن.</p>
+  <h1>Verify code</h1>
+  <p class="muted small">Enter the 6-digit code we sent.</p>
 
   <form method="post" class="stack gap-2">
     {% csrf_token %}
     {{ form.phone_number }}
     <div>
-      <div class="muted small">کد</div>
+      <div class="muted small">Code</div>
       {{ form.code }}
     </div>
-    <button class="btn btn--primary" type="submit">ورود</button>
+    <button class="btn btn--primary" type="submit">Verify</button>
   </form>
 
   <p class="muted small" style="margin-top:12px">
-    کد نرسید؟ <a href="/phone/">دوباره درخواست بده</a>
+    Didn't get a code? <a href="/phone/">Request a new code</a>
   </p>
 </section>
 {% endblock %}

@@ -1,12 +1,12 @@
-{% extends "base.html" %}
-{% block title %}Edit • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Edit Track | Casset{% endblock %}
 {% block content %}
 <div class="card">
-  <h1>ویرایش محتوا</h1>
-  <p class="muted small">{{ track.title }} — وضعیت فعلی: <b>{{ track.status }}</b></p>
+  <h1>Edit track</h1>
+  <p class="muted small">{{ track.title }} • status: <b>{{ track.status }}</b></p>
 
   {% if track.status == "rejected" and track.reject_reason %}
-    <div class="alert">رد شده: {{ track.reject_reason }}</div>
+    <div class="alert">Reject reason: {{ track.reject_reason }}</div>
   {% endif %}
 
   {% if form.non_field_errors %}
@@ -17,7 +17,16 @@
     {% csrf_token %}
 
     <label class="muted small">Content type</label>
-    {{ form.content_type }}
+    <select name="content_type" id="id_content_type">
+      {% for value,label in form.content_type.field.choices %}
+        <option value="{{ value }}"
+                {% if value == form.content_type.value %}selected{% endif %}
+                {% if value in disabled_content_types and value != form.content_type.value %}disabled{% endif %}>
+          {{ label }}{% if value in disabled_content_types and value != form.content_type.value %} (coming soon){% endif %}
+        </option>
+      {% endfor %}
+    </select>
+    {% if form.content_type.errors %}<div class="err">{{ form.content_type.errors }}</div>{% endif %}
 
     <label class="muted small">Title</label>
     {{ form.title }}

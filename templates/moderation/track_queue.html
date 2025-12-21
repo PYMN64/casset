@@ -1,9 +1,9 @@
-{% extends "base.html" %}
-{% block title %}Moderation • Tracks{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Moderation | Tracks{% endblock %}
 {% block content %}
 <div class="card">
-  <h1>صف بررسی محتوا</h1>
-  <p class="muted small">فقط برای ادمین/استاف</p>
+  <h1>Track moderation queue</h1>
+  <p class="muted small">Review submitted tracks and approve or reject.</p>
 
   <div class="list">
     {% for t in tracks %}
@@ -11,7 +11,7 @@
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
           <div>
             <div style="font-weight:900">{{ t.title }}</div>
-            <div class="muted small">Creator: {{ t.creator.username }} • {{ t.content_type }} • {{ t.status }}</div>
+            <div class="muted small">Creator: {{ t.creator.username }} • {{ t.content_type_label }} • {{ t.status }}</div>
           </div>
           <div class="row row-wrap">
             <form method="post" action="/moderation/tracks/{{ t.id }}/approve/">
@@ -20,7 +20,7 @@
             </form>
             <form method="post" action="/moderation/tracks/{{ t.id }}/reject/" class="row row-wrap" style="gap:6px">
               {% csrf_token %}
-              <input type="text" name="reason" placeholder="دلیل رد" style="min-width:180px">
+              <input type="text" name="reason" placeholder="Reason" style="min-width:180px">
               <button class="btn" type="submit">Reject</button>
             </form>
           </div>
@@ -28,7 +28,7 @@
         <div class="muted small" style="margin-top:8px">{{ t.description|default:"" }}</div>
       </div>
     {% empty %}
-      <div class="item"><span class="muted">هیچ محتوای در صفی وجود ندارد.</span></div>
+      <div class="item"><span class="muted">No pending submissions.</span></div>
     {% endfor %}
   </div>
 </div>

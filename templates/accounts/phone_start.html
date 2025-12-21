@@ -1,24 +1,24 @@
-{% extends "base.html" %}
-{% block title %}ورود با موبایل • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Phone Login | Casset{% endblock %}
 
 {% block content %}
 <section class="card" style="max-width:520px;margin:0 auto">
-  <h1>ورود با شماره موبایل</h1>
-  <p class="muted small">کد یک‌بارمصرف برایت ارسال می‌شود.</p>
+  <h1>Login with phone</h1>
+  <p class="muted small">We will send a one-time code to your phone.</p>
 
   <form method="post" class="stack gap-2">
     {% csrf_token %}
     <div>
-      <div class="muted small">شماره موبایل</div>
+      <div class="muted small">Phone number</div>
       {{ form.phone_number }}
     </div>
-    <button class="btn btn--primary" type="submit">ارسال کد</button>
+    <button class="btn btn--primary" type="submit">Send code</button>
   </form>
 
   <hr style="margin:16px 0">
-  <div class="row" style="justify-content:space-between;gap:10px;flex-wrap:wrap">
-    <a class="btn btn--ghost" href="/login/">ورود با نام کاربری</a>
-    <a class="btn btn--ghost" href="/google/">ورود با گوگل</a>
+  <div class="row row-wrap" style="justify-content:space-between">
+    <a class="btn btn--ghost" href="/login/">Back to login</a>
+    <a class="btn btn--ghost" href="/google/">Login with Google</a>
   </div>
 </section>
 {% endblock %}

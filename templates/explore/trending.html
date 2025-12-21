@@ -1,42 +1,19 @@
-{% extends "base.html" %}
-{% block title %}Trending • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Trending | Casset{% endblock %}
 {% block content %}
-<div class="grid">
-  <section class="card">
-    <h1>Trending</h1>
-    <p class="muted small">پر پخش‌ترین‌ها در بازه اخیر</p>
-
-    <div class="list">
-      {% for t in tracks %}
-        <div class="row">
-          <div style="min-width:0">
-            <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              {{ forloop.counter }}. {{ t.title }}
-            </a>
-            <div class="muted small">@{{ t.creator.username }} • {{ t.play_count }} plays</div>
-          </div>
-
-          {% if t.audio %}
-            <a class="btn btn--primary" href="#"
-               data-play="1"
-               data-src="{{ t.audio.url }}"
-               data-title="{{ t.title }}"
-               data-by="@{{ t.creator.username }}"
-               data-track="{{ t.id }}"
-               data-cover="{% if t.cover %}<img src='{{ t.cover.url }}' />{% endif %}">
-               Play
-            </a>
-          {% endif %}
+<div class="card">
+  <h1>Trending</h1>
+  <div class="list">
+    {% for t in trending_tracks %}
+      <div class="row">
+        <div style="min-width:0">
+          <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</a>
+          <div class="muted small">@{{ t.creator.username }} • {{ t.play_count }} plays</div>
         </div>
-      {% empty %}
-        <div class="row"><span class="muted">Trending خالیه.</span></div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <aside class="card">
-    <h2>Tips</h2>
-    <p class="muted small">پخش بعد از 59 ثانیه ثبت می‌شود.</p>
-  </aside>
+      </div>
+    {% empty %}
+      <div class="row"><span class="muted">No trending tracks.</span></div>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}

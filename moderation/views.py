@@ -1,7 +1,8 @@
-from datetime import date
+﻿from datetime import date
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.http import JsonResponse, Http404
 from django.shortcuts import get_object_or_404, render, redirect
 from django.views.decorators.http import require_POST
@@ -9,6 +10,7 @@ from django.core.cache import cache
 from django.utils import timezone
 
 from tracks.models import Track
+from plays.models import FraudFlag
 
 from .models import Report, AuditLog
 
@@ -25,17 +27,27 @@ def _report_rate_limited(user_id: int, target_key: str) -> bool:
     return False
 
 
+def _wants_json(request) -> bool:
+    accept = (request.headers.get("accept") or "").lower()
+    return request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in accept
+
+
 @require_POST
 @login_required
 def report_profile(request, username: str):
-    # allow reporting even if username exists; we also store reported_username for claims
     target = get_object_or_404(User, username=username)
     if target.id == request.user.id:
-        return JsonResponse({'ok': False, 'error': 'cannot_report_self'}, status=400)
+        if _wants_json(request):
+            return JsonResponse({'ok': False, 'error': 'cannot_report_self'}, status=400)
+        messages.error(request, "You cannot report yourself.")
+        return redirect(request.META.get("HTTP_REFERER", "/"))
 
     target_key = f"profile:{target.id}"
     if _report_rate_limited(request.user.id, target_key):
-        return JsonResponse({'ok': False, 'error': 'rate_limited'}, status=429)
+        if _wants_json(request):
+            return JsonResponse({'ok': False, 'error': 'rate_limited'}, status=429)
+        messages.error(request, "You have already reported this profile today.")
+        return redirect(request.META.get("HTTP_REFERER", "/"))
 
     reason = request.POST.get('reason') or Report.Reason.IMPERSONATION
     details = request.POST.get('details','')
@@ -48,7 +60,11 @@ def report_profile(request, username: str):
         reason=reason,
         details=details,
     )
-    return JsonResponse({'ok': True})
+
+    if _wants_json(request):
+        return JsonResponse({'ok': True})
+    messages.success(request, "Report submitted.")
+    return redirect(request.META.get("HTTP_REFERER", "/"))
 
 
 @require_POST
@@ -57,7 +73,11 @@ def report_track(request, track_id: int):
     track = get_object_or_404(Track, id=track_id)
     target_key = f"track:{track.id}"
     if _report_rate_limited(request.user.id, target_key):
-        return JsonResponse({'ok': False, 'error': 'rate_limited'}, status=429)
+        if _wants_json(request):
+            return JsonResponse({'ok': False, 'error': 'rate_limited'}, status=429)
+        messages.error(request, "You have already reported this track today.")
+        return redirect(request.META.get("HTTP_REFERER", "/"))
+
     reason = request.POST.get('reason') or Report.Reason.OTHER
     details = request.POST.get('details','')
     Report.objects.create(
@@ -67,7 +87,10 @@ def report_track(request, track_id: int):
         reason=reason,
         details=details,
     )
-    return JsonResponse({'ok': True})
+    if _wants_json(request):
+        return JsonResponse({'ok': True})
+    messages.success(request, "Report submitted.")
+    return redirect(request.META.get("HTTP_REFERER", "/"))
 
 
 def _staff_required(request):
@@ -88,7 +111,6 @@ def approve_track(request, track_id: int):
     track.status = Track.Status.APPROVED
     track.reject_reason = ""
     track.published_at = timezone.now()
-    # default to public when approved if still private
     if track.visibility == Track.Visibility.PRIVATE:
         track.visibility = Track.Visibility.PUBLIC
     track.save(update_fields=['status','reject_reason','published_at','visibility'])
@@ -102,7 +124,7 @@ def reject_track(request, track_id: int):
     track = get_object_or_404(Track, id=track_id)
     reason = (request.POST.get('reason') or '').strip()[:240]
     track.status = Track.Status.REJECTED
-    track.reject_reason = reason or "رد شد"
+    track.reject_reason = reason or "Rejected"
     track.save(update_fields=['status','reject_reason'])
     AuditLog.objects.create(actor=request.user, target_type=AuditLog.TargetType.TRACK, track=track, action='reject_track', metadata={'reason': track.reject_reason})
     return redirect('moderation_track_queue')
@@ -112,3 +134,9 @@ def report_queue(request):
     _staff_required(request)
     qs = Report.objects.all().select_related('reporter','track','target_user').order_by('-created_at')
     return render(request, 'moderation/report_queue.html', {'reports': qs[:200]})
+
+
+def fraud_queue(request):
+    _staff_required(request)
+    qs = FraudFlag.objects.select_related('user', 'track').order_by('-created_at')
+    return render(request, 'moderation/fraud_queue.html', {'flags': qs[:200]})

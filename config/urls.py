@@ -28,6 +28,7 @@ from accounts import views as accounts_views
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("accounts.urls")),
+    path("accounts/", include("accounts.urls")),
     path("", include("tracks.urls")),
     path("", include("uploads.urls")),
     path("", include("plays.urls")),
@@ -35,7 +36,7 @@ urlpatterns = [
     path("", include("playlists.urls")),
     path("", include("explore.urls")),
     path("", include("billing.urls")),
-    path("", include("subscriptions.urls")),
+    path("subscriptions/", include("subscriptions.urls")),
     path("", include("moderation.urls")),
     # IMPORTANT: Keep this at the VERY END so it doesn't shadow real routes.
     path("<slug:handle>/", accounts_views.public_profile_by_handle, name="public_profile_by_handle"),

@@ -1,19 +1,19 @@
-from datetime import date
+﻿from datetime import date
 
 from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.http import JsonResponse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from tracks.models import Track
-from accounts.models import UserProfile  # ✅ فقط همینجا از accounts می‌گیریم
-from .models import PlayEvent, FraudFlag
-from .utils import ip_hash, ua_hash
+from accounts.models import UserProfile
 from core.models import PlatformSetting
+from tracks.models import Track
+from .models import DailyTrackStat, FraudFlag, PlayEvent
+from .utils import ip_hash, ua_hash
 
 
 def _rate_limited(request) -> bool:
-    # خیلی سبک: هر IP در 10 ثانیه حداکثر 5 درخواست play
     try:
         from django.core.cache import cache
     except Exception:
@@ -27,15 +27,26 @@ def _rate_limited(request) -> bool:
     return False
 
 
+def _is_track_playable(track: Track, user) -> bool:
+    if track.status != Track.Status.APPROVED:
+        return False
+    if track.visibility == Track.Visibility.PRIVATE and track.creator_id != getattr(user, "id", None):
+        return False
+    return True
+
+
 @require_POST
 def register_play(request):
     if not request.user.is_authenticated:
         return JsonResponse({"ok": False, "error": "auth_required"}, status=401)
 
     if _rate_limited(request):
-        # log a soft fraud signal
         try:
-            FraudFlag.objects.create(user=request.user, flag_type=FraudFlag.FlagType.PLAY_BURST, score=1)
+            FraudFlag.objects.create(
+                user=request.user,
+                flag_type=FraudFlag.FlagType.PLAY_BURST,
+                score=1,
+            )
         except Exception:
             pass
         return JsonResponse({"ok": False, "error": "rate_limited"}, status=429)
@@ -50,6 +61,8 @@ def register_play(request):
         return JsonResponse({"ok": False, "error": "track_not_found"}, status=404)
 
     user = request.user
+    if not _is_track_playable(track, user):
+        return JsonResponse({"ok": False, "error": "not_allowed"}, status=403)
 
     iph = ip_hash(request)
     uah = ua_hash(request)
@@ -66,11 +79,28 @@ def register_play(request):
                 day_key=day_key,
             )
             Track.objects.filter(id=track.id).update(play_count=F("play_count") + 1)
+            DailyTrackStat.objects.update_or_create(
+                track=track,
+                day=timezone.now().date(),
+                defaults={},
+            )
+            DailyTrackStat.objects.filter(track=track, day=timezone.now().date()).update(
+                plays=F("plays") + 1,
+                unique_plays=F("unique_plays") + 1,
+            )
             created = True
-            # Points awarding is handled via progress endpoint (>= threshold).
-
     except IntegrityError:
         created = False
+        try:
+            FraudFlag.objects.create(
+                user=user,
+                track=track,
+                flag_type=FraudFlag.FlagType.REPEATED_IP,
+                score=1,
+                note="duplicate play per ip/day",
+            )
+        except Exception:
+            pass
 
     track.refresh_from_db(fields=["play_count"])
     return JsonResponse({"ok": True, "counted": created, "play_count": track.play_count})
@@ -78,10 +108,7 @@ def register_play(request):
 
 @require_POST
 def register_progress(request):
-    """Award 1 point to creator when listener reaches threshold percent.
-
-    Frontend should call this once per play when progress >= threshold.
-    """
+    """Award 1 point to creator when listener reaches threshold percent."""
     if not request.user.is_authenticated:
         return JsonResponse({"ok": False, "error": "auth_required"}, status=401)
 
@@ -97,10 +124,8 @@ def register_progress(request):
     setting = PlatformSetting.get_solo()
     threshold = float(setting.playback_threshold_ratio())
 
-    # Frontend may send 0..1 ratio or 0..100 percent. Normalize.
     if progress > 1.0:
         progress = progress / 100.0
-
     if progress < threshold:
         return JsonResponse({"ok": True, "awarded": False})
 
@@ -108,22 +133,38 @@ def register_progress(request):
         track = Track.objects.select_related("creator").get(id=track_id)
     except Track.DoesNotExist:
         return JsonResponse({"ok": False, "error": "track_not_found"}, status=404)
+    if not _is_track_playable(track, request.user):
+        return JsonResponse({"ok": False, "error": "not_allowed"}, status=403)
 
     iph = ip_hash(request)
     day_key = date.today().isoformat()
 
-    # Find existing play event for this user/ip/day
     pe = PlayEvent.objects.filter(track=track, ip_hash=iph, day_key=day_key).first()
     if not pe:
         return JsonResponse({"ok": False, "error": "play_not_registered"}, status=409)
 
+    if PlayEvent.objects.filter(
+        track=track,
+        user=request.user,
+        day_key=day_key,
+        point_awarded=True,
+    ).exists():
+        return JsonResponse({"ok": True, "awarded": False})
+
     if pe.point_awarded:
         return JsonResponse({"ok": True, "awarded": False})
 
-    # Award to creator only
     with transaction.atomic():
         updated = PlayEvent.objects.filter(id=pe.id, point_awarded=False).update(point_awarded=True)
         if updated:
             UserProfile.objects.filter(user=track.creator).update(points=F("points") + 1)
+            DailyTrackStat.objects.update_or_create(
+                track=track,
+                day=timezone.now().date(),
+                defaults={},
+            )
+            DailyTrackStat.objects.filter(track=track, day=timezone.now().date()).update(
+                points_awarded=F("points_awarded") + 1,
+            )
 
     return JsonResponse({"ok": True, "awarded": bool(updated)})

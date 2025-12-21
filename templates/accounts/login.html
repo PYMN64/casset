@@ -1,33 +1,33 @@
-{% extends "base.html" %}
-{% block title %}Login • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Login | Casset{% endblock %}
 {% block content %}
-<div class="card">
-  <h1>ورود</h1>
-  <p class="muted">به اکانتت وارد شو.</p>
+<div class="card" style="max-width:520px;margin:0 auto">
+  <h1>Login</h1>
+  <p class="muted">Sign in with your username, phone, or Google.</p>
 
-  <form method="post" class="list">
+  <form method="post" class="stack gap-2">
     {% csrf_token %}
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Username</div>
+    <div>
+      <div class="muted small">Username</div>
       {{ form.username }}
     </div>
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Password</div>
+    <div>
+      <div class="muted small">Password</div>
       {{ form.password }}
     </div>
 
     {% if form.non_field_errors %}
-      <div class="item"><span class="muted">{{ form.non_field_errors }}</span></div>
+      <div class="alert">{{ form.non_field_errors }}</div>
     {% endif %}
 
-    <div class="item">
-      <button class="btn primary" type="submit">ورود</button>
-      <a class="btn" href="/register/">ساخت اکانت</a>
+    <div class="row row-wrap">
+      <button class="btn btn--primary" type="submit">Login</button>
+      <a class="btn btn--ghost" href="/register/">Create account</a>
     </div>
 
-    <div class="item" style="gap:8px;flex-wrap:wrap">
-      <a class="btn" href="/phone/">ورود با موبایل (OTP)</a>
-      <a class="btn" href="/google/">ورود با گوگل</a>
+    <div class="row row-wrap">
+      <a class="btn btn--ghost" href="/phone/">Login with phone (OTP)</a>
+      <a class="btn btn--ghost" href="/google/">Login with Google</a>
     </div>
   </form>
 </div>

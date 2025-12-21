@@ -1,22 +1,35 @@
-{% extends "base.html" %}
-{% block title %}Payout • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Payouts | Casset{% endblock %}
 {% block content %}
 <div class="card">
-  <h1>درخواست برداشت</h1>
-  <p class="muted small">این بخش برای آماده‌سازی درآمد است؛ فعلاً اتصال بانکی فعال نیست.</p>
+  <h1>Payouts</h1>
+  <p class="muted small">Request payouts once you meet eligibility thresholds.</p>
 
   <div class="item">
-    <div class="muted">امتیاز فعلی:</div>
+    <div class="muted">Points balance:</div>
     <div style="font-weight:900">{{ profile.points }}</div>
   </div>
+  <p class="muted small">Minimum payout: {{ setting.min_payout_amount }}</p>
+
+  {% if not eligible %}
+    <div class="alert">You are not eligible for payouts yet.</div>
+  {% endif %}
 
   <form method="post" action="/payout/request/" class="row row-wrap" style="margin-top:12px">
     {% csrf_token %}
-    <input type="number" name="amount" placeholder="مبلغ برداشت" min="1" style="min-width:220px" required>
-    <button class="btn btn--primary" type="submit">ثبت درخواست</button>
+    <input type="number" name="amount" placeholder="Amount" min="1" style="min-width:220px" {% if not eligible %}disabled{% endif %} required>
+    <button class="btn btn--primary" type="submit" {% if not eligible %}disabled{% endif %}>Request payout</button>
   </form>
 
-  <h2 style="margin-top:18px">سوابق</h2>
+  <hr style="margin:16px 0">
+  <h2>KYC (coming soon)</h2>
+  <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
+    <input type="text" placeholder="Full legal name" disabled>
+    <input type="text" placeholder="National ID" disabled>
+    <input type="text" placeholder="Bank IBAN" disabled>
+  </div>
+
+  <h2 style="margin-top:18px">History</h2>
   <div class="list">
     {% for p in payouts %}
       <div class="item" style="justify-content:space-between">
@@ -27,7 +40,7 @@
         <div class="muted">{{ p.status }}</div>
       </div>
     {% empty %}
-      <div class="item"><span class="muted">هنوز درخواستی ثبت نکردی.</span></div>
+      <div class="item"><span class="muted">No payouts yet.</span></div>
     {% endfor %}
   </div>
 </div>

@@ -1,14 +1,14 @@
-{% extends "base.html" %}
-{% block title %}Library • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Library | Casset{% endblock %}
 {% block content %}
 <div class="grid">
   <section class="card">
-    <h1 data-i18n="album">آلبوم</h1>
-    <p class="muted small">پلی‌لیست‌ها و ذخیره‌ها</p>
+    <h1 data-i18n="library">Library</h1>
+    <p class="muted small">Your playlists and saved tracks.</p>
 
     <form class="row" method="post" action="/api/v1/playlist/create/" style="gap:10px;flex-wrap:wrap">
       {% csrf_token %}
-      <input name="name" placeholder="نام پلی‌لیست جدید…" style="flex:1;min-width:220px" />
+      <input name="name" placeholder="New playlist name..." style="flex:1;min-width:220px" />
       <button class="btn btn--primary" type="submit">Create</button>
     </form>
 
@@ -29,14 +29,15 @@
           </div>
         </div>
       {% empty %}
-        <div class="row"><span class="muted">پلی‌لیستی نداری.</span></div>
+        <div class="row"><span class="muted">No playlists yet.</span></div>
       {% endfor %}
     </div>
   </section>
 
   <aside class="card">
     <h2>Tip</h2>
-    <p class="muted small">برای افزودن ترک به پلی‌لیست، داخل ترک روی “Playlist +” بزن.</p>
+    <p class="muted small">Open any track and use “Add to playlist”.</p>
   </aside>
 </div>
 {% endblock %}
+

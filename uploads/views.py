@@ -1,9 +1,9 @@
-from django.contrib import messages
+﻿from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import models
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.db import models
 
 from core.models import PlatformSetting
 from tracks.models import Track
@@ -11,51 +11,78 @@ from .forms import TrackUploadForm
 
 
 def ensure_creator_profile(user):
-    """Ensure the user has a profile.
-
-    NOTE: We no longer auto-approve/enable creator mode here. Creator state
-    is managed via the dedicated creator flow.
-    """
     profile = getattr(user, "profile", None)
     if profile is None:
         from accounts.models import UserProfile
+
         profile, _ = UserProfile.objects.get_or_create(user=user)
     return profile
 
 
 @login_required
 def upload_track(request):
-    ensure_creator_profile(request.user)
+    profile = ensure_creator_profile(request.user)
 
     setting = PlatformSetting.get_solo()
     form = TrackUploadForm(request.POST or None, request.FILES or None, user=request.user)
 
-    if request.method == "POST":
-        if form.is_valid():
-            track = form.save(commit=False)
-            track.creator = request.user
+    if request.method == "POST" and form.is_valid():
+        track = form.save(commit=False)
+        track.creator = request.user
+        track.status = Track.Status.DRAFT
+        track.reject_reason = ""
 
-            # Always start as draft. Creator can submit for review.
-            track.status = Track.Status.DRAFT
-            track.reject_reason = ""
-
-            # Free upload cap (minutes) for non-VIP creators
+        today = timezone.now().date()
+        daily_limit = int(setting.creator_daily_upload_limit or 0)
+        daily_count = Track.objects.filter(creator=request.user, created_at__date=today).count()
+        if daily_limit > 0 and daily_count >= daily_limit:
+            form.add_error(
+                None,
+                "Daily upload limit reached. Try again tomorrow.",
+            )
+        else:
             if not request.user.profile.has_vip():
-                used = Track.objects.filter(creator=request.user).aggregate(s=models.Sum('duration_seconds'))['s'] or 0
+                used = (
+                    Track.objects.filter(creator=request.user).aggregate(s=models.Sum("duration_seconds"))["s"]
+                    or 0
+                )
                 new_dur = track.duration_seconds or 0
                 cap_seconds = int(setting.free_upload_minutes) * 60
                 if used + new_dur > cap_seconds:
                     remaining = max(0, cap_seconds - used)
-                    form.add_error(None, f"سقف آپلود رایگان شما {int(setting.free_upload_minutes)} دقیقه است. باقی‌مانده: {remaining//60} دقیقه. برای بیشتر VIP لازم است.")
+                    form.add_error(
+                        None,
+                        f"Free upload cap is {int(setting.free_upload_minutes)} minutes. Remaining: {remaining // 60} minutes.",
+                    )
                 else:
                     track.play_count = 0
                     track.save()
                     form.save_m2m()
-                    messages.success(request, "محتوا به‌صورت پیش‌نویس ذخیره شد. برای بررسی و انتشار، آن را ارسال کنید.")
+                    messages.success(
+                        request,
+                        "Saved as draft. Submit for review when ready.",
+                    )
                     return redirect("my_tracks")
-        # invalid: fall-through to re-render with errors
+            else:
+                track.play_count = 0
+                track.save()
+                form.save_m2m()
+                messages.success(
+                    request,
+                    "Saved as draft. Submit for review when ready.",
+                )
+                return redirect("my_tracks")
 
-    return render(request, "uploads/upload.html", {"form": form, "setting": setting})
+    return render(
+        request,
+        "uploads/upload.html",
+        {
+            "form": form,
+            "setting": setting,
+            "creator_can_submit": profile.creator_status == profile.CreatorStatus.APPROVED,
+            "disabled_content_types": getattr(form, "disabled_content_types", set()),
+        },
+    )
 
 
 @login_required
@@ -74,9 +101,18 @@ def edit_track(request, track_id: int):
         obj.creator = request.user
         obj.save()
         form.save_m2m()
-        messages.success(request, "تغییرات ذخیره شد.")
+        messages.success(request, "Changes saved.")
         return redirect("my_tracks")
-    return render(request, "uploads/edit.html", {"form": form, "track": track, "setting": setting})
+    return render(
+        request,
+        "uploads/edit.html",
+        {
+            "form": form,
+            "track": track,
+            "setting": setting,
+            "disabled_content_types": getattr(form, "disabled_content_types", set()),
+        },
+    )
 
 
 @login_required
@@ -85,9 +121,13 @@ def submit_track(request, track_id: int):
     if request.method != "POST":
         raise Http404
 
-    # Only allow submission from draft/rejected.
+    profile = ensure_creator_profile(request.user)
+    if profile.creator_status != profile.CreatorStatus.APPROVED:
+        messages.error(request, "Creator approval required before submission.")
+        return redirect("creator_apply")
+
     if track.status not in [Track.Status.DRAFT, Track.Status.REJECTED, Track.Status.PENDING]:
-        messages.error(request, "این محتوا در وضعیت فعلی قابل ارسال نیست.")
+        messages.error(request, "This track is not eligible for submission.")
         return redirect("my_tracks")
 
     track.status = Track.Status.SUBMITTED
@@ -95,5 +135,5 @@ def submit_track(request, track_id: int):
     track.reject_reason = ""
     track.save(update_fields=["status", "submitted_at", "reject_reason"])
 
-    messages.success(request, "محتوا برای بررسی ارسال شد.")
+    messages.success(request, "Submitted for review.")
     return redirect("my_tracks")

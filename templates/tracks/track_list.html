@@ -1,10 +1,10 @@
-{% extends "base.html" %}
-{% block title %}Tracks • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Tracks | Casset{% endblock %}
 {% block content %}
 <div class="grid">
   <section class="card">
     <h1>Tracks</h1>
-    <p class="muted small">آخرین ترک‌های تاییدشده</p>
+    <p class="muted small">Latest approved tracks</p>
 
     <div class="list">
       {% for t in tracks %}
@@ -35,19 +35,19 @@
           {% endif %}
         </div>
       {% empty %}
-        <div class="row"><span class="muted">هیچ ترکی ثبت نشده.</span></div>
+        <div class="row"><span class="muted">No tracks yet.</span></div>
       {% endfor %}
     </div>
   </section>
 
   <aside class="card">
     <h2>Genres</h2>
-    <p class="muted small">فیلتر ساده</p>
+    <p class="muted small">Filter by genre</p>
 
     <div class="list">
       <div class="row">
-        <a class="btn btn--ghost" href="/tracks/">همه</a>
-        {% if active_genre %}<span class="muted small">فعال: {{ active_genre.name }}</span>{% endif %}
+        <a class="btn btn--ghost" href="/tracks/">All</a>
+        {% if active_genre %}<span class="muted small">Active: {{ active_genre.name }}</span>{% endif %}
       </div>
 
       {% for g in genres %}
@@ -56,9 +56,10 @@
           <span class="muted small">{{ g.tracks.count }} tracks</span>
         </div>
       {% empty %}
-        <div class="row"><span class="muted">ژانری موجود نیست.</span></div>
+        <div class="row"><span class="muted">No genres available.</span></div>
       {% endfor %}
     </div>
   </aside>
 </div>
 {% endblock %}
+

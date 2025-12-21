@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}{{ track.title }} • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}{{ track.title }} | Casset{% endblock %}
 {% block content %}
 <div class="grid">
   <section class="card">
@@ -25,14 +25,14 @@
           <a class="btn btn--ghost" href="#"
              data-like="1"
              data-track="{{ track.id }}">
-             ♥ Like <span class="muted" id="likeCount">{{ track.like_count }}</span>
+             Like <span class="muted" id="likeCount">{{ track.like_count }}</span>
           </a>
 
           <a class="btn btn--ghost" href="#"
              data-pl-open="1"
              data-track="{{ track.id }}"
              data-title="{{ track.title }}">
-             ＋ Playlist
+             Add to playlist
           </a>
 
           {% if can_download %}
@@ -47,12 +47,31 @@
         </div>
       </div>
     {% else %}
-      <div class="row"><span class="muted">Audio فایل ندارد.</span></div>
+      <div class="row"><span class="muted">No audio available.</span></div>
     {% endif %}
 
     {% if track.description %}
       <h2 style="margin-top:14px">About</h2>
       <p class="muted">{{ track.description }}</p>
+    {% endif %}
+
+    <hr>
+    <h2>Report</h2>
+    {% if request.user.is_authenticated %}
+      <form method="post" action="/tracks/{{ track.id }}/report/" class="stack gap-2">
+        {% csrf_token %}
+        <select name="reason">
+          <option value="spam">Spam</option>
+          <option value="copyright">Copyright</option>
+          <option value="abuse">Abuse</option>
+          <option value="impersonation">Impersonation</option>
+          <option value="other">Other</option>
+        </select>
+        <textarea name="details" rows="3" placeholder="Tell us more (optional)"></textarea>
+        <button class="btn btn--ghost" type="submit">Submit report</button>
+      </form>
+    {% else %}
+      <p class="muted small">Please <a href="/login/?next=/t/{{ track.slug }}/">login</a> to report.</p>
     {% endif %}
   </section>
 

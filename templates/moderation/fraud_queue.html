@@ -1,0 +1,30 @@
+﻿{% extends "base.html" %}
+{% block title %}Moderation | Fraud{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Fraud signals</h1>
+  <p class="muted small">Soft signals for suspicious activity.</p>
+
+  <div class="list">
+    {% for f in flags %}
+      <div class="item" style="flex-direction:column;align-items:stretch">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+          <div>
+            <div style="font-weight:900">{{ f.flag_type }} (score: {{ f.score }})</div>
+            <div class="muted small">{{ f.created_at }}</div>
+          </div>
+          {% if f.user %}<div class="muted small">User: {{ f.user.username }}</div>{% endif %}
+        </div>
+        {% if f.track %}
+          <div class="muted small" style="margin-top:6px">Track: {{ f.track.title }} (id={{ f.track_id }})</div>
+        {% endif %}
+        {% if f.note %}
+          <div class="muted small" style="margin-top:6px">{{ f.note }}</div>
+        {% endif %}
+      </div>
+    {% empty %}
+      <div class="item"><span class="muted">No fraud signals.</span></div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

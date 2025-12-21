@@ -1,19 +1,19 @@
-{% extends "base.html" %}
-{% block title %}Discover • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Discover | Casset{% endblock %}
 
 {% block content %}
 <section class="card">
   <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div>
-      <h1 data-i18n="discover">کشف</h1>
-      <p class="muted small">ترندهای قابل پخش + پین‌های تبلیغاتی + پیشنهادات سبک شما</p>
+      <h1 data-i18n="discover">Discover</h1>
+      <p class="muted small">Trending, new uploads, and personalized picks.</p>
     </div>
 
     <div class="chips" style="display:flex;gap:8px;flex-wrap:wrap">
-      <a class="chip {% if selected_type == 'all' %}chip--active{% endif %}" href="/discover/">همه</a>
+      <a class="chip {% if selected_type == 'all' %}chip--active{% endif %}" href="/discover/">All</a>
       {% for t in enabled_types %}
         <a class="chip {% if selected_type == t %}chip--active{% endif %}" href="/discover/?type={{ t }}">
-          {% if t == 'music' %}موزیک{% elif t == 'podcast' %}پادکست{% elif t == 'book' %}کتاب{% else %}ویدیو{% endif %}
+          {% if t == 'music' %}Music{% elif t == 'podcast' %}Podcast{% elif t == 'book' %}Audiobook{% else %}Video{% endif %}
         </a>
       {% endfor %}
     </div>
@@ -24,7 +24,7 @@
   <main class="card">
 
     {% if pinned %}
-      <h2 class="mt">پین‌شده‌ها</h2>
+      <h2 class="mt">Featured</h2>
       <div class="list">
         {% for p in pinned %}
           {% with t=p.track %}
@@ -47,7 +47,7 @@
                 data-by="@{{ t.creator.username }}"
                 data-track="{{ t.id }}"
                 data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">
-                پخش
+                Play
               </button>
             {% endif %}
           </div>
@@ -56,7 +56,7 @@
       </div>
     {% endif %}
 
-    <h2 class="mt">ترند این هفته</h2>
+    <h2 class="mt">Trending</h2>
     <div class="list">
       {% for t in trending_tracks %}
         <div class="row">
@@ -78,26 +78,49 @@
                 data-title="{{ t.title }}"
                 data-by="@{{ t.creator.username }}"
                 data-track="{{ t.id }}"
-                data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">پخش</button>
+                data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">Play</button>
               <button class="btn btn--ghost" type="button" data-queue="1"
                 data-src="{{ t.audio.url }}"
                 data-title="{{ t.title }}"
                 data-by="@{{ t.creator.username }}"
                 data-track="{{ t.id }}"
-                data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">+ صف</button>
+                data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">+ Queue</button>
             </div>
           {% endif %}
         </div>
       {% empty %}
-        <div class="row"><span class="muted">فعلاً ترندی نداریم.</span></div>
+        <div class="row"><span class="muted">No trending tracks yet.</span></div>
+      {% endfor %}
+    </div>
+
+    <h2 class="mt">New</h2>
+    <div class="list">
+      {% for t in new_tracks %}
+        <div class="row">
+          <div style="min-width:0">
+            <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</a>
+            <div class="muted small">@{{ t.creator.username }}</div>
+          </div>
+          {% if t.audio %}
+            <button class="btn btn--ghost" type="button"
+              data-play="1"
+              data-src="{{ t.audio.url }}"
+              data-title="{{ t.title }}"
+              data-by="@{{ t.creator.username }}"
+              data-track="{{ t.id }}"
+              data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">Play</button>
+          {% endif %}
+        </div>
+      {% empty %}
+        <div class="row"><span class="muted">No new tracks yet.</span></div>
       {% endfor %}
     </div>
 
   </main>
 
   <aside class="card">
-    <h3>پیشنهاد برای شما</h3>
-    <p class="muted small">بدون ML سنگین؛ بر اساس آخرین پلی‌ها و ژانرها</p>
+    <h3>Recommended</h3>
+    <p class="muted small">Based on your recent listening.</p>
     <div class="list">
       {% for t in recommended %}
         <div class="row">
@@ -112,7 +135,7 @@
               data-title="{{ t.title }}"
               data-by="@{{ t.creator.username }}"
               data-track="{{ t.id }}"
-              data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">پخش</button>
+              data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">Play</button>
           {% endif %}
         </div>
       {% endfor %}
@@ -120,7 +143,7 @@
 
     <hr>
 
-    <h3>پربازدیدترین‌ها</h3>
+    <h3>Most viewed</h3>
     <div class="list">
       {% for t in most_viewed %}
         <div class="row">
@@ -135,9 +158,9 @@
     <hr>
 
     <div class="list">
-      <div class="row"><a class="btn btn--ghost" href="/search/">جستجو</a></div>
-      <div class="row"><a class="btn btn--ghost" href="/library/">کتابخانه</a></div>
-      <div class="row"><a class="btn btn--primary" href="/upload/">آپلود</a></div>
+      <div class="row"><a class="btn btn--ghost" href="/search/">Search</a></div>
+      <div class="row"><a class="btn btn--ghost" href="/library/">Library</a></div>
+      <div class="row"><a class="btn btn--primary" href="/upload/">Upload</a></div>
     </div>
   </aside>
 </div>

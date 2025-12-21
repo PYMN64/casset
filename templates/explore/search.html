@@ -1,28 +1,13 @@
-{% extends "base.html" %}
-{% block title %}Search • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Search | Casset{% endblock %}
 {% block content %}
-<div class="grid">
-  <section class="card">
-    <h1>Search</h1>
-    <p class="muted small">ترک، کریتور، ژانر</p>
+<section class="card">
+  <h1 data-i18n="search">Search</h1>
+  <p class="muted small">Find tracks, creators, or genres.</p>
 
-    <div class="stack gap-2">
-      <input id="searchInput" type="search" placeholder="مثلاً: lo-fi یا @artist" autocomplete="off" />
-      <div class="muted small" id="searchHint">شروع کن به تایپ…</div>
-    </div>
+  <input id="searchInput" type="search" placeholder="Search..." autocomplete="off" style="width:100%" />
+  <div id="searchHint" class="muted small" style="margin-top:8px">Start typing...</div>
 
-    <div class="list" id="searchResults" style="margin-top:12px">
-      <div class="row"><span class="muted">نتایج اینجا نمایش داده می‌شود.</span></div>
-    </div>
-  </section>
-
-  <aside class="card">
-    <h2>Shortcuts</h2>
-    <div class="list">
-      <div class="row"><a class="btn btn--ghost" href="/discover/">Discover</a></div>
-      <div class="row"><a class="btn btn--ghost" href="/tracks/">Tracks</a></div>
-      <div class="row"><a class="btn btn--ghost" href="/library/">Library</a></div>
-    </div>
-  </aside>
-</div>
+  <div id="searchResults" class="list" style="margin-top:12px"></div>
+</section>
 {% endblock %}

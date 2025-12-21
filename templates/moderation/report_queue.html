@@ -1,16 +1,16 @@
-{% extends "base.html" %}
-{% block title %}Moderation • Reports{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Moderation | Reports{% endblock %}
 {% block content %}
 <div class="card">
-  <h1>گزارش‌ها</h1>
-  <p class="muted small">فقط برای ادمین/استاف</p>
+  <h1>Reports</h1>
+  <p class="muted small">Latest reports and complaints.</p>
 
   <div class="list">
     {% for r in reports %}
       <div class="item" style="flex-direction:column;align-items:stretch">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
           <div>
-            <div style="font-weight:900">Report #{{ r.id }} — {{ r.reason }}</div>
+            <div style="font-weight:900">Report #{{ r.id }} • {{ r.reason }}</div>
             <div class="muted small">{{ r.target_type }} • {{ r.created_at }}</div>
           </div>
           <div class="muted small">Status: {{ r.status }}</div>
@@ -28,7 +28,7 @@
         {% endif %}
       </div>
     {% empty %}
-      <div class="item"><span class="muted">گزارشی ثبت نشده.</span></div>
+      <div class="item"><span class="muted">No reports yet.</span></div>
     {% endfor %}
   </div>
 </div>

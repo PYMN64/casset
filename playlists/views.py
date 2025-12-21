@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse, Http404
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, render, redirect
 from django.views.decorators.http import require_POST
 from django.db.models import Count
 from tracks.models import Track
@@ -9,9 +9,18 @@ from interactions.models import TrackLike
 from .models import Playlist, PlaylistItem
 
 
+def _wants_json(request) -> bool:
+    accept = (request.headers.get("accept") or "").lower()
+    return request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in accept
+
+
 @login_required
 def library_view(request):
-    playlists = Playlist.objects.filter(owner=request.user).order_by("-created_at")
+    playlists = (
+        Playlist.objects.filter(owner=request.user)
+        .annotate(item_count=Count("items"))
+        .order_by("-created_at")
+    )
 
     liked_track_ids = (
         TrackLike.objects.filter(user=request.user)
@@ -39,7 +48,7 @@ def playlist_detail(request, playlist_id: int):
         .prefetch_related("track__genres")
         .order_by("-created_at")
     )
-    return render(request, "playlists/playlist_detail.html", {"pl": pl, "items": items})
+    return render(request, "playlists/playlist_detail.html", {"pl": pl, "playlist": pl, "items": items})
 
 
 @require_POST
@@ -57,6 +66,8 @@ def api_playlist_create(request):
         description=description[:200],
         is_private=True,
     )
+    if not _wants_json(request):
+        return redirect("library")
     return JsonResponse({"ok": True, "playlist_id": pl.id, "name": pl.name})
 
 
@@ -72,6 +83,8 @@ def api_playlist_delete(request):
         return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
 
     pl.delete()
+    if not _wants_json(request):
+        return redirect("library")
     return JsonResponse({"ok": True})
 
 

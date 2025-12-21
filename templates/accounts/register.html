@@ -1,41 +1,23 @@
-{% extends "base.html" %}
-{% block title %}Register • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Register | Casset{% endblock %}
 {% block content %}
-<div class="card">
-  <h1>ثبت‌نام</h1>
-  <p class="muted">یک اکانت بساز. هم شنونده‌ای، هم می‌تونی Creator Mode رو فعال کنی.</p>
+<section class="card" style="max-width:520px;margin:0 auto">
+  <h1>Create account</h1>
+  <p class="muted small">Use email + username or login with phone.</p>
 
-  <form method="post" class="list">
+  <form method="post" class="stack gap-2">
     {% csrf_token %}
-
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Username</div>
-      {{ form.username }}
-      <div class="muted" style="font-size:12px">{{ form.username.errors }}</div>
-    </div>
-
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Email (optional)</div>
-      {{ form.email }}
-      <div class="muted" style="font-size:12px">{{ form.email.errors }}</div>
-    </div>
-
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Password</div>
-      {{ form.password1 }}
-      <div class="muted" style="font-size:12px">{{ form.password1.errors }}</div>
-    </div>
-
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Repeat Password</div>
-      {{ form.password2 }}
-      <div class="muted" style="font-size:12px">{{ form.password2.errors }}</div>
-    </div>
-
-    <div class="item">
-      <button class="btn primary" type="submit">ساخت اکانت</button>
-      <a class="btn" href="/login/">ورود</a>
+    {{ form.as_p }}
+    <div class="row row-wrap">
+      <button class="btn btn--primary" type="submit">Register</button>
+      <a class="btn btn--ghost" href="/login/">Back to login</a>
     </div>
   </form>
-</div>
+
+  <hr style="margin:16px 0">
+  <div class="row row-wrap">
+    <a class="btn btn--ghost" href="/phone/">Login with phone (OTP)</a>
+    <a class="btn btn--ghost" href="/google/">Login with Google</a>
+  </div>
+</section>
 {% endblock %}

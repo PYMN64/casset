@@ -1,32 +1,31 @@
-{% extends "base.html" %}
-{% block title %}Settings • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Settings | Casset{% endblock %}
 {% block content %}
 <div class="grid">
   <section class="card">
-    <h1 data-i18n="settings">تنظیمات</h1>
-    <p class="muted small">پروفایل، عکس‌ها و بیو</p>
+    <h1 data-i18n="settings">Settings</h1>
+    <p class="muted small">Update your profile and social links.</p>
 
     <form method="post" enctype="multipart/form-data" class="stack gap-2">
       {% csrf_token %}
       <div class="row row-top" style="gap:12px;flex-wrap:wrap">
         <div style="min-width:240px;flex:1">
-          <div class="muted small">نام</div>
+          <div class="muted small">First name</div>
           {{ form.first_name }}
         </div>
         <div style="min-width:240px;flex:1">
-          <div class="muted small">نام خانوادگی</div>
+          <div class="muted small">Last name</div>
           {{ form.last_name }}
         </div>
       </div>
 
-
       <div class="row row-top" style="gap:12px;flex-wrap:wrap">
         <div style="min-width:240px;flex:1">
-          <div class="muted small">نام نمایشی</div>
+          <div class="muted small">Display name</div>
           {{ form.display_name }}
         </div>
         <div style="min-width:240px;flex:1">
-          <div class="muted small">ایمیل</div>
+          <div class="muted small">Email</div>
           {{ form.email }}
         </div>
       </div>
@@ -35,13 +34,13 @@
         <div style="min-width:0;flex:1">
           <div class="muted small">Avatar</div>
           {{ form.avatar }}
-          <div class="muted small" style="margin-top:6px">پیشنهاد: مربع، حداقل 400×400</div>
+          <div class="muted small" style="margin-top:6px">Recommended: 400x400</div>
         </div>
 
         <div style="min-width:0;flex:1">
           <div class="muted small">Cover</div>
           {{ form.cover }}
-          <div class="muted small" style="margin-top:6px">پیشنهاد: 1200×500</div>
+          <div class="muted small" style="margin-top:6px">Recommended: 1200x500</div>
         </div>
       </div>
 
@@ -51,39 +50,53 @@
       </div>
 
       <hr>
-      <h2 style="margin:0">لینک‌ها</h2>
+      <h2 style="margin:0">Social links</h2>
       <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
         <div>
-          <div class="muted small">وبسایت</div>
+          <div class="muted small">Website</div>
           {{ form.website_url }}
         </div>
         <div>
-          <div class="muted small">اینستاگرام</div>
+          <div class="muted small">Instagram</div>
           {{ form.instagram_url }}
         </div>
         <div>
-          <div class="muted small">تلگرام</div>
+          <div class="muted small">Telegram</div>
           {{ form.telegram_url }}
         </div>
         <div>
-          <div class="muted small">یوتیوب</div>
+          <div class="muted small">YouTube</div>
           {{ form.youtube_url }}
         </div>
         <div>
-          <div class="muted small">توییتر / X</div>
+          <div class="muted small">Twitter / X</div>
           {{ form.twitter_url }}
         </div>
       </div>
 
       <div class="row" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
         <button class="btn btn--primary" type="submit">Save</button>
-        <a class="btn btn--ghost" href="{% if profile.public_handle %}/{{ profile.public_handle }}/{% else %}/@{{ request.user.username }}/{% endif %}">View profile</a>
+        <a class="btn btn--ghost" href="{% if user_profile and user_profile.public_handle %}/{{ user_profile.public_handle }}/{% else %}/@{{ request.user.username }}/{% endif %}">View profile</a>
       </div>
     </form>
   </section>
 
   <aside class="card">
-    <h2>Stats</h2>
+    <h2>Creator</h2>
+    <div class="list">
+      {% if profile.creator_status == "approved" %}
+        <div class="row"><a class="btn btn--primary" href="/creator/studio/">Open Creator Studio</a></div>
+      {% elif profile.creator_status == "pending" %}
+        <div class="row"><span class="muted">Application pending</span></div>
+      {% else %}
+        <div class="row"><a class="btn btn--primary" href="/creator/apply/">Become a creator</a></div>
+      {% endif %}
+      <div class="row"><a class="btn btn--ghost" href="/dashboard/">Dashboard</a></div>
+    </div>
+
+    <hr>
+
+    <h3>Stats</h3>
     <div class="list">
       <div class="row">
         <span class="muted">Points</span>
@@ -94,9 +107,6 @@
         <span style="font-weight:900">{{ profile.follower_count }}</span>
       </div>
     </div>
-    <p class="muted small" style="margin-top:10px">
-      Points فعلاً پایه است؛ در milestone بعدی رتبه/Level و Badge اضافه می‌کنیم.
-    </p>
   </aside>
 </div>
 {% endblock %}

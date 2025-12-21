@@ -1,7 +1,7 @@
-from django import forms
-from django.core.validators import RegexValidator
+﻿from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.core.validators import RegexValidator
 
 from .models import UserProfile
 
@@ -23,8 +23,8 @@ class LoginForm(AuthenticationForm):
 
 class ProfileSettingsForm(forms.ModelForm):
     email = forms.EmailField(required=True)
-    first_name = forms.CharField(required=False, max_length=150, widget=forms.TextInput(attrs={"placeholder": "نام"}))
-    last_name = forms.CharField(required=False, max_length=150, widget=forms.TextInput(attrs={"placeholder": "نام خانوادگی"}))
+    first_name = forms.CharField(required=False, max_length=150, widget=forms.TextInput(attrs={"placeholder": "First name"}))
+    last_name = forms.CharField(required=False, max_length=150, widget=forms.TextInput(attrs={"placeholder": "Last name"}))
 
     class Meta:
         model = UserProfile
@@ -40,12 +40,11 @@ class ProfileSettingsForm(forms.ModelForm):
             "twitter_url",
         ]
         widgets = {
-            "bio": forms.Textarea(attrs={"rows": 3, "placeholder": "یک بیو کوتاه (حداکثر 160 کاراکتر)..."}),
+            "bio": forms.Textarea(attrs={"rows": 3, "placeholder": "Short bio..."}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # user.email is the source of truth
         if self.instance and getattr(self.instance, "user", None):
             self.fields["email"].initial = self.instance.user.email
             self.fields["first_name"].initial = self.instance.user.first_name
@@ -59,7 +58,7 @@ class ProfileSettingsForm(forms.ModelForm):
             profile.user.first_name = (self.cleaned_data.get("first_name") or "").strip()
             profile.user.last_name = (self.cleaned_data.get("last_name") or "").strip()
             if commit:
-                profile.user.save(update_fields=["email","first_name","last_name"])
+                profile.user.save(update_fields=["email", "first_name", "last_name"])
 
         if commit:
             profile.save()
@@ -77,22 +76,20 @@ class PhoneVerifyForm(forms.Form):
     phone_number = forms.CharField(max_length=32, widget=forms.HiddenInput())
     code = forms.CharField(
         max_length=6,
-        widget=forms.TextInput(attrs={"placeholder": "کد ۶ رقمی", "inputmode": "numeric"}),
+        widget=forms.TextInput(attrs={"placeholder": "123456", "inputmode": "numeric"}),
     )
 
 
 class OnboardingForm(forms.ModelForm):
-    # Email is required for product + monetization readiness.
     email = forms.EmailField(required=True)
-
-    first_name = forms.CharField(required=True, max_length=150, widget=forms.TextInput(attrs={"placeholder": "نام"}))
-    last_name = forms.CharField(required=True, max_length=150, widget=forms.TextInput(attrs={"placeholder": "نام خانوادگی"}))
+    first_name = forms.CharField(required=True, max_length=150, widget=forms.TextInput(attrs={"placeholder": "First name"}))
+    last_name = forms.CharField(required=True, max_length=150, widget=forms.TextInput(attrs={"placeholder": "Last name"}))
 
     INTEREST_CHOICES = [
-        ("music", "موزیک"),
-        ("podcast", "پادکست"),
-        ("book", "کتاب"),
-        ("video", "ویدیو"),
+        ("music", "Music"),
+        ("podcast", "Podcast"),
+        ("book", "Audiobook"),
+        ("video", "Video"),
     ]
 
     interests = forms.MultipleChoiceField(
@@ -119,10 +116,11 @@ class OnboardingForm(forms.ModelForm):
             self.fields["email"].initial = self.instance.user.email
             self.fields["first_name"].initial = self.instance.user.first_name
             self.fields["last_name"].initial = self.instance.user.last_name
-            self.fields["interests"].initial = list(self.instance.interests or [])
+            interests = list(self.instance.interests or [])
+            self.fields["interests"].initial = [
+                "book" if i == "audiobook" else i for i in interests
+            ]
 
-        # We enforce disabled types in clean_interests().
-        # UI disabling is handled in template (to keep code simple).
         self.disabled_interest_types = set()
         if platform is not None:
             for k in ("book", "video"):
@@ -131,10 +129,10 @@ class OnboardingForm(forms.ModelForm):
 
     def clean_interests(self):
         interests = self.cleaned_data.get("interests") or []
+        interests = ["book" if i == "audiobook" else i for i in interests]
         platform = getattr(self, "platform", None)
         if platform is None:
             return interests
-        # Enforce backend: don't allow disabled types
         out = []
         for k in interests:
             if platform.is_content_type_enabled(k):
@@ -151,28 +149,22 @@ class OnboardingForm(forms.ModelForm):
             profile.user.first_name = (self.cleaned_data.get("first_name") or "").strip()
             profile.user.last_name = (self.cleaned_data.get("last_name") or "").strip()
             if commit:
-                profile.user.save(update_fields=["email","first_name","last_name"])
+                profile.user.save(update_fields=["email", "first_name", "last_name"])
         if commit:
             profile.save()
         return profile
 
 
 class CreatorHandleForm(forms.ModelForm):
-    """One-time public handle selection for creators.
-
-    We keep Django's User.username as an internal identifier (u-xxxx...).
-    The public handle is used for sharing profile pages at /<handle>/.
-    """
-
     public_handle = forms.CharField(
         max_length=30,
         validators=[
             RegexValidator(
                 regex=r"^[a-zA-Z0-9_\-]{3,30}$",
-                message="یوزرنیم فقط می‌تواند شامل حروف انگلیسی، عدد، _ و - باشد (۳ تا ۳۰ کاراکتر).",
+                message="Handle must be 3-30 chars (letters, numbers, _ or -).",
             )
         ],
-        widget=forms.TextInput(attrs={"placeholder": "مثلاً: ali_music"}),
+        widget=forms.TextInput(attrs={"placeholder": "example: ali_music"}),
     )
 
     class Meta:
@@ -183,7 +175,6 @@ class CreatorHandleForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.reserved = set(reserved or [])
 
-        # If already set, lock it in UI.
         if self.instance and self.instance.public_handle:
             self.fields["public_handle"].disabled = True
 
@@ -192,22 +183,19 @@ class CreatorHandleForm(forms.ModelForm):
         handle_lower = handle.lower()
 
         if handle_lower in self.reserved:
-            raise forms.ValidationError("این یوزرنیم رزرو شده است. لطفاً یک گزینه دیگر انتخاب کنید.")
+            raise forms.ValidationError("This handle is reserved.")
 
-        # Enforce one-time set: if already set, don't allow change.
         if self.instance and self.instance.public_handle:
             return self.instance.public_handle
 
-        # Uniqueness (case-insensitive)
         if UserProfile.objects.filter(public_handle__iexact=handle).exists():
-            raise forms.ValidationError("این یوزرنیم قبلاً گرفته شده است.")
+            raise forms.ValidationError("This handle is already taken.")
 
         return handle
 
     def save(self, commit=True):
         profile = super().save(commit=False)
         if not profile.public_handle_set_at and profile.public_handle:
-            # set timestamp only the first time
             from django.utils import timezone
 
             profile.public_handle_set_at = timezone.now()

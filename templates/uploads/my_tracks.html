@@ -1,13 +1,13 @@
-{% extends "base.html" %}
-{% block title %}My Tracks • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}My Tracks | Casset{% endblock %}
 {% block content %}
 <div class="card">
-  <h1>ترک‌های من</h1>
-  <p class="muted">وضعیت‌ها: draft / submitted / approved / rejected / takedown / blocked</p>
+  <h1>My Tracks</h1>
+  <p class="muted">Status: draft / submitted / approved / rejected / takedown / blocked</p>
 
   <div class="item">
-    <a class="btn primary" href="/upload/">Upload new</a>
-    <a class="btn" href="/tracks/">Browse</a>
+    <a class="btn btn--primary" href="/upload/">Upload new</a>
+    <a class="btn btn--ghost" href="/tracks/">Browse</a>
   </div>
 
   <div class="list">
@@ -37,7 +37,7 @@
               <button class="btn btn--primary" type="submit">Send for review</button>
             </form>
           {% elif t.status == "submitted" or t.status == "pending" %}
-            <span class="muted small">در صف بررسی</span>
+            <span class="muted small">Under review</span>
           {% endif %}
         </div>
 
@@ -45,12 +45,12 @@
           {% for g in t.genres.all %}
             <span style="border:1px solid rgba(255,122,24,.2);padding:2px 8px;border-radius:999px;margin-left:6px;display:inline-block">{{ g.name }}</span>
           {% empty %}
-            <span>—</span>
+            <span>--</span>
           {% endfor %}
         </div>
       </div>
     {% empty %}
-      <div class="item"><span class="muted">هنوز چیزی آپلود نکردی.</span></div>
+      <div class="item"><span class="muted">No tracks yet.</span></div>
     {% endfor %}
   </div>
 </div>

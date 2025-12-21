@@ -1,22 +1,35 @@
-{% extends "base.html" %}
-{% block title %}Upload • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Upload | Casset{% endblock %}
 {% block content %}
 <div class="grid">
   <section class="card">
-    <h1 data-i18n="upload">آپلود</h1>
+    <h1 data-i18n="upload">Upload</h1>
     <p class="muted small">
-      نوع محتوا را انتخاب کن. (سقف رایگان: {{ setting.free_upload_minutes }} دقیقه)
+      Free upload cap: {{ setting.free_upload_minutes }} minutes.
     </p>
 
     {% if form.non_field_errors %}
       <div class="alert">{{ form.non_field_errors }}</div>
     {% endif %}
 
+    {% if not creator_can_submit %}
+      <div class="alert">You can save drafts. Submit is available after creator approval.</div>
+    {% endif %}
+
     <form method="post" enctype="multipart/form-data" class="stack gap-2" id="uploadForm">
       {% csrf_token %}
 
       <label class="muted small">Content type</label>
-      {{ form.content_type }}
+      <select name="content_type" id="id_content_type">
+        {% for value,label in form.content_type.field.choices %}
+          <option value="{{ value }}"
+                  {% if value == form.content_type.value %}selected{% endif %}
+                  {% if value in disabled_content_types %}disabled{% endif %}>
+            {{ label }}{% if value in disabled_content_types %} (coming soon){% endif %}
+          </option>
+        {% endfor %}
+      </select>
+      {% if form.content_type.errors %}<div class="err">{{ form.content_type.errors }}</div>{% endif %}
 
       <label class="muted small">Title</label>
       {{ form.title }}
@@ -52,7 +65,7 @@
         <div style="min-width:180px">
           <label class="muted small">Duration (minutes)</label>
           {{ form.duration_minutes }}
-          <div class="muted small">برای محاسبه سقف 180 دقیقه.</div>
+          <div class="muted small">Use for upload limits.</div>
         </div>
         <div style="min-width:180px">
           <label class="muted small">Allow comments</label>
@@ -83,11 +96,11 @@
   </section>
 
   <aside class="card">
-    <h2>Note</h2>
+    <h2>Notes</h2>
     <ul class="muted small">
-      <li>بعد از ذخیره، محتوا به‌صورت پیش‌نویس ذخیره می‌شود. از صفحه «ترک‌های من» آن را برای بررسی ارسال کن.</li>
-      <li>برای پخش و امتیازدهی، کاربران باید وارد حساب شوند.</li>
-      <li>امتیاز سازنده وقتی ثبت می‌شود که شنونده حداقل {{ setting.playback_point_percent }}٪ از محتوا را پخش کند.</li>
+      <li>Uploads start as draft. Submit for review when ready.</li>
+      <li>For video, upload video file. For other types, upload audio.</li>
+      <li>Points are awarded based on playback threshold ({{ setting.playback_point_percent }}%).</li>
     </ul>
   </aside>
 </div>

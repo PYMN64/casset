@@ -1,32 +1,32 @@
-{% extends "base.html" %}
-{% block title %}Creator • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Creator Application | Casset{% endblock %}
 
 {% block content %}
 <section class="card" style="max-width:720px;margin:0 auto">
-  <h1>کاست بساز، پول دربیار</h1>
+  <h1>Become a creator</h1>
   <p class="muted small">
-    برای فعال شدن حالت سازنده، باید درخواست بدهی. بعد از بررسی، Creator Studio فعال می‌شود.
+    Apply to unlock Creator Studio, uploads, and analytics.
   </p>
 
   {% if profile.creator_status == "pending" %}
     <div class="card" style="padding:14px">
-      <strong>وضعیت:</strong> در حال بررسی ✅
-      <p class="muted small" style="margin-top:8px">به محض تایید، Creator Studio برایت باز می‌شود.</p>
+      <strong>Status:</strong> Pending review
+      <p class="muted small" style="margin-top:8px">We will notify you when approved.</p>
     </div>
   {% elif profile.creator_status == "rejected" %}
     <div class="card" style="padding:14px">
-      <strong>وضعیت:</strong> رد شده ❌
-      <p class="muted small" style="margin-top:8px">می‌توانی دوباره درخواست بدهی.</p>
+      <strong>Status:</strong> Rejected
+      <p class="muted small" style="margin-top:8px">You can update your profile and apply again.</p>
     </div>
   {% else %}
     <form method="post" class="stack gap-2">
       {% csrf_token %}
-      <button class="btn btn--primary" type="submit">درخواست فعال‌سازی Creator</button>
-      <p class="muted small">با ثبت درخواست، قوانین محتوا و بررسی اولیه فعال می‌شود.</p>
+      <button class="btn btn--primary" type="submit">Apply for Creator</button>
+      <p class="muted small">We review applications to keep the platform high-quality.</p>
     </form>
   {% endif %}
 
   <hr style="margin:16px 0">
-  <a class="btn btn--ghost" href="/dashboard/">بازگشت به داشبورد</a>
+  <a class="btn btn--ghost" href="/dashboard/">Back to dashboard</a>
 </section>
 {% endblock %}

@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% load static %}
-{% block title %}@{{ user_obj.username }} • Casset{% endblock %}
+{% block title %}@{{ user_obj.username }} | Casset{% endblock %}
 
 {% block content %}
 <section class="profile-hero">
@@ -58,19 +58,25 @@
     <div class="track-list">
       {% for t in tracks %}
         <div class="track-row">
-          <button class="play-btn" data-play="{{ t.id }}" data-src="{{ t.audio_src }}" data-title="{{ t.title }}" data-cover="{{ t.cover_src }}">▶</button>
+          <button class="play-btn"
+                  data-play="1"
+                  data-src="{{ t.audio_src }}"
+                  data-title="{{ t.title }}"
+                  data-by="@{{ user_obj.username }}"
+                  data-track="{{ t.id }}"
+                  data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">▶</button>
           <div class="track-info">
             <div class="track-title">{{ t.title }}</div>
             <div class="muted small">{{ t.created_at|date:"Y-m-d" }} • {{ t.play_count }} plays • {{ t.like_count }} likes</div>
             <div class="wave-placeholder"></div>
           </div>
           <div class="track-actions">
-            <button class="icon-btn" title="Add to queue" data-queue="{{ t.id }}">＋</button>
-            <button class="icon-btn" title="Like" data-like="{{ t.id }}">♥</button>
+            <button class="icon-btn" title="Add to queue" data-queue="1" data-src="{{ t.audio_src }}" data-title="{{ t.title }}" data-by="@{{ user_obj.username }}" data-track="{{ t.id }}" data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">＋</button>
+            <button class="icon-btn" title="Like" data-like="1" data-track="{{ t.id }}">♥</button>
           </div>
         </div>
       {% empty %}
-        <div class="muted">هیچ محتوایی منتشر نشده.</div>
+        <div class="muted">No published content.</div>
       {% endfor %}
     </div>
   </main>
@@ -86,7 +92,7 @@
           {% endif %}
         </div>
       {% empty %}
-        <div class="muted small">فعلاً پیشنهادی نداریم.</div>
+        <div class="muted small">No suggestions right now.</div>
       {% endfor %}
     </div>
 
@@ -94,7 +100,7 @@
 
     {% if request.user.is_authenticated and request.user.id == user_obj.id %}
       <h3>Your points</h3>
-      <p class="muted small">این امتیازها فقط برای شما و ادمین نمایش داده می‌شود.</p>
+      <p class="muted small">Visible only to you and admins.</p>
       <div class="stat">{{ profile.points }}</div>
     {% endif %}
   </aside>

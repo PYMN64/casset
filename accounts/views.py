@@ -1,21 +1,19 @@
-import hashlib
+﻿import hashlib
 import secrets
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login
+from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
-from django.contrib.auth import logout
 from django.db import models
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 
 from tracks.models import Track
-
 from .forms import (
     CreatorHandleForm,
     LoginForm,
@@ -26,7 +24,7 @@ from .forms import (
     RegisterForm,
 )
 from .models import PhoneOTP, UserProfile
-
+from .services import send_otp
 
 UserModel = get_user_model()
 
@@ -37,12 +35,6 @@ class CassetLoginView(LoginView):
 
 
 def logout_view(request):
-    """Log out the user.
-
-    Django's built-in LogoutView may require POST depending on version.
-    For this project (consumer product UX), we support GET logout and
-    then redirect to login.
-    """
     logout(request)
     return redirect("login")
 
@@ -54,6 +46,7 @@ def register_view(request):
     form = RegisterForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         user = form.save()
+        UserProfile.objects.get_or_create(user=user)
         login(request, user)
         return redirect("onboarding")
 
@@ -74,7 +67,6 @@ def _hash_code(phone: str, code: str) -> str:
 
 
 def _generate_username() -> str:
-    # Never derive from phone; keep it unguessable.
     token = secrets.token_urlsafe(9).replace("-", "").replace("_", "")
     return f"u-{token[:10]}"
 
@@ -84,104 +76,6 @@ def _get_ip(request):
     if xff:
         return xff.split(",")[0].strip()
     return request.META.get("REMOTE_ADDR")
-
-
-def phone_start_view(request):
-    """Start phone OTP login."""
-    if request.user.is_authenticated:
-        return redirect("discover")
-
-    form = PhoneStartForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        phone = _normalize_phone(form.cleaned_data["phone_number"])
-        now = timezone.now()
-
-        last = PhoneOTP.objects.filter(phone_number=phone).order_by("-created_at").first()
-        if last and last.last_sent_at and (now - last.last_sent_at).total_seconds() < 60:
-            messages.error(request, "لطفاً کمی صبر کن و دوباره تلاش کن.")
-            return render(request, "accounts/phone_start.html", {"form": form})
-
-        code = f"{secrets.randbelow(1000000):06d}"
-        PhoneOTP.objects.create(
-            phone_number=phone,
-            code_hash=_hash_code(phone, code),
-            expires_at=now + timedelta(minutes=2),
-            last_sent_at=now,
-            ip_address=_get_ip(request),
-            user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:256],
-        )
-
-        # TODO: integrate SMS provider. For now, show code in DEV message.
-        messages.success(request, f"کد ورود ارسال شد. (کد تست: {code})")
-        return redirect(reverse("phone_verify") + f"?phone={phone}")
-
-    return render(request, "accounts/phone_start.html", {"form": form})
-
-
-def phone_verify_view(request):
-    """Verify OTP and log in / create user."""
-    if request.user.is_authenticated:
-        return redirect("discover")
-
-    phone_q = _normalize_phone(request.GET.get("phone") or "")
-    form = PhoneVerifyForm(request.POST or None, initial={"phone_number": phone_q})
-
-    if request.method == "POST" and form.is_valid():
-        phone = _normalize_phone(form.cleaned_data["phone_number"])
-        code = (form.cleaned_data["code"] or "").strip()
-
-        otp = PhoneOTP.objects.filter(phone_number=phone, is_used=False).order_by("-created_at").first()
-        if not otp:
-            messages.error(request, "کد معتبر نیست یا منقضی شده.")
-            return render(request, "accounts/phone_verify.html", {"form": form})
-
-        now = timezone.now()
-        if otp.expires_at < now:
-            messages.error(request, "کد منقضی شده. دوباره درخواست بده.")
-            return redirect("phone_start")
-
-        if otp.attempts >= 5:
-            messages.error(request, "تعداد تلاش‌ها بیش از حد مجاز است. دوباره درخواست بده.")
-            return redirect("phone_start")
-
-        if otp.code_hash != _hash_code(phone, code):
-            otp.attempts += 1
-            otp.save(update_fields=["attempts"])
-            messages.error(request, "کد اشتباه است.")
-            return render(request, "accounts/phone_verify.html", {"form": form})
-
-        otp.is_used = True
-        otp.save(update_fields=["is_used"])
-
-        profile = UserProfile.objects.filter(phone_number=phone).select_related("user").first()
-        if profile:
-            user = profile.user
-        else:
-            username = _generate_username()
-            while User.objects.filter(username=username).exists():
-                username = _generate_username()
-            user = User.objects.create(username=username)
-            user.set_unusable_password()
-            user.save(update_fields=["password"])
-            profile = user.profile
-
-        profile.phone_number = phone
-        profile.phone_verified_at = timezone.now()
-        profile.save(update_fields=["phone_number", "phone_verified_at"])
-
-        login(request, user)
-        return redirect("onboarding")
-
-    return render(request, "accounts/phone_verify.html", {"form": form})
-
-
-def google_login_placeholder(request):
-    """Placeholder endpoint for Google OAuth.
-
-    When django-allauth is installed/configured, point this to the provider login.
-    """
-    messages.info(request, "ورود با گوگل به‌زودی فعال می‌شود.")
-    return redirect("login")
 
 
 @login_required
@@ -194,13 +88,17 @@ def onboarding_view(request):
     if request.method == "POST":
         form = OnboardingForm(request.POST, instance=profile, platform=platform)
         if form.is_valid():
-            form.save()
+            profile = form.save()
             action = request.POST.get("next_action") or "viewer"
-            messages.success(request, "پروفایل شما ذخیره شد ✅")
+            profile.role_intent = (
+                UserProfile.RoleIntent.CREATOR if action == "creator" else UserProfile.RoleIntent.VIEWER
+            )
+            profile.save(update_fields=["role_intent"])
+            messages.success(request, "Onboarding completed.")
             if action == "creator":
                 return redirect("creator_apply")
             return redirect("discover")
-        messages.error(request, "خطا: لطفاً موارد را بررسی کن.")
+        messages.error(request, "Please fix the errors and try again.")
     else:
         form = OnboardingForm(instance=profile, platform=platform)
 
@@ -216,6 +114,119 @@ def onboarding_view(request):
     )
 
 
+def phone_start_view(request):
+    if request.user.is_authenticated:
+        profile = getattr(request.user, "profile", None)
+        if profile and profile.phone_verified_at:
+            return redirect("discover")
+
+    form = PhoneStartForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        phone = _normalize_phone(form.cleaned_data["phone_number"])
+        now = timezone.now()
+
+        last = PhoneOTP.objects.filter(phone_number=phone).order_by("-created_at").first()
+        if last and last.last_sent_at and (now - last.last_sent_at).total_seconds() < 60:
+            messages.error(request, "Please wait before requesting another code.")
+            return render(request, "accounts/phone_start.html", {"form": form})
+
+        code = f"{secrets.randbelow(1000000):06d}"
+        PhoneOTP.objects.create(
+            phone_number=phone,
+            code_hash=_hash_code(phone, code),
+            expires_at=now + timedelta(minutes=2),
+            last_sent_at=now,
+            ip_address=_get_ip(request),
+            user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:256],
+        )
+
+        send_otp(phone, code)
+        if settings.DEBUG:
+            messages.success(request, f"Dev OTP: {code}")
+        else:
+            messages.success(request, "Verification code sent.")
+        return redirect(reverse("phone_verify") + f"?phone={phone}")
+
+    return render(request, "accounts/phone_start.html", {"form": form})
+
+
+def phone_verify_view(request):
+    current_user = None
+    if request.user.is_authenticated:
+        current_user = request.user
+        profile = getattr(request.user, "profile", None)
+        if profile and profile.phone_verified_at:
+            return redirect("discover")
+
+    phone_q = _normalize_phone(request.GET.get("phone") or "")
+    form = PhoneVerifyForm(request.POST or None, initial={"phone_number": phone_q})
+
+    if request.method == "POST" and form.is_valid():
+        phone = _normalize_phone(form.cleaned_data["phone_number"])
+        code = (form.cleaned_data["code"] or "").strip()
+
+        otp = PhoneOTP.objects.filter(phone_number=phone, is_used=False).order_by("-created_at").first()
+        if not otp:
+            messages.error(request, "No valid code found. Try again.")
+            return render(request, "accounts/phone_verify.html", {"form": form})
+
+        now = timezone.now()
+        if otp.expires_at < now:
+            messages.error(request, "Code expired. Request a new code.")
+            return redirect("phone_start")
+
+        if otp.attempts >= 5:
+            messages.error(request, "Too many attempts. Request a new code.")
+            return redirect("phone_start")
+
+        if otp.code_hash != _hash_code(phone, code):
+            otp.attempts += 1
+            otp.save(update_fields=["attempts"])
+            messages.error(request, "Invalid code.")
+            return render(request, "accounts/phone_verify.html", {"form": form})
+
+        otp.is_used = True
+        otp.save(update_fields=["is_used"])
+
+        profile = UserProfile.objects.filter(phone_number=phone).select_related("user").first()
+        if current_user is not None:
+            if profile and profile.user_id != current_user.id:
+                messages.error(request, "This phone is already linked to another account.")
+                return render(request, "accounts/phone_verify.html", {"form": form})
+            user = current_user
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+        else:
+            if profile:
+                user = profile.user
+            else:
+                username = _generate_username()
+                while UserModel.objects.filter(username=username).exists():
+                    username = _generate_username()
+                user = UserModel.objects.create(username=username)
+                user.set_unusable_password()
+                user.save(update_fields=["password"])
+                profile, _ = UserProfile.objects.get_or_create(user=user)
+
+        profile.phone_number = phone
+        profile.phone_verified_at = timezone.now()
+        profile.save(update_fields=["phone_number", "phone_verified_at"])
+
+        login(request, user)
+        return redirect("onboarding")
+
+    return render(request, "accounts/phone_verify.html", {"form": form})
+
+
+def google_login_placeholder(request):
+    if getattr(settings, "ENABLE_ALLAUTH", False):
+        try:
+            return redirect(reverse("socialaccount_login", args=["google"]))
+        except NoReverseMatch:
+            pass
+    messages.info(request, "Google login is not configured yet.")
+    return redirect("login")
+
+
 @login_required
 def creator_apply_view(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
@@ -226,7 +237,7 @@ def creator_apply_view(request):
         profile.creator_enabled = True
         profile.creator_status = UserProfile.CreatorStatus.PENDING
         profile.save(update_fields=["creator_enabled", "creator_status"])
-        messages.success(request, "درخواست شما ثبت شد و در صف بررسی قرار گرفت ✅")
+        messages.success(request, "Your creator application has been submitted.")
         return redirect("creator_apply")
 
     return render(request, "accounts/creator_apply.html", {"profile": profile})
@@ -235,15 +246,15 @@ def creator_apply_view(request):
 @login_required
 def creator_studio_view(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    if profile.creator_status != UserProfile.CreatorStatus.APPROVED:
+        return redirect("creator_apply")
 
-    # Content management
     my_tracks = (
         Track.objects.filter(creator=request.user)
         .order_by("-created_at")
         .prefetch_related("genres")
-    )[:50]
+    )[:100]
 
-    # Analytics (last 30 days)
     from plays.models import PlayEvent
     from django.db.models.functions import TruncDate
     from django.db.models import Count, Sum
@@ -257,6 +268,11 @@ def creator_studio_view(request):
         .order_by("day")
     )
 
+    top_tracks = (
+        Track.objects.filter(creator=request.user)
+        .order_by("-play_count")[:5]
+    )
+
     return render(
         request,
         "accounts/creator_studio.html",
@@ -264,17 +280,17 @@ def creator_studio_view(request):
             "profile": profile,
             "tracks": my_tracks,
             "daily": list(daily),
+            "top_tracks": top_tracks,
         },
     )
 
 
 CREATOR_HANDLE_RESERVED = {
-    # core
     "admin",
     "api",
     "static",
     "media",
-    # app routes
+    "accounts",
     "login",
     "logout",
     "register",
@@ -302,20 +318,17 @@ CREATOR_HANDLE_RESERVED = {
 
 @login_required
 def creator_handle_view(request):
-    """Allow creators to pick a public handle for shareable URL: /<handle>/"""
-
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     if profile.creator_status == UserProfile.CreatorStatus.NONE and not profile.creator_enabled:
-        # Not a creator yet → send to apply page
         return redirect("creator_apply")
 
     if request.method == "POST":
         form = CreatorHandleForm(request.POST, instance=profile, reserved=CREATOR_HANDLE_RESERVED)
         if form.is_valid():
             form.save()
-            messages.success(request, "یوزرنیم عمومی شما ذخیره شد ✅")
+            messages.success(request, "Your public handle has been set.")
             return redirect("creator_studio")
-        messages.error(request, "خطا: لطفاً یک یوزرنیم معتبر انتخاب کن.")
+        messages.error(request, "Please fix the errors and try again.")
     else:
         form = CreatorHandleForm(instance=profile, reserved=CREATOR_HANDLE_RESERVED)
 
@@ -327,26 +340,23 @@ def profile_legacy_redirect(request, username):
 
 
 def public_profile(request, username):
-    user_obj = get_object_or_404(User, username=username)
+    user_obj = get_object_or_404(UserModel, username=username)
     profile, _ = UserProfile.objects.get_or_create(user=user_obj)
-    # Canonical public profile URL:
-    # If a public handle exists, always redirect to /<handle>/ to avoid duplicate profile pages.
-    if getattr(profile, "public_handle", None):
+    if profile.public_handle:
         return redirect("public_profile_by_handle", handle=profile.public_handle)
 
-
-    # Canonical URL: if user has a public handle, redirect to /<handle>/ to avoid duplicate profile pages.
-    if profile.public_handle and request.resolver_match and request.resolver_match.url_name != "public_profile_by_handle":
-        return redirect("public_profile_by_handle", handle=profile.public_handle)
-
-    tracks = Track.objects.filter(creator=user_obj, status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC).order_by("-created_at")[:50]
+    tracks = Track.objects.filter(
+        creator=user_obj,
+        status=Track.Status.APPROVED,
+        visibility=Track.Visibility.PUBLIC,
+    ).order_by("-created_at")[:50]
 
     total_plays = Track.objects.filter(creator=user_obj).aggregate(s=models.Sum("play_count"))["s"] or 0
     total_likes = user_obj.tracks.aggregate(s=models.Count("likes"))["s"] if hasattr(user_obj, "tracks") else 0
     followers_count = user_obj.followers.count() if hasattr(user_obj, "followers") else 0
     following_count = user_obj.following.count() if hasattr(user_obj, "following") else 0
 
-    suggested = User.objects.all().exclude(id=user_obj.id)
+    suggested = UserModel.objects.all().exclude(id=user_obj.id)
     if request.user.is_authenticated and hasattr(request.user, "following"):
         suggested = suggested.exclude(id__in=request.user.following.values_list("creator_id", flat=True))
     suggested = suggested.order_by("-id")[:6]
@@ -371,18 +381,21 @@ def public_profile(request, username):
 
 
 def public_profile_by_handle(request, handle):
-    """Public profile reachable by /<handle>/ for creators."""
     profile = get_object_or_404(UserProfile, public_handle__iexact=handle)
     user_obj = profile.user
 
-    tracks = Track.objects.filter(creator=user_obj, status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC).order_by("-created_at")[:50]
+    tracks = Track.objects.filter(
+        creator=user_obj,
+        status=Track.Status.APPROVED,
+        visibility=Track.Visibility.PUBLIC,
+    ).order_by("-created_at")[:50]
 
     total_plays = Track.objects.filter(creator=user_obj).aggregate(s=models.Sum("play_count"))["s"] or 0
     total_likes = user_obj.tracks.aggregate(s=models.Count("likes"))["s"] if hasattr(user_obj, "tracks") else 0
     followers_count = user_obj.followers.count() if hasattr(user_obj, "followers") else 0
     following_count = user_obj.following.count() if hasattr(user_obj, "following") else 0
 
-    suggested = User.objects.all().exclude(id=user_obj.id)
+    suggested = UserModel.objects.all().exclude(id=user_obj.id)
     if request.user.is_authenticated and hasattr(request.user, "following"):
         suggested = suggested.exclude(id__in=request.user.following.values_list("creator_id", flat=True))
     suggested = suggested.order_by("-id")[:6]
@@ -415,9 +428,9 @@ def settings_view(request):
         form = ProfileSettingsForm(request.POST, request.FILES, instance=profile)
         if form.is_valid():
             form.save()
-            messages.success(request, "تنظیمات پروفایل ذخیره شد ✅")
+            messages.success(request, "Profile updated.")
             return redirect("settings")
-        messages.error(request, "خطا: لطفاً موارد را بررسی کن.")
+        messages.error(request, "Please fix the errors and try again.")
     else:
         form = ProfileSettingsForm(instance=profile)
 
@@ -426,22 +439,29 @@ def settings_view(request):
 
 @login_required
 def dashboard_view(request):
-    """User dashboard: points → revenue summary."""
     from datetime import date
-
     from django.db.models import Count
+    from django.http import HttpResponse
+    import csv
 
     from core.models import PlatformSetting
     from plays.models import PlayEvent
 
-    since = (date.today() - timedelta(days=30)).isoformat()
+    try:
+        range_days = int(request.GET.get("range", 30) or 30)
+    except ValueError:
+        range_days = 30
+    if range_days not in (7, 30, 90, 180):
+        range_days = 30
+    since_date = date.today() - timedelta(days=range_days)
+
     platform = PlatformSetting.get_solo()
 
     rows = (
         PlayEvent.objects.filter(
             track__creator=request.user,
             point_awarded=True,
-            day_key__gte=since,
+            created_at__date__gte=since_date,
         )
         .values("track__content_type")
         .annotate(points=Count("id"))
@@ -452,9 +472,22 @@ def dashboard_view(request):
     if book_points:
         points_by_type["book"] = book_points
 
-    revenue_by_type = {t: points_by_type.get(t, 0) * platform.price_per_point(t) for t in ["music", "podcast", "book", "video"]}
+    revenue_by_type = {
+        t: points_by_type.get(t, 0) * platform.price_per_point(t)
+        for t in ["music", "podcast", "book", "video"]
+    }
     total_points = sum(points_by_type.values())
     total_revenue = sum(revenue_by_type.values())
+
+    if request.GET.get("format") == "csv":
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = "attachment; filename=dashboard.csv"
+        writer = csv.writer(response)
+        writer.writerow(["type", "points", "revenue"])
+        for t in ["music", "podcast", "book", "video"]:
+            writer.writerow([t, points_by_type.get(t, 0), revenue_by_type.get(t, 0)])
+        writer.writerow(["total", total_points, total_revenue])
+        return response
 
     return render(
         request,
@@ -464,7 +497,8 @@ def dashboard_view(request):
             "revenue_by_type": revenue_by_type,
             "total_points": total_points,
             "total_revenue": total_revenue,
-            "since": since,
+            "since": since_date.isoformat(),
             "platform": platform,
+            "range_days": range_days,
         },
     )

@@ -35,7 +35,7 @@
         {% for t in tracks %}
           <tr style="border-top:1px solid #eee;">
             <td style="padding:10px;">{{ t.title }}</td>
-            <td style="padding:10px;">{{ t.content_type }}</td>
+            <td style="padding:10px;">{{ t.content_type_label }}</td>
             <td style="padding:10px;">{{ t.status }}</td>
             <td style="padding:10px;">{% if t.publish_at %}{{ t.publish_at }}{% else %}-{% endif %}</td>
           </tr>

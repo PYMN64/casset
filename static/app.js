@@ -1,4 +1,4 @@
-// ===== Casset: Advanced Queue (Shuffle/Repeat) + Player + MVP features =====
+﻿// ===== Casset: Advanced Queue (Shuffle/Repeat) + Player + MVP features =====
 
 // ---------- Helpers ----------
 function getCookie(name) {
@@ -99,7 +99,6 @@ function getPlayThresholdPercent() {
   const el = document.querySelector('meta[name="play-threshold-percent"]');
   const v = el ? parseFloat(el.getAttribute("content") || "0.6") : 0.6;
   if (!Number.isFinite(v)) return 0.6;
-  // Allow admin-friendly "60" (percent) or legacy "0.6" (ratio)
   return v > 1 ? (v / 100) : v;
 }
 
@@ -146,12 +145,12 @@ window.__nowTrackId = null;
 const QKEY = "casset.queue.v1";
 const SKEY = "casset.queueState.v1";
 
-window.__queue = [];          // current playback queue order
-window.__queueBase = [];      // original (unshuffled) order for toggling shuffle
+window.__queue = [];
+window.__queueBase = [];
 window.__qIndex = -1;
 
-window.__shuffle = false;     // shuffle enabled?
-window.__repeat = "off";      // "off" | "all" | "one"
+window.__shuffle = false;
+window.__repeat = "off"; // "off" | "all" | "one"
 
 function saveQueueState() {
   try {
@@ -195,10 +194,9 @@ function updateQueueUI() {
   const repBtn = document.getElementById("pbRepeat");
   if (repBtn) {
     repBtn.classList.toggle("primary", window.__repeat !== "off");
-    repBtn.textContent = window.__repeat === "one" ? "🔂" : "🔁";
+    repBtn.textContent = window.__repeat === "one" ? "1" : "ALL";
   }
 
-  // Queue panel render (اگر بازه)
   const panel = document.getElementById("qPanel");
   if (panel && panel.style.display === "block") renderQueuePanel();
 }
@@ -224,9 +222,13 @@ function openPlayerBar({ src, title, by, coverHtml, trackId }) {
   const pbBy = document.getElementById("pbBy");
   const pbCover = document.getElementById("pbCover");
 
-  if (pbTitle) pbTitle.textContent = title || "—";
-  if (pbBy) pbBy.textContent = by || "—";
-  if (pbCover) pbCover.innerHTML = coverHtml || "";
+  if (pbTitle) pbTitle.textContent = title || "--";
+  if (pbBy) pbBy.textContent = by || "--";
+  let coverMarkup = coverHtml || "";
+  if (coverMarkup && !coverMarkup.includes("<")) {
+    coverMarkup = `<img src="${coverMarkup}" alt="" />`;
+  }
+  if (pbCover) pbCover.innerHTML = coverMarkup;
 
   window.__nowTrackId = trackId || null;
 
@@ -234,7 +236,6 @@ function openPlayerBar({ src, title, by, coverHtml, trackId }) {
   bar.style.display = "block";
   audio.play().catch(() => {});
 
-  // Media Session
   if ("mediaSession" in navigator) {
     const artwork = [];
     try {
@@ -286,7 +287,7 @@ function queueNext() {
     if (window.__repeat === "all") {
       playAt(0);
     } else {
-      showToast("پایان صف ✅", true);
+      showToast("End of queue", true);
     }
     return;
   }
@@ -319,7 +320,6 @@ function applyShuffleKeepingCurrent() {
   const current = base[window.__qIndex] || window.__queue[window.__qIndex] || null;
   let shuffled = fisherYates(base);
 
-  // current رو ببر اول صف برای اینکه ترک در حال پخش عوض نشه
   if (current && current.trackId) {
     shuffled = [current, ...shuffled.filter(x => x.trackId !== current.trackId)];
     window.__qIndex = 0;
@@ -330,19 +330,17 @@ function applyShuffleKeepingCurrent() {
 function toggleShuffle() {
   window.__shuffle = !window.__shuffle;
 
-  // اگر روشن شد: shuffle کن ولی ترک فعلی حفظ
   if (window.__shuffle) {
     applyShuffleKeepingCurrent();
-    showToast("Shuffle روشن شد 🔀", true);
+    showToast("Shuffle enabled", true);
   } else {
-    // خاموش: برگرد به base و index رو روی track فعلی تنظیم کن
     const cur = window.__queue[window.__qIndex];
     window.__queue = (window.__queueBase || []).slice();
     if (cur && cur.trackId) {
       const idx = window.__queue.findIndex(x => x.trackId === cur.trackId);
       window.__qIndex = idx >= 0 ? idx : 0;
     }
-    showToast("Shuffle خاموش شد", true);
+    showToast("Shuffle disabled", true);
   }
 
   updateQueueUI();
@@ -351,7 +349,7 @@ function toggleShuffle() {
 
 function cycleRepeat() {
   window.__repeat = window.__repeat === "off" ? "all" : (window.__repeat === "all" ? "one" : "off");
-  showToast(window.__repeat === "off" ? "Repeat خاموش" : (window.__repeat === "all" ? "Repeat: All 🔁" : "Repeat: One 🔂"), true);
+  showToast(window.__repeat === "off" ? "Repeat off" : (window.__repeat === "all" ? "Repeat: all" : "Repeat: one"), true);
   updateQueueUI();
   saveQueueState();
 }
@@ -364,13 +362,32 @@ function buildQueueFromContext(clickedBtn) {
 
   const items = finalButtons.map(b => ({
     src: b.dataset.src,
-    title: b.dataset.title || "—",
-    by: b.dataset.by || "—",
+    title: b.dataset.title || "--",
+    by: b.dataset.by || "--",
     coverHtml: b.dataset.cover || "",
     trackId: b.dataset.track || null,
   }));
   const idx = finalButtons.indexOf(clickedBtn);
   return { items, index: idx >= 0 ? idx : 0 };
+}
+
+function addToQueueFromButton(btn) {
+  const item = {
+    src: btn.dataset.src,
+    title: btn.dataset.title || "--",
+    by: btn.dataset.by || "--",
+    coverHtml: btn.dataset.cover || "",
+    trackId: btn.dataset.track || null,
+  };
+  if (!item.src) return;
+  window.__queueBase = window.__queueBase || [];
+  window.__queue = window.__queue || [];
+  window.__queueBase.push(item);
+  window.__queue.push(item);
+  if (window.__qIndex < 0) window.__qIndex = 0;
+  updateQueueUI();
+  saveQueueState();
+  showToast("Added to queue", true);
 }
 
 // ---------- Auto next on ended ----------
@@ -393,7 +410,7 @@ async function handleLike(btn) {
 
   btn.classList.toggle("primary", !!data.liked);
   btn.setAttribute("aria-pressed", data.liked ? "true" : "false");
-  showToast(data.liked ? "لایک شد ♥" : "آنلایک شد", true);
+  showToast(data.liked ? "Liked" : "Unliked", true);
 }
 
 async function handleFollow(btn) {
@@ -408,7 +425,7 @@ async function handleFollow(btn) {
 
   btn.classList.toggle("primary", !!data.following);
   btn.setAttribute("aria-pressed", data.following ? "true" : "false");
-  showToast(data.following ? "فالو شد ✅" : "آنفالو شد", true);
+  showToast(data.following ? "Followed" : "Unfollowed", true);
 }
 
 // ---------- Playlist modal ----------
@@ -421,9 +438,9 @@ function plModalOpen(trackId, trackTitle) {
   if (!modal || !list) return;
 
   window.__plTrackId = trackId;
-  if (t) t.textContent = `ترک: ${trackTitle || trackId}`;
+  if (t) t.textContent = `Track: ${trackTitle || trackId}`;
 
-  list.innerHTML = `<div class="item"><span class="muted">در حال بارگذاری...</span></div>`;
+  list.innerHTML = `<div class="item"><span class="muted">Loading...</span></div>`;
   modal.style.display = "block";
   loadMyPlaylistsIntoModal();
 }
@@ -437,12 +454,12 @@ async function loadMyPlaylistsIntoModal() {
   if (!list) return;
   const data = await getJSON("/api/v1/playlist/mine/");
   if (!data || !data.ok) {
-    list.innerHTML = `<div class="item"><span class="muted">خطا در دریافت پلی‌لیست‌ها</span></div>`;
+    list.innerHTML = `<div class="item"><span class="muted">Failed to load playlists</span></div>`;
     return;
   }
   const pls = data.playlists || [];
   if (!pls.length) {
-    list.innerHTML = `<div class="item"><span class="muted">پلی‌لیستی نداری. از Library بساز.</span></div>`;
+    list.innerHTML = `<div class="item"><span class="muted">No playlists yet. Create one in Library.</span></div>`;
     return;
   }
   list.innerHTML = pls.map(p => `
@@ -457,8 +474,8 @@ async function loadMyPlaylistsIntoModal() {
 }
 async function toggleTrackInPlaylist(playlistId, trackId) {
   const data = await postForm("/api/v1/playlist/toggle-track/", { playlist_id: playlistId, track_id: trackId });
-  if (!data || !data.ok) { showToast("انجام نشد ❌", false); return; }
-  showToast(data.added ? "به پلی‌لیست اضافه شد ✅" : "از پلی‌لیست حذف شد ✅", true);
+  if (!data || !data.ok) { showToast("Failed", false); return; }
+  showToast(data.added ? "Added to playlist" : "Removed from playlist", true);
 }
 
 // ---------- Search ----------
@@ -467,14 +484,14 @@ function renderSearchResults(data) {
   const box = document.getElementById("searchResults");
   if (!box) return;
 
-  if (!data || !data.ok) { box.innerHTML = `<div class="item"><span class="muted">خطا در جستجو</span></div>`; return; }
+  if (!data || !data.ok) { box.innerHTML = `<div class="item"><span class="muted">Search failed</span></div>`; return; }
 
   const tracks = data.tracks || [];
   const creators = data.creators || [];
   const genres = data.genres || [];
 
   if (!tracks.length && !creators.length && !genres.length) {
-    box.innerHTML = `<div class="item"><span class="muted">نتیجه‌ای پیدا نشد.</span></div>`;
+    box.innerHTML = `<div class="item"><span class="muted">No results.</span></div>`;
     return;
   }
 
@@ -498,10 +515,10 @@ function renderSearchResults(data) {
 }
 async function doSearch(q) {
   const hint = document.getElementById("searchHint");
-  if (hint) hint.textContent = "در حال جستجو...";
+  if (hint) hint.textContent = "Searching...";
   const data = await getJSON("/api/v1/search/?q=" + encodeURIComponent(q));
   renderSearchResults(data);
-  if (hint) hint.textContent = "تمام";
+  if (hint) hint.textContent = "Done";
 }
 function hookSearchUI() {
   const input = document.getElementById("searchInput");
@@ -511,9 +528,9 @@ function hookSearchUI() {
     const hint = document.getElementById("searchHint");
     if (__searchTimer) clearTimeout(__searchTimer);
     if (q.length < 2) {
-      if (hint) hint.textContent = "حداقل ۲ کاراکتر";
+      if (hint) hint.textContent = "Type at least 2 characters";
       const box = document.getElementById("searchResults");
-      if (box) box.innerHTML = `<div class="item"><span class="muted">شروع کن به تایپ…</span></div>`;
+      if (box) box.innerHTML = `<div class="item"><span class="muted">Start typing...</span></div>`;
       return;
     }
     __searchTimer = setTimeout(() => doSearch(q), 250);
@@ -541,7 +558,7 @@ function renderQueuePanel() {
   if (meta) meta.textContent = `Shuffle: ${window.__shuffle ? "ON" : "OFF"} • Repeat: ${window.__repeat.toUpperCase()} • ${q.length} tracks`;
 
   if (!q.length) {
-    list.innerHTML = `<div class="item"><span class="muted">Queue خالیه.</span></div>`;
+    list.innerHTML = `<div class="item"><span class="muted">Queue is empty.</span></div>`;
     return;
   }
 
@@ -550,7 +567,7 @@ function renderQueuePanel() {
     return `
       <div class="item" data-q-row="1" data-q-index="${i}" style="${active ? "outline:1px solid rgba(255,255,255,.25)" : ""}">
         <div style="min-width:0">
-          <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.title || "—"}</div>
+          <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.title || "--"}</div>
           <div class="muted" style="font-size:12px">${it.by || ""}</div>
         </div>
         <a class="btn ${active ? "primary" : ""}" href="#" data-q-play="1" data-q-index="${i}">${active ? "Playing" : "Play"}</a>
@@ -561,7 +578,6 @@ function renderQueuePanel() {
 
 // ---------- Click handler ----------
 document.addEventListener("click", (e) => {
-  // Player buttons (support clicks on inner SVG)
   const pbNextEl = e.target.closest("#pbNext");
   if (pbNextEl) { e.preventDefault(); queueNext(); return; }
   const pbPrevEl = e.target.closest("#pbPrev");
@@ -580,13 +596,19 @@ document.addEventListener("click", (e) => {
   const qPanel = document.getElementById("qPanel");
   if (qPanel && e.target === qPanel) { e.preventDefault(); qPanelClose(); return; }
 
-  // Play: build queue from context
   const playBtn = e.target.closest("[data-play]");
   if (playBtn) {
     e.preventDefault();
     const built = buildQueueFromContext(playBtn);
     setQueue(built.items, built.index);
     playAt(window.__qIndex);
+    return;
+  }
+
+  const queueBtn = e.target.closest("[data-queue]");
+  if (queueBtn) {
+    e.preventDefault();
+    addToQueueFromButton(queueBtn);
     return;
   }
 
@@ -627,11 +649,18 @@ document.addEventListener("DOMContentLoaded", () => {
   updateQueueUI();
 
   const seconds = getPlayThresholdSeconds();
+  const percent = getPlayThresholdPercent();
   const globalAudio = getAudioEl();
-  if (globalAudio) attachCountAfterSeconds(globalAudio, () => window.__nowTrackId, seconds);
+  if (globalAudio) {
+    attachCountAfterSeconds(globalAudio, () => window.__nowTrackId, seconds);
+    attachProgressThreshold(globalAudio, () => window.__nowTrackId, percent);
+  }
 
   const pageAudio = document.querySelector("audio[data-track]");
-  if (pageAudio) attachCountAfterSeconds(pageAudio, () => pageAudio.getAttribute("data-track"), seconds);
+  if (pageAudio) {
+    attachCountAfterSeconds(pageAudio, () => pageAudio.getAttribute("data-track"), seconds);
+    attachProgressThreshold(pageAudio, () => pageAudio.getAttribute("data-track"), percent);
+  }
 
   hookSearchUI();
   hookAutoNext();

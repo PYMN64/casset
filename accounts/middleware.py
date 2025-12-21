@@ -31,6 +31,9 @@ class OnboardingRequiredMiddleware:
                 "/onboarding/",
                 "/google/",
                 "/creator/apply/",
+                "/accounts/phone/",
+                "/accounts/phone/verify/",
+                "/accounts/onboarding/",
             )
             if path.startswith(allow_prefixes):
                 return self.get_response(request)
@@ -40,7 +43,10 @@ class OnboardingRequiredMiddleware:
                 return self.get_response(request)
 
             profile = getattr(user, "profile", None)
-            if profile is not None and not getattr(profile, "onboarding_complete", False):
-                return redirect(reverse("onboarding"))
+            if profile is not None:
+                if not getattr(profile, "phone_verified_at", None):
+                    return redirect(reverse("phone_start"))
+                if not getattr(profile, "onboarding_complete", False):
+                    return redirect(reverse("onboarding"))
 
         return self.get_response(request)

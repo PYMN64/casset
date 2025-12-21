@@ -1,64 +1,81 @@
-{% extends "base.html" %}
-{% block title %}Creator Studio • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Creator Studio | Casset{% endblock %}
 
 {% block content %}
-<section class="card" style="max-width:900px;margin:0 auto">
+<section class="card" style="max-width:980px;margin:0 auto">
   <h1>Creator Studio</h1>
-  <p class="muted small">مدیریت محتوا، آمار و آماده‌سازی درآمد.</p>
+  <p class="muted small">Manage content, track performance, and request payouts.</p>
 
   <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
     <div class="card" style="padding:14px">
-      <div class="muted small">وضعیت سازنده</div>
+      <div class="muted small">Creator status</div>
       <div style="font-weight:900;font-size:18px">{{ profile.creator_status }}</div>
     </div>
     <div class="card" style="padding:14px">
-      <div class="muted small">میانبرها</div>
+      <div class="muted small">Quick actions</div>
       <div class="row row-wrap">
-        <a class="btn btn--primary" href="/upload/">آپلود محتوا</a>
-        <a class="btn btn--ghost" href="/my/tracks/">ترک‌های من</a>
-        <a class="btn btn--ghost" href="/payout/">درخواست برداشت</a>
+        <a class="btn btn--primary" href="/upload/">Upload</a>
+        <a class="btn btn--ghost" href="/my/tracks/">My tracks</a>
+        <a class="btn btn--ghost" href="/payout/">Payouts</a>
       </div>
     </div>
   </div>
 
   <div class="card" style="padding:14px;margin-top:12px">
-    <div class="muted small">آدرس صفحه شما (Shareable)</div>
+    <div class="muted small">Public profile URL</div>
     {% if profile.public_handle %}
       <div style="font-weight:800;font-size:16px">/{{ profile.public_handle }}/</div>
-      <a class="btn btn--ghost" href="/{{ profile.public_handle }}/">مشاهده پروفایل عمومی</a>
+      <a class="btn btn--ghost" href="/{{ profile.public_handle }}/">View public profile</a>
     {% else %}
-      <p class="muted small" style="margin:6px 0 10px">برای اینکه پیج شما با لینک ساده مثل <b>casset.ir/username</b> باز شود، یک یوزرنیم عمومی انتخاب کن.</p>
-      <a class="btn btn--primary" href="/creator/handle/">انتخاب یوزرنیم عمومی</a>
+      <p class="muted small" style="margin:6px 0 10px">Set a public handle for shareable links.</p>
+      <a class="btn btn--primary" href="/creator/handle/">Set handle</a>
     {% endif %}
   </div>
 
   <div class="card" style="padding:14px;margin-top:12px">
-    <h2 style="margin:0 0 8px">محتوای اخیر</h2>
+    <h2 style="margin:0 0 8px">Top tracks</h2>
+    <div class="list">
+      {% for t in top_tracks %}
+        <div class="item" style="justify-content:space-between">
+          <div>
+            <div style="font-weight:800">{{ t.title }}</div>
+            <div class="muted small">plays: {{ t.play_count }} • likes: {{ t.like_count }}</div>
+          </div>
+          <a class="btn btn--ghost" href="/t/{{ t.slug }}/">Open</a>
+        </div>
+      {% empty %}
+        <div class="item"><span class="muted">No tracks yet.</span></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card" style="padding:14px;margin-top:12px">
+    <h2 style="margin:0 0 8px">Your tracks</h2>
     <div class="list">
       {% for t in tracks %}
         <div class="item" style="justify-content:space-between">
           <div>
             <div style="font-weight:800">{{ t.title }}</div>
-            <div class="muted small">{{ t.content_type }} • {{ t.status }} • {{ t.visibility }} • plays={{ t.play_count }} • likes={{ t.like_count }}</div>
+            <div class="muted small">{{ t.content_type_label }} • {{ t.status }} • {{ t.visibility }}</div>
           </div>
           <div class="row row-wrap">
             <a class="btn btn--ghost" href="/my/tracks/{{ t.id }}/edit/">Edit</a>
             {% if t.status == "draft" or t.status == "rejected" or t.status == "pending" %}
               <form method="post" action="/my/tracks/{{ t.id }}/submit/" style="display:inline">
                 {% csrf_token %}
-                <button class="btn btn--primary" type="submit">Send</button>
+                <button class="btn btn--primary" type="submit">Submit</button>
               </form>
             {% endif %}
           </div>
         </div>
       {% empty %}
-        <div class="item"><span class="muted">هنوز محتوایی نداری.</span></div>
+        <div class="item"><span class="muted">No tracks yet.</span></div>
       {% endfor %}
     </div>
   </div>
 
   <div class="card" style="padding:14px;margin-top:12px">
-    <h2 style="margin:0 0 8px">آمار ۳۰ روز اخیر</h2>
+    <h2 style="margin:0 0 8px">Last 30 days</h2>
     <div class="list">
       {% for d in daily %}
         <div class="item" style="justify-content:space-between">
@@ -66,12 +83,21 @@
           <div>plays: <b>{{ d.plays }}</b> • points: <b>{{ d.points|default:0 }}</b></div>
         </div>
       {% empty %}
-        <div class="item"><span class="muted">داده‌ای برای نمایش نیست.</span></div>
+        <div class="item"><span class="muted">No activity yet.</span></div>
       {% endfor %}
     </div>
   </div>
 
+  <div class="card" style="padding:14px;margin-top:12px">
+    <h2 style="margin:0 0 8px">Traffic sources (placeholder)</h2>
+    <div class="list">
+      <div class="row"><span>Direct</span><strong>--</strong></div>
+      <div class="row"><span>Search</span><strong>--</strong></div>
+      <div class="row"><span>External</span><strong>--</strong></div>
+    </div>
+  </div>
+
   <hr style="margin:16px 0">
-  <a class="btn btn--ghost" href="/dashboard/">بازگشت به داشبورد</a>
+  <a class="btn btn--ghost" href="/dashboard/">Back to dashboard</a>
 </section>
 {% endblock %}

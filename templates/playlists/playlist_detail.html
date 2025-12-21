@@ -1,35 +1,35 @@
-{% extends "base.html" %}
-{% block title %}{{ playlist.name }} • Playlist • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}{{ pl.name }} | Playlist | Casset{% endblock %}
 {% block content %}
 <div class="grid">
   <section class="card">
-    <h1>{{ playlist.name }}</h1>
+    <h1>{{ pl.name }}</h1>
     <p class="muted small">{{ items|length }} tracks</p>
 
     <div class="list">
-      {% for t in items %}
+      {% for item in items %}
         <div class="row">
           <div style="min-width:0">
-            <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              {{ t.title }}
+            <a href="/t/{{ item.track.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              {{ item.track.title }}
             </a>
-            <div class="muted small">@{{ t.creator.username }} • {{ t.play_count }} plays</div>
+            <div class="muted small">@{{ item.track.creator.username }} • {{ item.track.play_count }} plays</div>
           </div>
 
-          {% if t.audio %}
+          {% if item.track.audio %}
             <a class="btn btn--primary" href="#"
                data-play="1"
-               data-src="{{ t.audio.url }}"
-               data-title="{{ t.title }}"
-               data-by="@{{ t.creator.username }}"
-               data-track="{{ t.id }}"
-               data-cover="{% if t.cover %}<img src='{{ t.cover.url }}' />{% endif %}">
+               data-src="{{ item.track.audio.url }}"
+               data-title="{{ item.track.title }}"
+               data-by="@{{ item.track.creator.username }}"
+               data-track="{{ item.track.id }}"
+               data-cover="{% if item.track.cover %}<img src='{{ item.track.cover.url }}' />{% endif %}">
                Play
             </a>
           {% endif %}
         </div>
       {% empty %}
-        <div class="row"><span class="muted">این پلی‌لیست خالیه.</span></div>
+        <div class="row"><span class="muted">This playlist is empty.</span></div>
       {% endfor %}
     </div>
   </section>
@@ -42,3 +42,4 @@
   </aside>
 </div>
 {% endblock %}
+

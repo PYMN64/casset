@@ -1,43 +1,35 @@
-{% extends "base.html" %}
-{% block title %}VIP • Casset{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}VIP Plans | Casset{% endblock %}
 {% block content %}
-<div class="grid">
-  <section class="card">
-    <h1>VIP</h1>
-    <p class="muted small">پرداخت واقعی بعداً؛ فعلاً فقط وضعیت نمایش داده می‌شود.</p>
+<div class="card">
+  <h1>VIP Plans</h1>
+  <p class="muted small">Legacy subscription view.</p>
 
-    <div class="list">
-      <div class="row">
-        <span style="font-weight:900">VIP Active</span>
-        <span class="muted">{% if profile.has_vip %}YES ✅{% else %}NO{% endif %}</span>
+  {% if active_sub %}
+    <div class="alert">Active subscription: {{ active_sub.plan.name }}</div>
+  {% endif %}
+
+  <div class="list">
+    {% for p in plans %}
+      <div class="item" style="justify-content:space-between">
+        <div>
+          <div style="font-weight:800">{{ p.name }}</div>
+          <div class="muted small">{{ p.price_display }}</div>
+        </div>
+        <div class="muted">{{ p.code }}</div>
       </div>
+    {% empty %}
+      <div class="item"><span class="muted">No plans.</span></div>
+    {% endfor %}
+  </div>
 
-      {% if active_sub %}
-        <div class="row">
-          <span class="muted">Plan</span>
-          <span>{{ active_sub.plan.name }}</span>
-        </div>
-        <div class="row">
-          <span class="muted">Ends</span>
-          <span class="muted small">{{ active_sub.ends_at }}</span>
-        </div>
-      {% endif %}
-    </div>
-
-    {% if elig %}
-      <h2 style="margin-top:14px">Progress</h2>
-      <div class="row" style="display:block">
-        <div class="muted small">پیشرفت کلی: {{ elig.progress_pct }}%</div>
-        <div style="height:10px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;margin-top:8px">
-          <div style="height:10px;width:{{ elig.progress_pct }}%;background:rgba(255,255,255,.35)"></div>
-        </div>
-      </div>
-    {% endif %}
-  </section>
-
-  <aside class="card">
-    <h2>Later</h2>
-    <p class="muted small">وقتی درگاه داشتی، دکمه خرید واقعی را به همین صفحه وصل می‌کنیم.</p>
-  </aside>
+  <hr>
+  <h2>Eligibility</h2>
+  <p class="muted small">Progress: {{ elig.progress_pct }}%</p>
+  <div class="list">
+    {% for rule in elig.creator_rules %}
+      <div class="row"><span>{{ rule.title }}</span><strong>{{ rule.current }}/{{ rule.required }}</strong></div>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}

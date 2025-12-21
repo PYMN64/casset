@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+import importlib.util
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -58,10 +59,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    
     "core",
     "moderation",
-"accounts",
+    "accounts",
     "tracks",
     "plays",
     "playlists",
@@ -70,6 +70,26 @@ INSTALLED_APPS = [
     "subscriptions",
     "billing",
 ]
+
+# Optional: django-allauth (enable with ENABLE_ALLAUTH=1 and installed package)
+ENABLE_ALLAUTH = os.getenv("ENABLE_ALLAUTH", "0").lower() in ("1", "true", "yes", "on")
+if ENABLE_ALLAUTH and importlib.util.find_spec("allauth"):
+    INSTALLED_APPS += [
+        "django.contrib.sites",
+        "allauth",
+        "allauth.account",
+        "allauth.socialaccount",
+        "allauth.socialaccount.providers.google",
+    ]
+    SITE_ID = int(os.getenv("DJANGO_SITE_ID", "1"))
+    ACCOUNT_EMAIL_REQUIRED = True
+    ACCOUNT_USERNAME_REQUIRED = True
+    ACCOUNT_AUTHENTICATION_METHOD = "username_email"
+    ACCOUNT_EMAIL_VERIFICATION = "optional"
+    AUTHENTICATION_BACKENDS = [
+        "django.contrib.auth.backends.ModelBackend",
+        "allauth.account.auth_backends.AuthenticationBackend",
+    ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -95,6 +115,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.platform_settings",
+                "accounts.context_processors.user_profile",
             ],
         },
     },
@@ -146,8 +167,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 LOGIN_URL = "login"
-LOGIN_REDIRECT_URL = "track_list"
-LOGOUT_REDIRECT_URL = "track_list"
+LOGIN_REDIRECT_URL = "discover"
+LOGOUT_REDIRECT_URL = "discover"
 
 
 MEDIA_URL = "/media/"

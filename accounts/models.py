@@ -1,23 +1,26 @@
+﻿from __future__ import annotations
+
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
-from django.contrib.auth.models import User
-from django.db.models.signals import post_save
-# from django.dispatch import receiver
-
 
 
 class UserProfile(models.Model):
     class PrimaryContentType(models.TextChoices):
         MUSIC = "music", "Music"
         PODCAST = "podcast", "Podcast"
-        AUDIOBOOK = "audiobook", "Audiobook"
+        AUDIOBOOK = "book", "Book"
         VIDEO = "video", "Video"
+
     class CreatorStatus(models.TextChoices):
         NONE = "none", "None"
         PENDING = "pending", "Pending"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
+
+    class RoleIntent(models.TextChoices):
+        VIEWER = "viewer", "Viewer"
+        CREATOR = "creator", "Creator"
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile"
@@ -26,15 +29,11 @@ class UserProfile(models.Model):
     display_name = models.CharField(max_length=80, blank=True)
     bio = models.TextField(blank=True)
 
-    # MVP: URL ها (بعداً میشه FileField/S3)
-    # avatar_url = models.URLField(blank=True)
     cover = models.ImageField(upload_to="covers/", null=True, blank=True)
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
     points = models.IntegerField(default=0)
     follower_count = models.PositiveIntegerField(default=0)
 
-    # Each user must pick a primary content type for their creator identity.
-    # (Used for UI defaults and future recommendations.)
     primary_content_type = models.CharField(
         max_length=16,
         choices=PrimaryContentType.choices,
@@ -44,14 +43,12 @@ class UserProfile(models.Model):
     is_vip = models.BooleanField(default=False)
     vip_until = models.DateTimeField(null=True, blank=True)
 
-    def has_vip(self):
-        # 1) Fast path via profile flags
+    def has_vip(self) -> bool:
         if self.is_vip:
             return True
         if self.vip_until and self.vip_until > timezone.now():
             return True
 
-        # Prefer invoice-based VIP if billing is enabled.
         try:
             from billing.models import Invoice
 
@@ -63,21 +60,9 @@ class UserProfile(models.Model):
         except Exception:
             pass
 
-        # 2) If billing app is configured, consider paid invoices
-        try:
-            from billing.models import Invoice
-            return Invoice.objects.filter(
-                user=self.user,
-                status=Invoice.Status.PAID,
-                valid_until__isnull=False,
-                valid_until__gt=timezone.now(),
-            ).exists()
-        except Exception:
-            pass
-
-        # 3) Fallback to subscriptions app (legacy)
         try:
             from subscriptions.models import Subscription
+
             return Subscription.objects.filter(user=self.user, status="active").exclude(
                 ends_at__isnull=False, ends_at__lte=timezone.now()
             ).exists()
@@ -90,26 +75,29 @@ class UserProfile(models.Model):
     youtube_url = models.URLField(blank=True)
     twitter_url = models.URLField(blank=True)
 
-    # Public creator handle used for profile URL: /<handle>/
-    # Keep the system username (u-xxxx...) for authentication and internal references.
     public_handle = models.SlugField(max_length=30, unique=True, null=True, blank=True)
     public_handle_set_at = models.DateTimeField(null=True, blank=True)
 
-    # --- Auth + Onboarding ---
-    # For Iran-first UX we support phone OTP sign-in.
-    # Keep phone on profile for easier querying without swapping AUTH_USER_MODEL.
     phone_number = models.CharField(max_length=32, blank=True, null=True, unique=True)
     phone_verified_at = models.DateTimeField(null=True, blank=True)
     onboarding_complete = models.BooleanField(default=False)
 
-    # Multiple interests for recommendations. Store as a list of canonical keys.
-    # Example: ["music","podcast"]
     interests = models.JSONField(default=list, blank=True)
+    role_intent = models.CharField(
+        max_length=16,
+        choices=RoleIntent.choices,
+        default=RoleIntent.VIEWER,
+    )
 
     creator_enabled = models.BooleanField(default=False)
     creator_status = models.CharField(
         max_length=16, choices=CreatorStatus.choices, default=CreatorStatus.NONE
     )
+
+    # KYC placeholders (not active yet)
+    legal_full_name = models.CharField(max_length=120, blank=True)
+    national_id = models.CharField(max_length=32, blank=True)
+    bank_iban = models.CharField(max_length=40, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -122,12 +110,7 @@ class UserProfile(models.Model):
 
 
 class PhoneOTP(models.Model):
-    """One-time code for phone-based sign-in.
-
-    Notes:
-    - Store only hash of the code.
-    - Keep lightweight anti-abuse fields (attempts, last_sent_at, ip, user_agent).
-    """
+    """One-time code for phone-based sign-in."""
 
     phone_number = models.CharField(max_length=32, db_index=True)
     code_hash = models.CharField(max_length=128)
@@ -147,8 +130,3 @@ class PhoneOTP(models.Model):
 
     def __str__(self) -> str:
         return f"PhoneOTP({self.phone_number}, used={self.is_used})"
-
-# @receiver(post_save, sender=User)
-# def ensure_profile(sender, instance, created, **kwargs):
-#     if created:
-#         UserProfile.objects.get_or_create(user=instance)

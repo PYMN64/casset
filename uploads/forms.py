@@ -1,11 +1,16 @@
-from django import forms
-from tracks.models import Track, Album, Tag
+﻿from django import forms
+
 from core.models import PlatformSetting
+from tracks.models import Album, Genre, Tag, Track
 
 
 class TrackUploadForm(forms.ModelForm):
-    duration_minutes = forms.IntegerField(min_value=0, required=False, help_text='برای محدودیت 180 دقیقه (تقریبی)')
-    tags_text = forms.CharField(required=False, help_text="تگ‌ها را با ویرگول جدا کنید")
+    duration_minutes = forms.IntegerField(
+        min_value=0,
+        required=False,
+        help_text="Used to enforce upload limits.",
+    )
+    tags_text = forms.CharField(required=False, help_text="Comma-separated tags")
 
     class Meta:
         model = Track
@@ -27,57 +32,93 @@ class TrackUploadForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
-        # limit album choices to creator
         if user is not None:
-            self.fields['album'].queryset = Album.objects.filter(creator=user)
-        # disable unavailable content types based on platform setting
-        s = PlatformSetting.get_solo()
-        allowed = []
-        if s.enable_music:
-            allowed.append(Track.ContentType.MUSIC)
-        if s.enable_podcast:
-            allowed.append(Track.ContentType.PODCAST)
-        # audiobook maps to "book" in UX; keep internal choice as audiobook for now
-        if s.enable_book or s.enable_audiobook:
-            allowed.append(Track.ContentType.AUDIOBOOK)
-        if s.enable_video:
-            allowed.append(Track.ContentType.VIDEO)
+            self.fields["album"].queryset = Album.objects.filter(creator=user)
+        if self.instance and getattr(self.instance, "content_type", None) == "audiobook":
+            self.initial["content_type"] = Track.ContentType.AUDIOBOOK
 
+        setting = PlatformSetting.get_solo()
+        allowed = set()
+        disabled = set()
+
+        if setting.enable_music:
+            allowed.add(Track.ContentType.MUSIC)
+        else:
+            disabled.add(Track.ContentType.MUSIC)
+
+        if setting.enable_podcast:
+            allowed.add(Track.ContentType.PODCAST)
+        else:
+            disabled.add(Track.ContentType.PODCAST)
+
+        if setting.enable_book or setting.enable_audiobook:
+            allowed.add(Track.ContentType.AUDIOBOOK)
+        else:
+            disabled.add(Track.ContentType.AUDIOBOOK)
+
+        if setting.enable_video:
+            allowed.add(Track.ContentType.VIDEO)
+        else:
+            disabled.add(Track.ContentType.VIDEO)
+
+        self.allowed_content_types = allowed
+        self.disabled_content_types = disabled
         self.fields["content_type"].choices = [
-            c for c in self.fields["content_type"].choices if c[0] in allowed
+            (value, "Audiobook" if value == Track.ContentType.AUDIOBOOK else label)
+            for value, label in self.fields["content_type"].choices
         ]
+
+        self.fields["genres"].queryset = Genre.objects.filter(is_active=True)
+        raw_ct = (self.data.get("content_type") if hasattr(self, "data") else None) or (
+            getattr(self.instance, "content_type", None)
+        )
+        if raw_ct:
+            book_types = {Track.ContentType.AUDIOBOOK, "audiobook"}
+            if raw_ct in book_types:
+                self.fields["genres"].queryset = self.fields["genres"].queryset.filter(content_type__in=book_types)
+            else:
+                self.fields["genres"].queryset = self.fields["genres"].queryset.filter(content_type=raw_ct)
 
     def clean(self):
         cleaned = super().clean()
-        ct = cleaned.get('content_type')
-        audio = cleaned.get('audio')
-        video = cleaned.get('video')
+        ct = cleaned.get("content_type")
+        audio = cleaned.get("audio")
+        video = cleaned.get("video")
+
+        if ct in self.disabled_content_types:
+            if not (self.instance and self.instance.pk and self.instance.content_type == ct):
+                raise forms.ValidationError("Selected content type is disabled.")
 
         if ct == Track.ContentType.VIDEO:
             if not video:
-                raise forms.ValidationError('برای ویدیو، فایل ویدیو الزامی است.')
+                raise forms.ValidationError("Video file is required for video content.")
         else:
             if not audio:
-                raise forms.ValidationError('برای این نوع محتوا، فایل صوتی الزامی است.')
+                raise forms.ValidationError("Audio file is required for this content type.")
 
-        # album content type must match
-        album = cleaned.get('album')
+        album = cleaned.get("album")
         if album and album.content_type != ct:
-            raise forms.ValidationError('نوع آلبوم با نوع محتوا یکی نیست.')
+            raise forms.ValidationError("Album content type must match track content type.")
 
-        # duration
-        mins = cleaned.get('duration_minutes') or 0
-        cleaned['duration_seconds'] = int(mins) * 60
+        genres = cleaned.get("genres")
+        if genres:
+            book_types = {Track.ContentType.AUDIOBOOK, "audiobook"}
+            for genre in genres:
+                if ct in book_types and genre.content_type not in book_types:
+                    raise forms.ValidationError("Selected genres must match track content type.")
+                if ct not in book_types and genre.content_type != ct:
+                    raise forms.ValidationError("Selected genres must match track content type.")
+
+        mins = cleaned.get("duration_minutes") or 0
+        cleaned["duration_seconds"] = int(mins) * 60
         return cleaned
 
     def save(self, commit=True):
         obj = super().save(commit=False)
-        # duration_seconds from cleaned
-        obj.duration_seconds = int(self.cleaned_data.get('duration_seconds') or 0)
+        obj.duration_seconds = int(self.cleaned_data.get("duration_seconds") or 0)
         if commit:
             obj.save()
             self.save_m2m()
-            # tags (comma-separated)
             tags_raw = (self.cleaned_data.get("tags_text") or "").strip()
             if tags_raw:
                 names = [t.strip() for t in tags_raw.split(",") if t.strip()]
