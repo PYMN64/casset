@@ -13,7 +13,7 @@
       <a class="chip {% if selected_type == 'all' %}chip--active{% endif %}" href="/discover/">All</a>
       {% for t in enabled_types %}
         <a class="chip {% if selected_type == t %}chip--active{% endif %}" href="/discover/?type={{ t }}">
-          {% if t == 'music' %}Music{% elif t == 'podcast' %}Podcast{% elif t == 'book' %}Audiobook{% else %}Video{% endif %}
+          {% if t == 'music' %}Music{% elif t == 'podcast' %}Podcast{% elif t == 'audiobook' %}Audiobook{% else %}Video{% endif %}
         </a>
       {% endfor %}
     </div>

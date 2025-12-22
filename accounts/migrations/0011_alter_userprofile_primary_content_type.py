@@ -20,7 +20,7 @@ class Migration(migrations.Migration):
                 choices=[
                     ("music", "Music"),
                     ("podcast", "Podcast"),
-                    ("book", "Book"),
+                    ("audiobook", "Audiobook"),
                     ("video", "Video"),
                 ],
                 default="music",

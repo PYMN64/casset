@@ -468,13 +468,9 @@ def dashboard_view(request):
     )
 
     points_by_type = {r["track__content_type"] or "music": int(r["points"] or 0) for r in rows}
-    book_points = points_by_type.pop("audiobook", 0) + points_by_type.pop("book", 0)
-    if book_points:
-        points_by_type["book"] = book_points
-
     revenue_by_type = {
         t: points_by_type.get(t, 0) * platform.price_per_point(t)
-        for t in ["music", "podcast", "book", "video"]
+        for t in ["music", "podcast", "audiobook", "video"]
     }
     total_points = sum(points_by_type.values())
     total_revenue = sum(revenue_by_type.values())
@@ -484,7 +480,7 @@ def dashboard_view(request):
         response["Content-Disposition"] = "attachment; filename=dashboard.csv"
         writer = csv.writer(response)
         writer.writerow(["type", "points", "revenue"])
-        for t in ["music", "podcast", "book", "video"]:
+        for t in ["music", "podcast", "audiobook", "video"]:
             writer.writerow([t, points_by_type.get(t, 0), revenue_by_type.get(t, 0)])
         writer.writerow(["total", total_points, total_revenue])
         return response

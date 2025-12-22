@@ -15,7 +15,7 @@ class PlatformSettingAdmin(admin.ModelAdmin):
         "updated_at",
         "enable_music",
         "enable_podcast",
-        "enable_book",
+        "enable_audiobook",
         "enable_video",
         "free_upload_minutes",
         "creator_daily_upload_limit",
@@ -29,7 +29,6 @@ class PlatformSettingAdmin(admin.ModelAdmin):
                 "fields": (
                     "enable_music",
                     "enable_podcast",
-                    "enable_book",
                     "enable_audiobook",  # legacy
                     "enable_video",
                 )
@@ -59,7 +58,6 @@ class PlatformSettingAdmin(admin.ModelAdmin):
                 "fields": (
                     "price_per_point_music",
                     "price_per_point_podcast",
-                    "price_per_point_book",
                     "price_per_point_audiobook",  # legacy
                     "price_per_point_video",
                 )

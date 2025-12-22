@@ -34,6 +34,14 @@
     <label class="muted small">Description</label>
     {{ form.description }}
 
+    <div id="audiobookCredits" style="display:none">
+      <label class="muted small">Author (optional)</label>
+      {{ form.author_name }}
+
+      <label class="muted small">Translator (optional)</label>
+      {{ form.translator_name }}
+    </div>
+
     <div class="row row-wrap">
       <div style="min-width:180px">
         <label class="muted small">Language (optional)</label>
@@ -94,6 +102,7 @@
   const ct = document.getElementById("id_content_type");
   const audioBox = document.getElementById("audioBox");
   const videoBox = document.getElementById("videoBox");
+  const creditBox = document.getElementById("audiobookCredits");
   function sync(){
     const v = ct ? ct.value : "music";
     if(v === "video"){
@@ -102,6 +111,9 @@
     }else{
       videoBox.style.display = "none";
       audioBox.style.display = "";
+    }
+    if(creditBox){
+      creditBox.style.display = v === "audiobook" ? "" : "none";
     }
   }
   if(ct){ ct.addEventListener("change", sync); }

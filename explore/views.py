@@ -32,12 +32,14 @@ def _rate_limited(request) -> bool:
 
 def discover_view(request):
     recommended = []
-    setting = PlatformSetting.get_solo()
+    setting = PlatformSetting.objects.first()
+    if not setting:
+        setting = PlatformSetting.objects.create()
     selected_type = (request.GET.get("type") or "all").lower()
-    book_types = ["book", "audiobook"]
+    book_types = ["audiobook"]
 
     enabled_types = [
-        t for t in ["music", "podcast", "book", "video"] if setting.is_content_type_enabled(t)
+        t for t in ["music", "podcast", "audiobook", "video"] if setting.is_content_type_enabled(t)
     ]
     if selected_type not in ["all"] + enabled_types:
         selected_type = "all"
@@ -45,7 +47,7 @@ def discover_view(request):
     def apply_type(qs):
         if selected_type == "all":
             return qs.filter(content_type__in=["music", "podcast"] + book_types + ["video"])
-        if selected_type == "book":
+        if selected_type == "audiobook":
             return qs.filter(content_type__in=book_types)
         return qs.filter(content_type=selected_type)
 
@@ -103,9 +105,9 @@ def discover_view(request):
         if track.status != Track.Status.APPROVED or track.visibility != Track.Visibility.PUBLIC:
             continue
         if selected_type != "all":
-            if selected_type == "book" and track.content_type not in book_types:
+            if selected_type == "audiobook" and track.content_type not in book_types:
                 continue
-            if selected_type != "book" and track.content_type != selected_type:
+            if selected_type != "audiobook" and track.content_type != selected_type:
                 continue
         pinned.append(pin)
 

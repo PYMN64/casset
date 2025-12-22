@@ -9,7 +9,7 @@ class UserProfile(models.Model):
     class PrimaryContentType(models.TextChoices):
         MUSIC = "music", "Music"
         PODCAST = "podcast", "Podcast"
-        AUDIOBOOK = "book", "Book"
+        AUDIOBOOK = "audiobook", "Audiobook"
         VIDEO = "video", "Video"
 
     class CreatorStatus(models.TextChoices):

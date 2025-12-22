@@ -8,7 +8,7 @@ class Genre(models.Model):
     class ContentType(models.TextChoices):
         MUSIC = "music", "Music"
         PODCAST = "podcast", "Podcast"
-        AUDIOBOOK = "book", "Book"
+        AUDIOBOOK = "audiobook", "Audiobook"
         VIDEO = "video", "Video"
 
     name_fa = models.CharField(max_length=64)
@@ -28,8 +28,6 @@ class Genre(models.Model):
     )
     is_active = models.BooleanField(default=True)
     order = models.PositiveIntegerField(default=0)
-    author_name = models.CharField(max_length=140, blank=True)
-    translator_name = models.CharField(max_length=140, blank=True)
 
     class Meta:
         ordering = ["content_type", "order", "name_fa"]
@@ -83,34 +81,36 @@ class Tag(models.Model):
         return self.name
 
 
-
 class Album(models.Model):
     class ContentType(models.TextChoices):
-        MUSIC = 'music', 'Music'
-        PODCAST = 'podcast', 'Podcast'
-        AUDIOBOOK = 'book', 'Book'
-        VIDEO = 'video', 'Video'
+        MUSIC = "music", "Music"
+        PODCAST = "podcast", "Podcast"
+        AUDIOBOOK = "audiobook", "Audiobook"
+        VIDEO = "video", "Video"
 
-    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='albums')
+    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="albums")
     title = models.CharField(max_length=140)
     description = models.TextField(blank=True)
-    cover = models.ImageField(upload_to='album_covers/', blank=True, null=True)
+    cover = models.ImageField(upload_to="album_covers/", blank=True, null=True)
     content_type = models.CharField(max_length=16, choices=ContentType.choices, default=ContentType.MUSIC)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-created_at']
-        constraints = [models.UniqueConstraint(fields=['creator','title','content_type'], name='uniq_album_creator_title_type')]
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["creator", "title", "content_type"], name="uniq_album_creator_title_type")
+        ]
 
     def __str__(self):
         return f"{self.title} ({self.content_type})"
 
+
 class Track(models.Model):
     class ContentType(models.TextChoices):
-        MUSIC = 'music', 'Music'
-        PODCAST = 'podcast', 'Podcast'
-        AUDIOBOOK = 'book', 'Book'
-        VIDEO = 'video', 'Video'
+        MUSIC = "music", "Music"
+        PODCAST = "podcast", "Podcast"
+        AUDIOBOOK = "audiobook", "Audiobook"
+        VIDEO = "video", "Video"
 
     class Status(models.TextChoices):
         # New lifecycle (keep legacy PENDING for backward compat)
@@ -128,12 +128,10 @@ class Track(models.Model):
         UNLISTED = "unlisted", "Unlisted"
         PRIVATE = "private", "Private"
 
-    creator = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tracks"
-    )
+    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tracks")
 
     content_type = models.CharField(max_length=16, choices=ContentType.choices, default=ContentType.MUSIC)
-    album = models.ForeignKey('tracks.Album', on_delete=models.SET_NULL, null=True, blank=True, related_name='tracks')
+    album = models.ForeignKey("tracks.Album", on_delete=models.SET_NULL, null=True, blank=True, related_name="tracks")
 
     title = models.CharField(max_length=140)
     slug = models.SlugField(max_length=170, unique=True)
@@ -151,6 +149,10 @@ class Track(models.Model):
 
     duration_seconds = models.PositiveIntegerField(default=0)
     allow_comments = models.BooleanField(default=True)
+
+    # Audiobook credits (optional; kept on Track not Genre)
+    author_name = models.CharField(blank=True, max_length=140)
+    translator_name = models.CharField(blank=True, max_length=140)
 
     def cover_src(self):
         return self.cover.url if self.cover else ""

@@ -12,6 +12,20 @@
     </div>
   </div>
 
+  {% if track.content_type == "audiobook" and (track.author_name or track.translator_name) %}
+    <div class="card">
+      <div class="stack" style="min-width:0">
+        <p class="card__t">Credits</p>
+        {% if track.author_name %}
+          <p class="card__m">Author: {{ track.author_name }}</p>
+        {% endif %}
+        {% if track.translator_name %}
+          <p class="card__m">Translator: {{ track.translator_name }}</p>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
   <div class="card">
     <div class="thumb"><svg class="icon icon--lg"><use href="#i-library"/></svg></div>
     <div class="stack" style="min-width:0">

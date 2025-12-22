@@ -18,6 +18,8 @@ class TrackUploadForm(forms.ModelForm):
             "content_type",
             "title",
             "description",
+            "author_name",
+            "translator_name",
             "language",
             "explicit",
             "visibility",
@@ -51,7 +53,7 @@ class TrackUploadForm(forms.ModelForm):
         else:
             disabled.add(Track.ContentType.PODCAST)
 
-        if setting.enable_book or setting.enable_audiobook:
+        if setting.enable_audiobook:
             allowed.add(Track.ContentType.AUDIOBOOK)
         else:
             disabled.add(Track.ContentType.AUDIOBOOK)
@@ -73,9 +75,10 @@ class TrackUploadForm(forms.ModelForm):
             getattr(self.instance, "content_type", None)
         )
         if raw_ct:
-            book_types = {Track.ContentType.AUDIOBOOK, "audiobook"}
-            if raw_ct in book_types:
-                self.fields["genres"].queryset = self.fields["genres"].queryset.filter(content_type__in=book_types)
+            if raw_ct == Track.ContentType.AUDIOBOOK:
+                self.fields["genres"].queryset = self.fields["genres"].queryset.filter(
+                    content_type=Track.ContentType.AUDIOBOOK
+                )
             else:
                 self.fields["genres"].queryset = self.fields["genres"].queryset.filter(content_type=raw_ct)
 
@@ -101,13 +104,14 @@ class TrackUploadForm(forms.ModelForm):
             raise forms.ValidationError("Album content type must match track content type.")
 
         genres = cleaned.get("genres")
-        if genres:
-            book_types = {Track.ContentType.AUDIOBOOK, "audiobook"}
+        if genres and ct:
             for genre in genres:
-                if ct in book_types and genre.content_type not in book_types:
+                if genre.content_type != ct:
                     raise forms.ValidationError("Selected genres must match track content type.")
-                if ct not in book_types and genre.content_type != ct:
-                    raise forms.ValidationError("Selected genres must match track content type.")
+
+        if ct != Track.ContentType.AUDIOBOOK:
+            cleaned["author_name"] = ""
+            cleaned["translator_name"] = ""
 
         mins = cleaned.get("duration_minutes") or 0
         cleaned["duration_seconds"] = int(mins) * 60

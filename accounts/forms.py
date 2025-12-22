@@ -88,7 +88,7 @@ class OnboardingForm(forms.ModelForm):
     INTEREST_CHOICES = [
         ("music", "Music"),
         ("podcast", "Podcast"),
-        ("book", "Audiobook"),
+        ("audiobook", "Audiobook"),
         ("video", "Video"),
     ]
 
@@ -117,27 +117,21 @@ class OnboardingForm(forms.ModelForm):
             self.fields["first_name"].initial = self.instance.user.first_name
             self.fields["last_name"].initial = self.instance.user.last_name
             interests = list(self.instance.interests or [])
-            self.fields["interests"].initial = [
-                "book" if i == "audiobook" else i for i in interests
-            ]
+            allowed = {value for value, _ in self.INTEREST_CHOICES}
+            self.fields["interests"].initial = [i for i in interests if i in allowed]
 
         self.disabled_interest_types = set()
         if platform is not None:
-            for k in ("book", "video"):
+            for k in ("audiobook", "video"):
                 if not platform.is_content_type_enabled(k):
                     self.disabled_interest_types.add(k)
 
     def clean_interests(self):
         interests = self.cleaned_data.get("interests") or []
-        interests = ["book" if i == "audiobook" else i for i in interests]
         platform = getattr(self, "platform", None)
         if platform is None:
             return interests
-        out = []
-        for k in interests:
-            if platform.is_content_type_enabled(k):
-                out.append(k)
-        return out
+        return [k for k in interests if platform.is_content_type_enabled(k)]
 
     def save(self, commit=True):
         profile = super().save(commit=False)

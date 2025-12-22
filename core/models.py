@@ -9,14 +9,10 @@ class PlatformSetting(models.Model):
     Keep exactly one row. New fields are additive to keep migrations stable.
     """
 
-    # Upload availability (legacy names)
     enable_music = models.BooleanField(default=True)
     enable_podcast = models.BooleanField(default=True)
     enable_audiobook = models.BooleanField(default=False)
     enable_video = models.BooleanField(default=False)
-
-    # V3 friendly alias for audiobook -> book (additive)
-    enable_book = models.BooleanField(default=False)
 
     # Upload limits
     free_upload_minutes = models.PositiveIntegerField(default=180)
@@ -41,9 +37,6 @@ class PlatformSetting(models.Model):
     price_per_point_podcast = models.PositiveIntegerField(default=0)
     price_per_point_audiobook = models.PositiveIntegerField(default=0)
     price_per_point_video = models.PositiveIntegerField(default=0)
-
-    # V3 alias for book
-    price_per_point_book = models.PositiveIntegerField(default=0)
 
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -70,27 +63,24 @@ class PlatformSetting(models.Model):
         return float(self.play_award_percent or 0.60)
 
     def price_per_point(self, content_type: str) -> int:
-        """Return configured price per point for a given content type."""
         content_type = (content_type or "").lower()
-        if content_type == "book":
-            return int(self.price_per_point_book or self.price_per_point_audiobook or 0)
+        if content_type == "audiobook":
+            return int(self.price_per_point_audiobook or 0)
         return {
             "music": int(self.price_per_point_music or 0),
             "podcast": int(self.price_per_point_podcast or 0),
-            "audiobook": int(self.price_per_point_audiobook or 0),
             "video": int(self.price_per_point_video or 0),
         }.get(content_type, 0)
 
     def is_content_type_enabled(self, content_type: str) -> bool:
         content_type = (content_type or "").lower()
-        if content_type == "book":
-            return bool(self.enable_book or self.enable_audiobook)
+        if content_type == "audiobook":
+            return bool(self.enable_audiobook)
         return {
             "music": bool(self.enable_music),
             "podcast": bool(self.enable_podcast),
-            "audiobook": bool(self.enable_audiobook),
             "video": bool(self.enable_video),
-        }.get(content_type, True)
+        }.get(content_type, False)
 
     class Meta:
         verbose_name = "Platform setting"

@@ -55,6 +55,18 @@
       <p class="muted">{{ track.description }}</p>
     {% endif %}
 
+    {% if track.content_type == "audiobook" and (track.author_name or track.translator_name) %}
+      <h2 style="margin-top:14px">Credits</h2>
+      <div class="list">
+        {% if track.author_name %}
+          <div class="row"><span>Author</span><strong>{{ track.author_name }}</strong></div>
+        {% endif %}
+        {% if track.translator_name %}
+          <div class="row"><span>Translator</span><strong>{{ track.translator_name }}</strong></div>
+        {% endif %}
+      </div>
+    {% endif %}
+
     <hr>
     <h2>Report</h2>
     {% if request.user.is_authenticated %}
