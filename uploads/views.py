@@ -34,25 +34,45 @@ def upload_track(request):
         if form.is_valid():
             track = form.save(commit=False)
             track.creator = request.user
-
-            # Always start as draft. Creator can submit for review.
             track.status = Track.Status.DRAFT
             track.reject_reason = ""
+            track.play_count = 0
+
+            # Daily upload cap — anti-abuse, applies to every creator
+            # (VIP only lifts the free-minutes cap below, not this one).
+            uploads_today = Track.objects.filter(
+                creator=request.user, created_at__date=timezone.localdate()
+            ).count()
+            if uploads_today >= setting.creator_daily_upload_limit:
+                form.add_error(
+                    None,
+                    f"شما امروز به سقف {setting.creator_daily_upload_limit} آپلود رسیده‌اید. "
+                    f"فردا دوباره تلاش کنید.",
+                )
+                return render(request, "uploads/upload.html", {"form": form, "setting": setting})
 
             # Free upload cap (minutes) for non-VIP creators
-            if not request.user.profile.has_vip():
-                used = Track.objects.filter(creator=request.user).aggregate(s=models.Sum('duration_seconds'))['s'] or 0
+            profile = ensure_creator_profile(request.user)
+            if not profile.has_vip():
+                used = Track.objects.filter(creator=request.user).aggregate(
+                    s=models.Sum("duration_seconds")
+                )["s"] or 0
                 new_dur = track.duration_seconds or 0
                 cap_seconds = int(setting.free_upload_minutes) * 60
                 if used + new_dur > cap_seconds:
                     remaining = max(0, cap_seconds - used)
-                    form.add_error(None, f"سقف آپلود رایگان شما {int(setting.free_upload_minutes)} دقیقه است. باقی‌مانده: {remaining//60} دقیقه. برای بیشتر VIP لازم است.")
-                else:
-                    track.play_count = 0
-                    track.save()
-                    form.save_m2m()
-                    messages.success(request, "محتوا به‌صورت پیش‌نویس ذخیره شد. برای بررسی و انتشار، آن را ارسال کنید.")
-                    return redirect("my_tracks")
+                    form.add_error(
+                        None,
+                        f"سقف آپلود رایگان شما {int(setting.free_upload_minutes)} دقیقه است. "
+                        f"باقی‌مانده: {remaining // 60} دقیقه. برای بیشتر VIP لازم است.",
+                    )
+                    # Don't save — fall through to re-render with error
+                    return render(request, "uploads/upload.html", {"form": form, "setting": setting})
+
+            track.save()
+            form.save_m2m()
+            messages.success(request, "محتوا به‌صورت پیش‌نویس ذخیره شد. برای بررسی و انتشار، آن را ارسال کنید.")
+            return redirect("my_tracks")
         # invalid: fall-through to re-render with errors
 
     return render(request, "uploads/upload.html", {"form": form, "setting": setting})

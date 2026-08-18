@@ -1,10 +1,13 @@
+from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, render, redirect
 from django.utils import timezone
 from datetime import timedelta
 
 from accounts.models import UserProfile
-from .models import PayoutRequest
+from accounts.eligibility import compute_eligibility
+from .models import PayoutRequest, Plan, Invoice
 from core.models import PlatformSetting
 
 
@@ -20,16 +23,55 @@ def _eligible_for_payout(profile: UserProfile) -> bool:
 @login_required
 def vip_page(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    return render(request, "billing/vip.html", {"profile": profile})
+    plans = Plan.objects.filter(is_active=True)
+    active_invoice = (
+        Invoice.objects.filter(user=request.user, status=Invoice.Status.PAID)
+        .order_by("-valid_until")
+        .first()
+    )
+    elig = compute_eligibility(request.user)
+
+    return render(request, "billing/vip.html", {
+        "profile": profile,
+        "plans": plans,
+        "active_invoice": active_invoice,
+        "elig": elig,
+    })
 
 
 @login_required
-def activate_vip_dev(request):
-    # فقط برای DEV: 30 روز VIP فعال می‌کنه
-    profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    profile.vip_until = timezone.now() + timedelta(days=30)
-    profile.is_vip = True
-    profile.save()
+def activate_vip_dev(request, plan_id: int | None = None):
+    """DEV-ONLY helper to try the VIP flow without a real payment gateway.
+
+    Unlike the previous implementation, this does NOT flip
+    `UserProfile.is_vip` directly. It creates a real (paid) `Invoice`
+    against a real `Plan`, so `UserProfile.has_vip()` derives VIP status
+    from the same billing records a real payment would produce — matching
+    the "counters/flags are derived, not hand-written" rule in
+    CLAUDE.md's Constitution.
+    """
+    if not settings.DEBUG:
+        # Never allow this outside local development.
+        return redirect("vip")
+
+    if plan_id:
+        plan = get_object_or_404(Plan, id=plan_id, is_active=True)
+    else:
+        plan, _ = Plan.objects.get_or_create(
+            code="vip_monthly",
+            defaults={"title": "VIP Monthly", "price": 0, "duration_days": 30},
+        )
+
+    invoice = Invoice.objects.create(
+        user=request.user,
+        plan=plan,
+        amount=plan.price,
+        status=Invoice.Status.PENDING,
+        provider="dev",
+    )
+    invoice.mark_paid()
+
+    messages.success(request, f"VIP از طریق پلن «{plan.title}» فعال شد (Dev).")
     return redirect("vip")
 
 
@@ -47,6 +89,14 @@ def create_payout_request(request):
         return redirect("payout")
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     if not _eligible_for_payout(profile):
+        return redirect("payout")
+
+    # An already-pending request must be resolved (paid/rejected) before a
+    # new one can be filed — otherwise nothing stops a user from spamming
+    # duplicate requests, each capped at their *full* point balance, which
+    # would make outstanding-payout totals meaningless for staff review.
+    if PayoutRequest.objects.filter(user=request.user, status=PayoutRequest.Status.PENDING).exists():
+        messages.error(request, "شما در حال حاضر یک درخواست تسویه در حال بررسی دارید.")
         return redirect("payout")
 
     try:

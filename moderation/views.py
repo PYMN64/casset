@@ -1,5 +1,3 @@
-from datetime import date
-
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, Http404
@@ -15,14 +13,40 @@ from .models import Report, AuditLog
 User = get_user_model()
 
 
-def _report_rate_limited(user_id: int, target_key: str) -> bool:
-    """1 report per day per user per target."""
-    day = date.today().isoformat()
-    key = f"rl:report:{user_id}:{target_key}:{day}"
+def _already_reported_today(user_id: int, target_key: str, *, queryset) -> bool:
+    """Return True if this user already reported this target today.
+
+    Design
+    ------
+    The database is the source of truth: cache alone is not safe here,
+    because a cache flush or eviction would let the same user file the
+    same report again. Cache is only a fast path that avoids a DB hit
+    on the common (already-reported) case.
+
+    The day boundary uses the project's local timezone, so "today"
+    matches what the user sees rather than the server's UTC clock.
+    """
+    today = timezone.localdate()
+    key = f"report:{user_id}:{target_key}:{today.isoformat()}"
+
     if cache.get(key):
         return True
-    cache.set(key, 1, timeout=24*3600)
-    return False
+
+    exists = queryset.filter(
+        reporter_id=user_id, created_at__date=today
+    ).exists()
+
+    if exists:
+        cache.set(key, 1, timeout=24 * 3600)
+    return exists
+
+
+def _mark_reported(user_id: int, target_key: str) -> None:
+    """Warm the cache after a successful report."""
+    today = timezone.localdate()
+    cache.set(
+        f"report:{user_id}:{target_key}:{today.isoformat()}", 1, timeout=24 * 3600
+    )
 
 
 @require_POST
@@ -34,8 +58,15 @@ def report_profile(request, username: str):
         return JsonResponse({'ok': False, 'error': 'cannot_report_self'}, status=400)
 
     target_key = f"profile:{target.id}"
-    if _report_rate_limited(request.user.id, target_key):
-        return JsonResponse({'ok': False, 'error': 'rate_limited'}, status=429)
+    if _already_reported_today(
+        request.user.id, target_key,
+        queryset=Report.objects.filter(
+            target_type=Report.TargetType.PROFILE, target_user=target
+        ),
+    ):
+        return JsonResponse(
+            {'ok': False, 'error': 'already_reported_today'}, status=429
+        )
 
     reason = request.POST.get('reason') or Report.Reason.IMPERSONATION
     details = request.POST.get('details','')
@@ -48,6 +79,7 @@ def report_profile(request, username: str):
         reason=reason,
         details=details,
     )
+    _mark_reported(request.user.id, target_key)
     return JsonResponse({'ok': True})
 
 
@@ -56,8 +88,17 @@ def report_profile(request, username: str):
 def report_track(request, track_id: int):
     track = get_object_or_404(Track, id=track_id)
     target_key = f"track:{track.id}"
-    if _report_rate_limited(request.user.id, target_key):
-        return JsonResponse({'ok': False, 'error': 'rate_limited'}, status=429)
+
+    if _already_reported_today(
+        request.user.id, target_key,
+        queryset=Report.objects.filter(
+            target_type=Report.TargetType.TRACK, track=track
+        ),
+    ):
+        return JsonResponse(
+            {'ok': False, 'error': 'already_reported_today'}, status=429
+        )
+
     reason = request.POST.get('reason') or Report.Reason.OTHER
     details = request.POST.get('details','')
     Report.objects.create(
@@ -67,6 +108,7 @@ def report_track(request, track_id: int):
         reason=reason,
         details=details,
     )
+    _mark_reported(request.user.id, target_key)
     return JsonResponse({'ok': True})
 
 
@@ -85,6 +127,12 @@ def track_queue(request):
 def approve_track(request, track_id: int):
     _staff_required(request)
     track = get_object_or_404(Track, id=track_id)
+    if track.status == Track.Status.APPROVED:
+        # Idempotent no-op: without this, re-clicking (or revisiting the
+        # URL) resends the "track approved" notification every time — the
+        # signal in notifications/signals.py has no dedup of its own — and
+        # bumps published_at to a new timestamp on every re-click.
+        return redirect('moderation_track_queue')
     track.status = Track.Status.APPROVED
     track.reject_reason = ""
     track.published_at = timezone.now()
@@ -100,6 +148,10 @@ def approve_track(request, track_id: int):
 def reject_track(request, track_id: int):
     _staff_required(request)
     track = get_object_or_404(Track, id=track_id)
+    if track.status == Track.Status.REJECTED:
+        # Same idempotency reasoning as approve_track — avoid a duplicate
+        # "track rejected" notification on re-click/resubmission.
+        return redirect('moderation_track_queue')
     reason = (request.POST.get('reason') or '').strip()[:240]
     track.status = Track.Status.REJECTED
     track.reject_reason = reason or "رد شد"

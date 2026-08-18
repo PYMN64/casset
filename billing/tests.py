@@ -1,3 +1,244 @@
-from django.test import TestCase
+from django.contrib.auth import get_user_model
+from django.test import TestCase, override_settings
+from django.urls import reverse
+from django.utils import timezone
 
-# Create your tests here.
+from accounts.models import UserProfile
+from core.models import PlatformSetting
+from core.test_utils import make_user
+from .models import Plan, Invoice, PayoutRequest
+
+User = get_user_model()
+
+
+class PlanModelTests(TestCase):
+    def test_slug_is_auto_generated_from_code(self):
+        plan = Plan.objects.create(code="vip_monthly", title="VIP Monthly", price=50000)
+        self.assertEqual(plan.slug, "vip_monthly")
+
+    def test_slug_is_not_overwritten_if_set(self):
+        plan = Plan.objects.create(code="vip_monthly", slug="custom-slug", title="VIP Monthly")
+        self.assertEqual(plan.slug, "custom-slug")
+
+    def test_default_ordering_is_sort_order_then_price(self):
+        cheap = Plan.objects.create(code="a", title="A", price=10, sort_order=1)
+        expensive_but_first = Plan.objects.create(code="b", title="B", price=100, sort_order=0)
+        self.assertEqual(list(Plan.objects.all()), [expensive_but_first, cheap])
+
+
+class HasVipTests(TestCase):
+    """UserProfile.has_vip() is derived purely from billing.Invoice
+    (plus fast-path cache fields). `subscriptions` is fully retired;
+    `billing` is the single canonical source for VIP/plan state.
+    """
+
+    def setUp(self):
+        self.user = make_user("listener1")
+        self.profile = self.user.profile
+        self.plan = Plan.objects.create(code="vip_monthly", title="VIP Monthly", price=0, duration_days=30)
+
+    def test_no_invoice_no_vip(self):
+        self.assertFalse(self.profile.has_vip())
+
+    def test_paid_invoice_with_future_valid_until_grants_vip(self):
+        inv = Invoice.objects.create(user=self.user, plan=self.plan, status=Invoice.Status.PAID)
+        inv.mark_paid()
+        self.assertTrue(self.profile.has_vip())
+
+    def test_expired_invoice_does_not_grant_vip(self):
+        inv = Invoice.objects.create(
+            user=self.user,
+            plan=self.plan,
+            status=Invoice.Status.PAID,
+            valid_until=timezone.now() - timezone.timedelta(days=1),
+        )
+        self.assertFalse(self.profile.has_vip())
+
+    def test_pending_invoice_does_not_grant_vip(self):
+        Invoice.objects.create(user=self.user, plan=self.plan, status=Invoice.Status.PENDING)
+        self.assertFalse(self.profile.has_vip())
+
+
+class ActivateVipDevTests(TestCase):
+    def setUp(self):
+        # Must be onboarded, otherwise OnboardingRequiredMiddleware redirects
+        # every request and the view under test never runs — which made these
+        # tests pass on the 302 assertion while doing nothing.
+        self.user = make_user("listener2")
+        self.client.login(username="listener2", password="pass12345")
+
+    @override_settings(DEBUG=False)
+    def test_disabled_outside_debug(self):
+        resp = self.client.get(reverse("vip_activate_dev"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertNotIn("onboarding", resp["Location"])
+        self.user.profile.refresh_from_db()
+        self.assertFalse(self.user.profile.has_vip())
+        self.assertFalse(Invoice.objects.filter(user=self.user).exists())
+
+    @override_settings(DEBUG=True)
+    def test_creates_a_real_paid_invoice_not_a_bare_flag(self):
+        resp = self.client.get(reverse("vip_activate_dev"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertNotIn("onboarding", resp["Location"])
+        profile = self.user.profile
+        profile.refresh_from_db()
+        self.assertTrue(profile.has_vip())
+        # The important architectural bit: VIP came from a real Invoice,
+        # not from directly writing profile.is_vip like the old code did.
+        self.assertTrue(
+            Invoice.objects.filter(user=self.user, status=Invoice.Status.PAID).exists()
+        )
+        self.assertFalse(profile.is_vip)
+
+    @override_settings(DEBUG=True)
+    def test_activate_with_specific_plan(self):
+        plan = Plan.objects.create(code="vip_yearly", title="VIP Yearly", price=100, duration_days=365)
+        resp = self.client.get(reverse("vip_activate_dev_plan", args=[plan.id]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertNotIn("onboarding", resp["Location"])
+        self.assertTrue(
+            Invoice.objects.filter(
+                user=self.user, plan=plan, status=Invoice.Status.PAID
+            ).exists()
+        )
+
+
+class VipPageViewTests(TestCase):
+    def setUp(self):
+        self.user = make_user("vippageuser")
+        self.client.login(username="vippageuser", password="pass12345")
+
+    def test_requires_login(self):
+        self.client.logout()
+        resp = self.client.get(reverse("vip"))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_renders_only_active_plans(self):
+        active = Plan.objects.create(code="active", title="Active", is_active=True)
+        Plan.objects.create(code="inactive", title="Inactive", is_active=False)
+        resp = self.client.get(reverse("vip"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(list(resp.context["plans"]), [active])
+
+    def test_no_active_invoice_when_never_paid(self):
+        resp = self.client.get(reverse("vip"))
+        self.assertIsNone(resp.context["active_invoice"])
+
+
+class PayoutPageViewTests(TestCase):
+    def setUp(self):
+        self.user = make_user("payoutpageuser")
+        self.other = make_user("payoutpageuser2")
+        self.client.login(username="payoutpageuser", password="pass12345")
+
+    def test_requires_login(self):
+        self.client.logout()
+        resp = self.client.get(reverse("payout"))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_only_shows_own_payout_requests(self):
+        PayoutRequest.objects.create(user=self.user, amount=100)
+        PayoutRequest.objects.create(user=self.other, amount=999)
+        resp = self.client.get(reverse("payout"))
+        payouts = list(resp.context["payouts"])
+        self.assertEqual(len(payouts), 1)
+        self.assertEqual(payouts[0].amount, 100)
+
+
+class CreatePayoutRequestViewTests(TestCase):
+    """Covers a previously fully-untested, money-adjacent view.
+
+    Also regression-covers a gap found while writing these tests: nothing
+    stopped a user from filing multiple overlapping payout requests, each
+    capped at their *full* point balance — see billing/views.py's pending-
+    request guard.
+    """
+
+    def setUp(self):
+        self.user = make_user("payoutcreator")
+        self.profile = self.user.profile
+        self.profile.creator_status = UserProfile.CreatorStatus.APPROVED
+        self.profile.points = 1000
+        self.profile.save(update_fields=["creator_status", "points"])
+        self.client.login(username="payoutcreator", password="pass12345")
+
+    def test_get_is_not_allowed_redirects_without_creating(self):
+        resp = self.client.get(reverse("create_payout_request"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(PayoutRequest.objects.exists())
+
+    def test_requires_login(self):
+        self.client.logout()
+        resp = self.client.post(reverse("create_payout_request"), {"amount": "100"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(PayoutRequest.objects.exists())
+
+    def test_non_approved_creator_cannot_request_payout(self):
+        self.profile.creator_status = UserProfile.CreatorStatus.PENDING
+        self.profile.save(update_fields=["creator_status"])
+        resp = self.client.post(reverse("create_payout_request"), {"amount": "100"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(PayoutRequest.objects.exists())
+
+    def test_zero_points_creator_cannot_request_payout(self):
+        self.profile.points = 0
+        self.profile.save(update_fields=["points"])
+        resp = self.client.post(reverse("create_payout_request"), {"amount": "100"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(PayoutRequest.objects.exists())
+
+    def test_valid_request_is_created_pending(self):
+        resp = self.client.post(reverse("create_payout_request"), {"amount": "100"})
+        self.assertEqual(resp.status_code, 302)
+        payout = PayoutRequest.objects.get(user=self.user)
+        self.assertEqual(payout.amount, 100)
+        self.assertEqual(payout.status, PayoutRequest.Status.PENDING)
+
+    def test_non_positive_amount_rejected(self):
+        resp = self.client.post(reverse("create_payout_request"), {"amount": "0"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(PayoutRequest.objects.exists())
+
+    def test_non_numeric_amount_rejected(self):
+        resp = self.client.post(reverse("create_payout_request"), {"amount": "not-a-number"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(PayoutRequest.objects.exists())
+
+    def test_amount_is_capped_at_point_balance(self):
+        # price_per_point_music defaults to 0 -> unit falls back to 1,
+        # so max requestable amount == profile.points.
+        resp = self.client.post(reverse("create_payout_request"), {"amount": "999999"})
+        self.assertEqual(resp.status_code, 302)
+        payout = PayoutRequest.objects.get(user=self.user)
+        self.assertEqual(payout.amount, self.profile.points)
+
+    def test_amount_capped_using_configured_price_per_point(self):
+        setting = PlatformSetting.get_solo()
+        setting.price_per_point_music = 50
+        setting.save(update_fields=["price_per_point_music"])
+
+        resp = self.client.post(reverse("create_payout_request"), {"amount": "999999"})
+        self.assertEqual(resp.status_code, 302)
+        payout = PayoutRequest.objects.get(user=self.user)
+        self.assertEqual(payout.amount, self.profile.points * 50)
+
+    def test_second_request_blocked_while_one_is_pending(self):
+        first = self.client.post(reverse("create_payout_request"), {"amount": "100"})
+        self.assertEqual(first.status_code, 302)
+
+        second = self.client.post(reverse("create_payout_request"), {"amount": "200"})
+        self.assertEqual(second.status_code, 302)
+
+        self.assertEqual(PayoutRequest.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(PayoutRequest.objects.get(user=self.user).amount, 100)
+
+    def test_new_request_allowed_after_previous_one_resolved(self):
+        resolved = PayoutRequest.objects.create(
+            user=self.user, amount=50, status=PayoutRequest.Status.PAID
+        )
+        resp = self.client.post(reverse("create_payout_request"), {"amount": "100"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(PayoutRequest.objects.filter(user=self.user).count(), 2)
+        resolved.refresh_from_db()
+        self.assertEqual(resolved.status, PayoutRequest.Status.PAID)
