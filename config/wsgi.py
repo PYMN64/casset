@@ -1,16 +1,20 @@
 """
-WSGI config for config project.
+WSGI config for Casset.
 
-It exposes the WSGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/6.0/howto/deployment/wsgi/
+DJANGO_SETTINGS_MODULE defaults to prod here because wsgi.py is only
+used in production deployments. Override via environment variable if needed.
 """
 
 import os
 
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.prod")
 
 application = get_wsgi_application()

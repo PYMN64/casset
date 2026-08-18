@@ -2,27 +2,102 @@
 requires = ["setuptools>=75,<82"]
 build-backend = "setuptools.build_meta"
 
+# -----------------------------------------------------------------------------
+# Project metadata
+# -----------------------------------------------------------------------------
+
 [project]
 name = "casset"
 version = "0.1.0"
-description = "Casset audio creator and listener platform"
+description = "Casset — Iranian audio & content creator platform"
+readme = "README.md"
 requires-python = ">=3.12,<3.15"
+
+# -----------------------------------------------------------------------------
+# Runtime dependencies
+# قاعده: فقط آنچه واقعاً import می‌شه یا در INSTALLED_APPS هست.
+# transitive depهایی که Django خودش pull می‌کنه (asgiref, sqlparse) را اینجا ننویس.
+# -----------------------------------------------------------------------------
+
 dependencies = [
+    # --- Core framework ---
     "Django>=6.0,<6.1",
-    "psycopg[binary]>=3.2,<4.0",
+
+    # --- Database ---
+    # psycopg3 — برای Postgres. binary برای سادگی نصب در هر محیط.
+    # SQLite سیستم عامل Python است و نیاز به پکیج جداگانه‌ای ندارد.
+    "psycopg[binary]>=3.3,<4.0",
+
+    # --- Cache / session ---
+    # در dev fallback به in-memory می‌شه; فقط اگه REDIS_URL تنظیم بشه فعال می‌شه.
     "redis>=6.0,<7.0",
+
+    # --- File & image handling ---
+    # برای بررسی MIME واقعی cover در AlbumForm و آپلودها.
+    "Pillow>=12.0,<13.0",
+
+    # --- REST API ---
+    "djangorestframework>=3.15,<4.0",
+    "django-filter>=25.0,<26.0",
+
+    # --- Secrets / env ---
+    # برای خوندن .env در manage.py و wsgi.py.
+    "python-dotenv>=1.0,<2.0",
+
+    # --- Timezone data ---
+    # لازم برای زمان درست در ویندوز (Asia/Tehran).
+    "tzdata>=2025.1",
 ]
+
+# -----------------------------------------------------------------------------
+# Optional: dev + test dependencies
+# نصب: pip install -e ".[dev]"
+# -----------------------------------------------------------------------------
 
 [project.optional-dependencies]
 dev = [
+    # Test runner
     "pytest>=8.3,<9.0",
     "pytest-django>=4.9,<5.0",
+
+    # پوشش تست (coverage)
+    "pytest-cov>=6.0,<7.0",
+
+    # Linting & formatting
+    "ruff>=0.4,<1.0",
 ]
 
+# -----------------------------------------------------------------------------
+# pytest — تنظیمات
+# -----------------------------------------------------------------------------
+
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "config.settings"
+DJANGO_SETTINGS_MODULE = "config.settings.dev"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
-addopts = "-ra"
+addopts = "-ra --tb=short"
+
+# -----------------------------------------------------------------------------
+# Ruff — linter (جایگزین flake8 + isort + pyupgrade)
+# -----------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = [
+    "E501",   # line too long
+    "N818",   # Exception naming convention
+]
+
+[tool.ruff.lint.per-file-ignores]
+"*/migrations/*.py" = ["E501", "F401"]
+"config/settings/*.py" = ["F401", "F403", "F405"]
+
+# -----------------------------------------------------------------------------
+# setuptools — این پروژه package قابل install نیست، فقط editable mode.
+# -----------------------------------------------------------------------------
 
 [tool.setuptools]
 packages = []
