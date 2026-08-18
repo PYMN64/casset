@@ -1,23 +1,29 @@
 from __future__ import annotations
 
-from django.utils.deprecation import MiddlewareMixin
 
-
-class SecurityHeadersMiddleware(MiddlewareMixin):
-    """Minimal security headers.
+class SecurityHeadersMiddleware:
+    """Minimal security headers for all responses.
 
     Kept conservative to avoid breaking existing inline scripts/styles.
-    You can tighten CSP later once you remove inline code.
+    Tighten CSP later once inline code is removed from templates.
     """
 
-    def process_response(self, request, response):
-        # Basic hardening
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("Referrer-Policy", "same-origin")
-        response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    def __init__(self, get_response):
+        self.get_response = get_response
 
-        # Minimal CSP (allow self). If you rely on inline scripts, you may need 'unsafe-inline' temporarily.
-        # We keep scripts/styles permissive enough for templates+app.js.
-        csp = "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';"
-        response.headers.setdefault("Content-Security-Policy", csp)
+    def __call__(self, request):
+        response = self.get_response(request)
+        h = response.headers
+        h.setdefault("X-Content-Type-Options", "nosniff")
+        h.setdefault("Referrer-Policy", "same-origin")
+        h.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+        h.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; "
+            "img-src 'self' data: blob:; "
+            "media-src 'self' blob:; "
+            "connect-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline';",
+        )
         return response

@@ -14,3 +14,7 @@ The creator/listener business flow must work end-to-end and produce trustworthy 
 
 ## Agent status
 Agent system is designed but intentionally not activated as autonomous development infrastructure until Brain + test foundation are in place.
+
+## Change log index
+All architectural changes are recorded in `.casset/state/changelog.md`.
+Read that file at the start of every session to know what has changed and why.
