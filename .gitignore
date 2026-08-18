@@ -27,6 +27,10 @@ Thumbs.db
 db.sqlite3
 *.sqlite3
 *.sqlite3-journal
+db.sqlite3.backup*
+
+# Local backup/export archives — never source
+*.zip
 
 # Secrets — NEVER commit these
 .env

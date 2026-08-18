@@ -17,6 +17,29 @@
 > **قانون:** هر Claude که تغییری روی پروژه می‌ده، باید یک entry جدید بالای خط
 > `## [2026-08-17] اسکن کامل پروژه — باگ‌های کریتیکال، Security، تست و نقص‌ها
 
+## [2026-08-18] راستی‌آزمایی کامل قبل از push + پاک‌سازی .gitignore
+
+**نوع:** Config + Verification
+**انجام‌دهنده:** Claude (session با صاحب پروژه)
+
+**فایل‌های تغییرکرده:**
+- `.gitignore` — الگوهای `db.sqlite3.backup*` و `*.zip` اضافه شد (این فایل‌ها قبلاً untracked ولی بدون الگوی گیت‌ایگنور بودن؛ `*.sqlite3` فقط پسوند دقیق را می‌گیرد نه `db.sqlite3.backup_YYYYMMDD_HHMMSS`)
+
+**تصمیم:** طبق چک‌لیست آماده‌سازی release، قبل از push یک دور کامل راستی‌آزمایی اجرا شد: کل تست‌سوییت (بدون تغییر محتوا نسبت به push قبلی)، `check --deploy` با مقادیر واقعی prod، `makemigrations --check`، و `ruff check .`.
+
+**نتیجه راستی‌آزمایی:**
+- `python manage.py test core.tests_smoke -v 2` → ۳۴ تست، همه OK
+- `python manage.py test` → **۲۳۵ تست، همه OK**
+- `python manage.py check --deploy --settings=config.settings.prod` (با `DJANGO_SECRET_KEY` واقعی ۹۶ کاراکتری، `DJANGO_SECURE_SSL_REDIRECT=1`) → فقط یک هشدار خوش‌خیم (`W004` HSTS تنظیم نشده — عمداً به تصمیم دیپلوی واگذار شده)
+- `python manage.py makemigrations --check --dry-run` → «No changes detected»
+- `ruff check .` → ۹۱ مورد، همه cosmetic (import-sort/unused-import، از قبل شناخته‌شده). یک `F841` جدید (`inv` بلااستفاده در `billing/tests.py`) — بی‌خطر. هیچ `F821`/syntax error نیست.
+
+**اثر:** هیچ فایل سورسی modified/untracked واقعی باقی نمونده بود (همه‌ی کار قبلی این‌ها قبلاً commit/push شده بودن) — فقط `.gitignore` عوض شد تا فایل‌های بکاپ محلی دیگه به‌عنوان untracked ظاهر نشن.
+
+**وضعیت CLAUDE.md:** بدون تغییر (هیچ مورد جدیدی از جدول بخش ۳ باز/بسته نشد؛ مورد #۴ همچنان 🟠 باز — این بازبینی چیزی درباره‌ی Postgres عوض نکرد).
+
+---
+
 ## [2026-08-18] تست‌های کامل uploads/billing/moderation + ۴ باگ واقعی کشف و رفع شد
 
 **نوع:** Bugfix + Tests
