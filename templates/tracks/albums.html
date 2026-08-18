@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Albums • Casset{% endblock %}
+{% block title %}آلبوم‌های من • Casset{% endblock %}
 {% block content %}
 <div class="grid" style="grid-template-columns: 1.3fr 1fr;">
   <section class="card">
@@ -8,7 +8,7 @@
         <h1>آلبوم‌های من</h1>
         <p class="muted small">برای موزیک یا پادکست آلبوم بساز و موقع آپلود انتخاب کن.</p>
       </div>
-      <a class="btn btn--primary" href="/albums/create/">آلبوم جدید</a>
+      <a class="btn btn--primary" href="{% url 'album_create' %}">آلبوم جدید</a>
     </div>
 
     <div class="list" style="margin-top:12px">
@@ -16,9 +16,17 @@
         <div class="row">
           <div style="min-width:0">
             <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.title }}</div>
-            <div class="muted small">{{ a.get_kind_display }} • {{ a.tracks.count }} ترک</div>
+            <div class="muted small">{{ a.get_content_type_display }} • {{ a.track_count }} ترک{% if not a.is_public %} • خصوصی{% endif %}</div>
           </div>
-          <a class="btn btn--ghost" href="/tracks/?album={{ a.slug }}">View</a>
+          <div class="row row-wrap">
+            <a class="btn btn--ghost" href="{% url 'track_list' %}?album={{ a.id }}">مشاهده</a>
+            <a class="btn btn--ghost" href="{% url 'album_edit' a.id %}">ویرایش</a>
+            <form method="post" action="{% url 'album_delete' a.id %}"
+                  onsubmit="return confirm('آلبوم «{{ a.title }}» حذف شود؟ ترک‌ها دست‌نخورده باقی می‌مانند.')">
+              {% csrf_token %}
+              <button class="btn btn--ghost" type="submit" style="color:var(--red, #e53)؛">حذف</button>
+            </form>
+          </div>
         </div>
       {% empty %}
         <div class="row"><span class="muted">هنوز آلبومی نساختی.</span></div>
@@ -29,6 +37,7 @@
   <aside class="card">
     <h2>نکته</h2>
     <p class="muted small">در MVP، آلبوم فقط برای محتوای صوتی (موزیک/پادکست) فعال است.</p>
+    <p class="muted small">حذف آلبوم ترک‌های داخل آن را حذف نمی‌کند — فقط آلبوم را از ترک جدا می‌کند.</p>
   </aside>
 </div>
 {% endblock %}

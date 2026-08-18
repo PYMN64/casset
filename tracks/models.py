@@ -55,6 +55,7 @@ class Album(models.Model):
     description = models.TextField(blank=True)
     cover = models.ImageField(upload_to='album_covers/', blank=True, null=True)
     content_type = models.CharField(max_length=16, choices=ContentType.choices, default=ContentType.MUSIC)
+    is_public = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
