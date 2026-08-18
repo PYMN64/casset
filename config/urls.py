@@ -35,8 +35,8 @@ urlpatterns = [
     path("", include("playlists.urls")),
     path("", include("explore.urls")),
     path("", include("billing.urls")),
-    path("", include("subscriptions.urls")),
     path("", include("moderation.urls")),
+    path("", include("notifications.urls")),
     # IMPORTANT: Keep this at the VERY END so it doesn't shadow real routes.
     path("<slug:handle>/", accounts_views.public_profile_by_handle, name="public_profile_by_handle"),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

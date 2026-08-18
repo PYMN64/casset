@@ -10,8 +10,9 @@ User = get_user_model()
 
 @receiver(post_save, sender=User)
 def ensure_profile(sender, instance, created, **kwargs):
-    if created:
-        UserProfile.objects.create(user=instance)
-    else:
-        # اگر به هر دلیل پروفایل حذف شد، خودکار بساز
-        UserProfile.objects.get_or_create(user=instance)
+    """Auto-create UserProfile whenever a User is saved.
+
+    Uses get_or_create (not create) so it's idempotent — safe to call
+    multiple times and won't crash if the profile already exists.
+    """
+    UserProfile.objects.get_or_create(user=instance)

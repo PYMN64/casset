@@ -73,6 +73,24 @@
       cursor: pointer;
     }
     input[type="file"]::file-selector-button:hover{filter: brightness(1.05)}
+
+    /* Notification bell badge */
+    .notif-badge{
+      position:absolute;
+      top:2px;
+      inset-inline-end:2px;
+      min-width:18px;
+      height:18px;
+      padding:0 5px;
+      border-radius:9px;
+      background:#ff3b30;
+      color:#fff;
+      font-size:11px;
+      font-weight:800;
+      line-height:18px;
+      text-align:center;
+      pointer-events:none;
+    }
   </style>
 
   {# Preferred: platform.playback_point_percent (0..100). Fallback: play_award_percent (0..1) #}
@@ -143,6 +161,13 @@
         </button>
 
         {% if request.user.is_authenticated %}
+          <a class="iconbtn iconbtn--ghost" href="{% url 'notification_list' %}"
+             title="اعلان‌ها" id="notifBell" style="position:relative">
+            <svg class="icon" viewBox="0 0 24 24" width="22" height="22">
+              <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 0 0-5-5.9V4a1 1 0 0 0-2 0v1.1A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2z"/>
+            </svg>
+            <span id="notifBadge" class="notif-badge" style="display:none"></span>
+          </a>
           <a class="chip" href="/@{{ request.user.username }}/" title="پروفایل">
             <svg class="icon"><use href="#i-user"/></svg>
             <span class="chip__text">@{{ request.user.username }}</span>
@@ -165,6 +190,8 @@
         <a class="sidenav__link" href="/library/#playlists"><svg class="icon"><use href="#i-playlist"/></svg><span>پلی‌لیست‌ها</span></a>
         <a class="sidenav__link" href="/upload/"><svg class="icon"><use href="#i-upload"/></svg><span>آپلود</span></a>
         {% if request.user.is_authenticated %}
+          <a class="sidenav__link" href="{% url 'notification_list' %}"><svg class="icon" viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 0 0-5-5.9V4a1 1 0 0 0-2 0v1.1A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2z"/></svg><span>اعلان‌ها</span></a>
+          <a class="sidenav__link" href="/albums/"><svg class="icon"><use href="#i-playlist"/></svg><span>آلبوم‌های من</span></a>
           <a class="sidenav__link" href="/dashboard/"><svg class="icon"><use href="#i-dashboard"/></svg><span>داشبورد</span></a>
           <a class="sidenav__link" href="/settings/"><svg class="icon"><use href="#i-settings"/></svg><span>تنظیمات</span></a>
         {% endif %}
@@ -302,6 +329,36 @@
   </script>
 
   {% block scripts %}{% endblock %}
+
+  {% if request.user.is_authenticated %}
+  <script>
+    // Notification badge — poll unread count every 60s
+    (function(){
+      const badge = document.getElementById("notifBadge");
+      if(!badge) return;
+
+      async function refresh(){
+        try{
+          const r = await fetch("/api/v1/notifications/", {
+            headers: {"X-Requested-With": "XMLHttpRequest"}
+          });
+          if(!r.ok) return;
+          const data = await r.json();
+          const n = data.unread_count || 0;
+          if(n > 0){
+            badge.textContent = n > 99 ? "99+" : n;
+            badge.style.display = "block";
+          } else {
+            badge.style.display = "none";
+          }
+        }catch(e){ /* silent */ }
+      }
+
+      refresh();
+      setInterval(refresh, 60000);
+    })();
+  </script>
+  {% endif %}
 
   <script>
     // Simple i18n (FA default) + RTL/LTR toggle

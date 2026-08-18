@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}اعلان‌ها • Casset{% endblock %}
+
+{% block content %}
+<div class="grid" style="grid-template-columns: 1.4fr .8fr;">
+  <section class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>
+        <h1>اعلان‌ها</h1>
+        <p class="muted small">
+          {% if unread_count %}
+            {{ unread_count }} اعلان خوانده‌نشده
+          {% else %}
+            همه اعلان‌ها خوانده شده‌اند
+          {% endif %}
+        </p>
+      </div>
+      {% if unread_count %}
+        <form method="post" action="{% url 'api_notifications_read' %}">
+          {% csrf_token %}
+          <button class="btn btn--ghost" type="submit">علامت‌گذاری همه به‌عنوان خوانده‌شده</button>
+        </form>
+      {% endif %}
+    </div>
+
+    <div class="list" style="margin-top:14px">
+      {% for n in notifications %}
+        <div class="row notif-row {% if not n.is_read %}notif-row--unread{% endif %}">
+          <div style="min-width:0;flex:1">
+            <div class="notif-text">{{ n.persian_text }}</div>
+            <div class="muted small">{{ n.created_at|timesince }} پیش</div>
+          </div>
+
+          <div class="row row-wrap" style="flex:0 0 auto">
+            {% if n.track %}
+              <a class="btn btn--ghost" href="/t/{{ n.track.slug }}/">مشاهده</a>
+            {% elif n.actor %}
+              <a class="btn btn--ghost" href="/@{{ n.actor.username }}/">پروفایل</a>
+            {% endif %}
+
+            {% if not n.is_read %}
+              <form method="post" action="{% url 'api_notifications_read' %}" style="display:inline">
+                {% csrf_token %}
+                <input type="hidden" name="notification_id" value="{{ n.id }}">
+                <button class="btn btn--ghost" type="submit" title="خوانده شد">✓</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      {% empty %}
+        <div class="row">
+          <span class="muted">هنوز اعلانی نداری.</span>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <aside class="card">
+    <h2>درباره اعلان‌ها</h2>
+    <p class="muted small">
+      وقتی کسی ترک تو را لایک کند، کامنت بگذارد، یا تو را دنبال کند، اینجا خبردار می‌شوی.
+    </p>
+    <p class="muted small">
+      همچنین وقتی ترکی تأیید یا رد شود، و وقتی ترک‌هایت به مایل‌ستون‌های پخش برسند.
+    </p>
+  </aside>
+</div>
+
+<style>
+  .notif-row{
+    align-items:flex-start;
+    gap:12px;
+    padding:12px;
+    border-radius:12px;
+  }
+  .notif-row--unread{
+    background: rgba(255,147,56,.08);
+    border-inline-start: 3px solid rgba(255,147,56,.75);
+  }
+  .notif-text{
+    font-weight:600;
+    line-height:1.7;
+    word-break: break-word;
+  }
+</style>
+{% endblock %}
