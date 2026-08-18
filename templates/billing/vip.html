@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}VIP • Casset{% endblock %}
 {% block content %}
-<div class="grid">
+<div class="grid" style="grid-template-columns: 1.3fr 1fr;">
   <section class="card">
     <h1>VIP</h1>
     <p class="muted">دانلود + تجربه بهتر</p>
@@ -21,9 +21,36 @@
       </div>
     </div>
 
-    <div class="item" style="justify-content:flex-start;gap:10px">
+    <h2 class="mt">پلن‌ها</h2>
+    <div class="list">
+      {% for plan in plans %}
+        <div class="row" style="justify-content:space-between">
+          <div>
+            <div style="font-weight:900">{{ plan.title }}{% if plan.is_featured %} ⭐{% endif %}</div>
+            <div class="muted small">{{ plan.duration_days }} روز{% if plan.description %} • {{ plan.description }}{% endif %}</div>
+          </div>
+          <div class="row row-wrap" style="align-items:center">
+            <span style="font-weight:800">{{ plan.price }}</span>
+            <a class="btn btn--primary" href="/vip/activate-dev/{{ plan.id }}/">فعال‌سازی (Dev)</a>
+          </div>
+        </div>
+      {% empty %}
+        <div class="row"><span class="muted">هنوز پلنی تعریف نشده.</span></div>
+      {% endfor %}
+    </div>
+
+    {% if elig %}
+      <h2 class="mt">پیشرفت</h2>
+      <div class="row" style="display:block">
+        <div class="muted small">پیشرفت کلی: {{ elig.progress_pct }}%</div>
+        <div style="height:10px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;margin-top:8px">
+          <div style="height:10px;width:{{ elig.progress_pct }}%;background:rgba(255,255,255,.35)"></div>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="item" style="justify-content:flex-start;gap:10px;margin-top:12px">
       <a class="btn" href="/tracks/">Browse</a>
-      <a class="btn primary" href="/vip/activate-dev/">فعال‌سازی VIP (Dev)</a>
     </div>
   </section>
 
@@ -40,7 +67,18 @@
         <span>Until</span>
         <span class="muted">{{ profile.vip_until|default:"—" }}</span>
       </div>
+      {% if active_invoice %}
+        <div class="item">
+          <span>Plan</span>
+          <span class="muted">{{ active_invoice.plan.title }}</span>
+        </div>
+        <div class="item">
+          <span>Invoice valid until</span>
+          <span class="muted small">{{ active_invoice.valid_until }}</span>
+        </div>
+      {% endif %}
     </div>
+    <p class="muted small" style="margin-top:10px">وقتی درگاه پرداخت واقعی وصل شد، دکمه‌های بالا با فلوی خرید واقعی جایگزین می‌شوند.</p>
   </aside>
 </div>
 {% endblock %}

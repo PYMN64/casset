@@ -1,19 +1,34 @@
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from django.utils.text import slugify
 
 
 class Plan(models.Model):
-    """VIP plans that can be sold."""
+    """VIP plans that can be sold.
+
+    This is the single canonical Plan model for the platform. The old
+    `subscriptions.Plan` (and its accompanying `Subscription` model) has
+    been retired in favor of this one + `Invoice` (see CLAUDE.md issue #2).
+    """
 
     code = models.CharField(max_length=40, unique=True)
+    slug = models.SlugField(max_length=60, unique=True, blank=True)
     title = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
     price = models.PositiveIntegerField(default=0)  # your currency unit
     duration_days = models.PositiveIntegerField(default=30)
     is_active = models.BooleanField(default=True)
+    is_featured = models.BooleanField(default=False)
+    sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ["price"]
+        ordering = ["sort_order", "price"]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.code or self.title, allow_unicode=True)
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return f"{self.title} ({self.code})"

@@ -3,7 +3,7 @@ from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
-# from django.dispatch import receiver
+from django.dispatch import receiver
 
 
 
@@ -45,44 +45,30 @@ class UserProfile(models.Model):
     vip_until = models.DateTimeField(null=True, blank=True)
 
     def has_vip(self):
+        """Return whether this user currently has active VIP access.
+
+        Source of truth (in priority order):
+        1. Fast-path cache fields `is_vip` / `vip_until` — for cheap
+           checks in hot paths (templates, middleware). These are only
+           valid while kept in sync; prefer the Invoice check below for
+           accuracy after payment events.
+        2. A paid, still-valid `billing.Invoice` — the canonical,
+           re-derivable source of truth. `billing` is the single
+           authoritative app for VIP/plan state; there is no other.
+        """
         # 1) Fast path via profile flags
         if self.is_vip:
             return True
         if self.vip_until and self.vip_until > timezone.now():
             return True
 
-        # Prefer invoice-based VIP if billing is enabled.
-        try:
-            from billing.models import Invoice
+        # 2) Canonical check: paid invoice with future valid_until
+        from billing.models import Invoice
 
-            if Invoice.objects.filter(
-                user=self.user,
-                status=Invoice.Status.PAID,
-            ).exclude(valid_until__isnull=False, valid_until__lte=timezone.now()).exists():
-                return True
-        except Exception:
-            pass
-
-        # 2) If billing app is configured, consider paid invoices
-        try:
-            from billing.models import Invoice
-            return Invoice.objects.filter(
-                user=self.user,
-                status=Invoice.Status.PAID,
-                valid_until__isnull=False,
-                valid_until__gt=timezone.now(),
-            ).exists()
-        except Exception:
-            pass
-
-        # 3) Fallback to subscriptions app (legacy)
-        try:
-            from subscriptions.models import Subscription
-            return Subscription.objects.filter(user=self.user, status="active").exclude(
-                ends_at__isnull=False, ends_at__lte=timezone.now()
-            ).exists()
-        except Exception:
-            return False
+        return Invoice.objects.filter(
+            user=self.user,
+            status=Invoice.Status.PAID,
+        ).exclude(valid_until__isnull=False, valid_until__lte=timezone.now()).exists()
 
     website_url = models.URLField(blank=True)
     instagram_url = models.URLField(blank=True)
@@ -148,7 +134,12 @@ class PhoneOTP(models.Model):
     def __str__(self) -> str:
         return f"PhoneOTP({self.phone_number}, used={self.is_used})"
 
-# @receiver(post_save, sender=User)
-# def ensure_profile(sender, instance, created, **kwargs):
-#     if created:
-#         UserProfile.objects.get_or_create(user=instance)
+@receiver(post_save, sender=User)
+def ensure_profile(sender, instance, created, **kwargs):
+    """Auto-create UserProfile whenever a User is created.
+
+    Using get_or_create (not just create) makes this idempotent so it
+    won't crash if the profile already exists (e.g. in tests or fixtures).
+    """
+    if created:
+        UserProfile.objects.get_or_create(user=instance)
