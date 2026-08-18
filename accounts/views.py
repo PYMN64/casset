@@ -2,6 +2,7 @@ import hashlib
 import secrets
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
@@ -111,8 +112,12 @@ def phone_start_view(request):
             user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:256],
         )
 
-        # TODO: integrate SMS provider. For now, show code in DEV message.
-        messages.success(request, f"کد ورود ارسال شد. (کد تست: {code})")
+        # TODO: integrate SMS provider.
+        # SECURITY: only show code in DEBUG mode — never in production.
+        if settings.DEBUG:
+            messages.success(request, f"[DEV] کد تست: {code}")
+        else:
+            messages.success(request, "کد ورود به شماره شما ارسال شد.")
         return redirect(reverse("phone_verify") + f"?phone={phone}")
 
     return render(request, "accounts/phone_start.html", {"form": form})
@@ -329,39 +334,41 @@ def profile_legacy_redirect(request, username):
 def public_profile(request, username):
     user_obj = get_object_or_404(User, username=username)
     profile, _ = UserProfile.objects.get_or_create(user=user_obj)
-    # Canonical public profile URL:
-    # If a public handle exists, always redirect to /<handle>/ to avoid duplicate profile pages.
-    if getattr(profile, "public_handle", None):
+
+    # Canonical URL: if creator has a public handle, always redirect to /<handle>/
+    # to avoid duplicate profile pages for the same person.
+    if profile.public_handle:
         return redirect("public_profile_by_handle", handle=profile.public_handle)
 
+    tracks = Track.objects.filter(
+        creator=user_obj,
+        status=Track.Status.APPROVED,
+        visibility=Track.Visibility.PUBLIC,
+    ).order_by("-created_at")[:50]
 
-    # Canonical URL: if user has a public handle, redirect to /<handle>/ to avoid duplicate profile pages.
-    if profile.public_handle and request.resolver_match and request.resolver_match.url_name != "public_profile_by_handle":
-        return redirect("public_profile_by_handle", handle=profile.public_handle)
-
-    tracks = Track.objects.filter(creator=user_obj, status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC).order_by("-created_at")[:50]
-
-    total_plays = Track.objects.filter(creator=user_obj).aggregate(s=models.Sum("play_count"))["s"] or 0
-    total_likes = user_obj.tracks.aggregate(s=models.Count("likes"))["s"] if hasattr(user_obj, "tracks") else 0
+    total_plays = Track.objects.filter(creator=user_obj).aggregate(
+        s=models.Sum("play_count")
+    )["s"] or 0
     followers_count = user_obj.followers.count() if hasattr(user_obj, "followers") else 0
     following_count = user_obj.following.count() if hasattr(user_obj, "following") else 0
 
     suggested = User.objects.all().exclude(id=user_obj.id)
     if request.user.is_authenticated and hasattr(request.user, "following"):
-        suggested = suggested.exclude(id__in=request.user.following.values_list("creator_id", flat=True))
+        suggested = suggested.exclude(
+            id__in=request.user.following.values_list("creator_id", flat=True)
+        )
     suggested = suggested.order_by("-id")[:6]
 
-    template = "accounts/public_profile_pro.html"
     return render(
         request,
-        template,
+        "accounts/public_profile_pro.html",
         {
             "user_obj": user_obj,
             "profile": profile,
             "tracks": tracks,
             "stats": {
                 "plays": total_plays,
-                "likes": total_likes,
+                "likes": 0,
                 "followers": followers_count,
                 "following": following_count,
             },
@@ -426,33 +433,43 @@ def settings_view(request):
 
 @login_required
 def dashboard_view(request):
-    """User dashboard: points → revenue summary."""
+    """User dashboard: points → revenue summary.
+
+    Points are read from PointLedger (source of truth), not from
+    PlayEvent.point_awarded which is an implementation detail of
+    the play-gating system.
+    """
     from datetime import date
-
-    from django.db.models import Count
-
+    from django.db.models import Sum
     from core.models import PlatformSetting
-    from plays.models import PlayEvent
+    from plays.models import PointLedger
 
     since = (date.today() - timedelta(days=30)).isoformat()
     platform = PlatformSetting.get_solo()
 
+    # Sum delta from Ledger for this creator's tracks in the last 30 days
     rows = (
-        PlayEvent.objects.filter(
-            track__creator=request.user,
-            point_awarded=True,
-            day_key__gte=since,
+        PointLedger.objects.filter(
+            user=request.user,
+            reason=PointLedger.Reason.PLAY_REWARD,
+            created_at__date__gte=since,
         )
-        .values("track__content_type")
-        .annotate(points=Count("id"))
+        .values("play_event__track__content_type")
+        .annotate(points=Sum("delta"))
     )
 
-    points_by_type = {r["track__content_type"] or "music": int(r["points"] or 0) for r in rows}
+    points_by_type = {
+        r["play_event__track__content_type"] or "music": int(r["points"] or 0)
+        for r in rows
+    }
     book_points = points_by_type.pop("audiobook", 0) + points_by_type.pop("book", 0)
     if book_points:
         points_by_type["book"] = book_points
 
-    revenue_by_type = {t: points_by_type.get(t, 0) * platform.price_per_point(t) for t in ["music", "podcast", "book", "video"]}
+    revenue_by_type = {
+        t: points_by_type.get(t, 0) * platform.price_per_point(t)
+        for t in ["music", "podcast", "book", "video"]
+    }
     total_points = sum(points_by_type.values())
     total_revenue = sum(revenue_by_type.values())
 
