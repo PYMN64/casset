@@ -87,6 +87,27 @@ def _get_ip(request):
     return request.META.get("REMOTE_ADDR")
 
 
+def _rate_limited(request, bucket: str, *, limit: int, window_seconds: int) -> bool:
+    """Return True if this IP has exceeded `limit` requests to `bucket`
+    within `window_seconds`. Same cache-counter pattern as plays/views.py
+    and explore/views.py's own `_rate_limited`.
+
+    This is a second, IP-level layer on top of PhoneOTP's per-code attempt
+    cap (5 tries per OTP row) — that cap alone doesn't stop an attacker
+    from requesting/guessing codes across many different phone numbers
+    from one IP.
+    """
+    from django.core.cache import cache
+
+    ip = _get_ip(request) or "unknown"
+    key = f"rl:{bucket}:{hashlib.sha256(ip.encode()).hexdigest()[:16]}"
+    cur = cache.get(key, 0)
+    if cur >= limit:
+        return True
+    cache.set(key, cur + 1, timeout=window_seconds)
+    return False
+
+
 def phone_start_view(request):
     """Start phone OTP login."""
     if request.user.is_authenticated:
@@ -94,6 +115,10 @@ def phone_start_view(request):
 
     form = PhoneStartForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
+        if _rate_limited(request, "phone_start", limit=10, window_seconds=600):
+            messages.error(request, "درخواست‌های زیادی از این آدرس ارسال شده. کمی صبر کن.")
+            return render(request, "accounts/phone_start.html", {"form": form})
+
         phone = _normalize_phone(form.cleaned_data["phone_number"])
         now = timezone.now()
 
@@ -132,6 +157,10 @@ def phone_verify_view(request):
     form = PhoneVerifyForm(request.POST or None, initial={"phone_number": phone_q})
 
     if request.method == "POST" and form.is_valid():
+        if _rate_limited(request, "phone_verify", limit=15, window_seconds=600):
+            messages.error(request, "تلاش‌های زیادی از این آدرس ثبت شده. کمی صبر کن.")
+            return render(request, "accounts/phone_verify.html", {"form": form})
+
         phone = _normalize_phone(form.cleaned_data["phone_number"])
         code = (form.cleaned_data["code"] or "").strip()
 

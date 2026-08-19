@@ -4,6 +4,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -32,8 +33,7 @@ class UserProfileSignalTests(TestCase):
         """Creating a user twice (or calling signal again) must not raise."""
         user = _make_user("idempotent1")
         # Manually fire signal again — should not crash
-        from django.db.models.signals import post_save
-        from accounts.models import ensure_profile
+        from accounts.signals import ensure_profile
         ensure_profile(User, instance=user, created=True)
         self.assertEqual(UserProfile.objects.filter(user=user).count(), 1)
 
@@ -216,6 +216,12 @@ class OnboardingMiddlewareTests(TestCase):
 class PhoneStartViewTests(TestCase):
     phone = "09121234567"
 
+    def setUp(self):
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
     def test_get_renders_form(self):
         resp = self.client.get(reverse("phone_start"))
         self.assertEqual(resp.status_code, 200)
@@ -266,10 +272,25 @@ class PhoneStartViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(PhoneOTP.objects.filter(phone_number=self.phone).count(), 1)
 
+    def test_ip_rate_limit_blocks_after_threshold_across_different_numbers(self):
+        """An attacker spamming OTP requests across many phone numbers from
+        one IP must be blocked, not just the same-number cooldown."""
+        for i in range(10):
+            self.client.post(reverse("phone_start"), {"phone_number": f"0912000{i:04d}"})
+        resp = self.client.post(reverse("phone_start"), {"phone_number": "09129999999"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(PhoneOTP.objects.filter(phone_number="09129999999").exists())
+
 
 class PhoneVerifyViewTests(TestCase):
     phone = "09121234567"
     fixed_code = "123456"
+
+    def setUp(self):
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
 
     def _request_code(self):
         """Trigger phone_start with a patched RNG so the OTP code is known."""
@@ -351,3 +372,20 @@ class PhoneVerifyViewTests(TestCase):
             reverse("phone_verify"), {"phone_number": self.phone, "code": code}
         )
         self.assertRedirects(resp, reverse("phone_start"))
+
+    def test_ip_rate_limit_blocks_brute_force_across_phone_numbers(self):
+        """The per-OTP 5-attempt cap alone doesn't stop an attacker who
+        requests codes for many different numbers from one IP and tries
+        each once — this IP-level cap catches that."""
+        for i in range(15):
+            self.client.post(
+                reverse("phone_verify"),
+                {"phone_number": f"0912111{i:04d}", "code": "000000"},
+            )
+        code = self._request_code()
+        resp = self.client.post(
+            reverse("phone_verify"), {"phone_number": self.phone, "code": code}
+        )
+        self.assertEqual(resp.status_code, 200)
+        otp = PhoneOTP.objects.get(phone_number=self.phone)
+        self.assertFalse(otp.is_used)

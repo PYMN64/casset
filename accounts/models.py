@@ -2,8 +2,6 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import User
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 
 
 
@@ -133,13 +131,3 @@ class PhoneOTP(models.Model):
 
     def __str__(self) -> str:
         return f"PhoneOTP({self.phone_number}, used={self.is_used})"
-
-@receiver(post_save, sender=User)
-def ensure_profile(sender, instance, created, **kwargs):
-    """Auto-create UserProfile whenever a User is created.
-
-    Using get_or_create (not just create) makes this idempotent so it
-    won't crash if the profile already exists (e.g. in tests or fixtures).
-    """
-    if created:
-        UserProfile.objects.get_or_create(user=instance)
