@@ -9,6 +9,10 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 
+# Coverage
+.coverage
+htmlcov/
+
 # Virtual env
 .venv/
 venv/

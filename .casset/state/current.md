@@ -18,3 +18,22 @@ Agent system is designed but intentionally not activated as autonomous developme
 ## Change log index
 All architectural changes are recorded in `.casset/state/changelog.md`.
 Read that file at the start of every session to know what has changed and why.
+
+## Test coverage baseline (2026-08-19)
+`coverage run --source=. manage.py test` → **81% overall** (242 tests, 2640 statements, 494 missed).
+Full HTML report regeneratable with `coverage html`; not committed (`.gitignore`d).
+
+Notably low (real gaps, not noise):
+- `interactions/views.py` — 22% (likes/follows/comments — the social layer the product identity depends on)
+- `playlists/views.py` — 45%
+- `notifications/signals.py` — 69% (the wiring itself; `notifications/services.py` is 100%)
+- `explore/views.py` — 70%
+- `core/staff_views.py` / `core/staff_urls.py` — 0% (untested internal staff surface)
+- management commands (`aggregate_stats`, `recalculate_points`, `seed_genres`) — 0%
+
+`config/asgi.py`/`wsgi.py`/`settings/prod.py` at 0% is expected (deploy entry points, not exercised by the dev-settings test run) — not a real gap.
+
+## Test suite performance
+Was ~17 minutes for 235 tests (PBKDF2 hashing on every `User.objects.create_user()`).
+Fixed 2026-08-19: `config/settings/dev.py` switches to `MD5PasswordHasher` when running under
+`manage.py test`/`pytest`. Now **242 tests in ~6-12 seconds**.
