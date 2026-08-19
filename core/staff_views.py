@@ -1,10 +1,10 @@
 from django.contrib.admin.views.decorators import staff_member_required
-from django.db.models import Count, Sum, Q
+from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, render
 
 from accounts.models import UserProfile
-from tracks.models import Track
 from plays.models import PlayEvent
+from tracks.models import Track
 
 
 @staff_member_required

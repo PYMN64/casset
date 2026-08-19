@@ -21,9 +21,8 @@ is complete and staff can understand every decision.
 """
 
 import logging
-from datetime import datetime, timezone
 from dataclasses import dataclass, field
-from typing import Optional
+from datetime import UTC, datetime
 
 from django.db import transaction
 from django.db.models import F
@@ -31,6 +30,7 @@ from django.utils import timezone as dj_timezone
 
 from accounts.models import UserProfile
 from core.models import PlatformSetting
+
 from .models import FraudFlag, PlayEvent, PointLedger
 
 logger = logging.getLogger("casset.plays")
@@ -142,7 +142,7 @@ def _run_gating_pipeline(
     # Gate 3 - Time gate
     duration = getattr(track, "duration_seconds", 0) or 0
     if duration > 0:
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
         elapsed = (now_utc - pe.created_at).total_seconds()
         min_elapsed = duration * _MIN_ELAPSED_RATIO
 
@@ -230,7 +230,7 @@ def _run_gating_pipeline(
 
 def _write_ledger(
     *, user, delta: int, reason: str,
-    play_event: Optional[PlayEvent],
+    play_event: PlayEvent | None,
     track, ip_hash: str, note: str,
 ) -> PointLedger:
     return PointLedger.objects.create(

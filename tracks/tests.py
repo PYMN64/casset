@@ -1,13 +1,15 @@
+import io
+
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
-import io
 
 from core.models import PlatformSetting
 from core.test_utils import make_user
-from .models import Album, Track
+
 from .forms import AlbumForm
+from .models import Album, Track
 
 User = get_user_model()
 

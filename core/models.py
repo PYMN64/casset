@@ -43,7 +43,7 @@ class PlatformSetting(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     @classmethod
-    def get_solo(cls) -> "PlatformSetting":
+    def get_solo(cls) -> PlatformSetting:
         obj = cls.objects.order_by("id").first()
         if obj is None:
             obj = cls.objects.create()

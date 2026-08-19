@@ -98,6 +98,6 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"\nDone. {ok} already correct, {fixed} fixed"
-                + (f" (dry-run, no writes)" if dry_run else "") + "."
+                + (" (dry-run, no writes)" if dry_run else "") + "."
             )
         )

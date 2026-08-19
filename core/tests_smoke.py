@@ -23,9 +23,7 @@ Reading the output
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-from django.urls import reverse
 
-from accounts.models import UserProfile
 from core.models import PlatformSetting
 from core.test_utils import make_superuser, make_user
 from tracks.models import Track

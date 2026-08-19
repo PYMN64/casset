@@ -107,6 +107,7 @@ def notify_new_track_to_followers(*, track) -> None:
     Runs synchronously for MVP. Move to Celery for large follower counts.
     """
     from interactions.models import CreatorFollow
+
     from .models import Notification
 
     creator = track.creator

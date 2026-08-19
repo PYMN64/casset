@@ -1,8 +1,8 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth import get_user_model
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import UserProfile, PhoneOTP
+from .models import PhoneOTP, UserProfile
 
 User = get_user_model()
 

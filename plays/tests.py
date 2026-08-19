@@ -1,7 +1,6 @@
 """plays/tests.py — Tests for play registration and point award system."""
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from datetime import UTC, datetime, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -10,8 +9,9 @@ from django.urls import reverse
 from accounts.models import UserProfile
 from core.test_utils import make_user
 from tracks.models import Track
+
 from .models import FraudFlag, PlayEvent, PointLedger
-from .services import AwardResult, try_award_point
+from .services import try_award_point
 
 User = get_user_model()
 
@@ -156,7 +156,7 @@ class TryAwardPointTests(TestCase):
         # Play event created just now, track is 300s — need 150s elapsed
         _make_play_event(
             self.track, self.listener,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         result = self._call(progress=0.9)
         self.assertFalse(result.awarded)
@@ -171,7 +171,7 @@ class TryAwardPointTests(TestCase):
 
     def test_time_gate_passes_after_enough_time(self):
         # Play event created 200s ago, track is 300s, need 150s
-        past = datetime.now(timezone.utc) - timedelta(seconds=200)
+        past = datetime.now(UTC) - timedelta(seconds=200)
         _make_play_event(self.track, self.listener, created_at=past)
         result = self._call(progress=0.9)
         self.assertTrue(result.awarded)
@@ -183,7 +183,7 @@ class TryAwardPointTests(TestCase):
         self.track.save()
         _make_play_event(
             self.track, self.listener,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         result = self._call(progress=0.9)
         self.assertTrue(result.awarded)
@@ -201,7 +201,7 @@ class TryAwardPointTests(TestCase):
                 track_id_snapshot=self.track.pk,
                 ip_hash_snapshot="abc123",
             )
-        past = datetime.now(timezone.utc) - timedelta(seconds=200)
+        past = datetime.now(UTC) - timedelta(seconds=200)
         _make_play_event(self.track, self.listener, created_at=past)
         result = self._call(progress=0.9)
         self.assertFalse(result.awarded)
@@ -210,7 +210,7 @@ class TryAwardPointTests(TestCase):
     # --- happy path ---
 
     def test_successful_award(self):
-        past = datetime.now(timezone.utc) - timedelta(seconds=200)
+        past = datetime.now(UTC) - timedelta(seconds=200)
         _make_play_event(self.track, self.listener, created_at=past)
         result = self._call(progress=0.9)
         self.assertTrue(result.awarded)
@@ -226,7 +226,7 @@ class TryAwardPointTests(TestCase):
         self.assertEqual(profile.points, 1)
 
     def test_idempotent_second_call_does_not_double_award(self):
-        past = datetime.now(timezone.utc) - timedelta(seconds=200)
+        past = datetime.now(UTC) - timedelta(seconds=200)
         _make_play_event(self.track, self.listener, created_at=past)
         self._call(progress=0.9)
         result2 = self._call(progress=0.9)
@@ -359,7 +359,7 @@ class RegisterProgressViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
 
         # 2. Backdate it so the time gate (needs 150s for a 300s track) passes
-        past = datetime.now(timezone.utc) - timedelta(seconds=200)
+        past = datetime.now(UTC) - timedelta(seconds=200)
         PlayEvent.objects.filter(track=self.track).update(created_at=past)
 
         # 3. Report progress as a percent value

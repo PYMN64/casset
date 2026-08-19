@@ -96,9 +96,9 @@ def on_track_status_changed(sender, instance, created, **kwargs):
 
     try:
         from notifications.services import (
+            notify_new_track_to_followers,
             notify_track_approved,
             notify_track_rejected,
-            notify_new_track_to_followers,
         )
         if instance.status == Track.Status.APPROVED:
             notify_track_approved(track=instance)

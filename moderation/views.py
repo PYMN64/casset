@@ -1,14 +1,14 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, Http404
-from django.shortcuts import get_object_or_404, render, redirect
-from django.views.decorators.http import require_POST
 from django.core.cache import cache
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from tracks.models import Track
 
-from .models import Report, AuditLog
+from .models import AuditLog, Report
 
 User = get_user_model()
 

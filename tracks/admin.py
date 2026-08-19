@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Track, Genre, Album, Tag
+
+from .models import Album, Genre, Tag, Track
 
 
 @admin.register(Genre)

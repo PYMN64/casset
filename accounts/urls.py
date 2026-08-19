@@ -1,19 +1,20 @@
 from django.urls import path
+
 from .views import (
     CassetLoginView,
-    logout_view,
-    register_view,
-    public_profile,
-    profile_legacy_redirect,
-    settings_view,
+    creator_apply_view,
+    creator_handle_view,
+    creator_studio_view,
     dashboard_view,
+    google_login_placeholder,
+    logout_view,
+    onboarding_view,
     phone_start_view,
     phone_verify_view,
-    onboarding_view,
-    creator_apply_view,
-    creator_studio_view,
-    creator_handle_view,
-    google_login_placeholder,
+    profile_legacy_redirect,
+    public_profile,
+    register_view,
+    settings_view,
 )
 
 urlpatterns = [

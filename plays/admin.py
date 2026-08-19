@@ -6,7 +6,6 @@ from django.utils.html import format_html
 
 from .models import DailyTrackStat, FraudFlag, PlayEvent, PointLedger
 
-
 # ---------------------------------------------------------------------------
 # PlayEvent
 # ---------------------------------------------------------------------------

@@ -7,8 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import UserProfile
-from interactions.models import Comment, CommentLike, CreatorFollow, TrackLike
+from interactions.models import Comment, CreatorFollow, TrackLike
 from tracks.models import Track
 
 from .models import Notification

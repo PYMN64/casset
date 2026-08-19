@@ -9,7 +9,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import UserProfile, PhoneOTP
+from .models import PhoneOTP, UserProfile
 
 User = get_user_model()
 

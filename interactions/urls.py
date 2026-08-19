@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import toggle_like, toggle_follow
+
+from .views import toggle_follow, toggle_like
 
 urlpatterns = [
     path("api/v1/like/", toggle_like, name="api_like"),

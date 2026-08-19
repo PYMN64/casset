@@ -4,13 +4,11 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login
+from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
-from django.contrib.auth import logout
 from django.db import models
-from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -27,7 +25,6 @@ from .forms import (
     RegisterForm,
 )
 from .models import PhoneOTP, UserProfile
-
 
 UserModel = get_user_model()
 
@@ -71,7 +68,7 @@ def _normalize_phone(phone: str) -> str:
 
 
 def _hash_code(phone: str, code: str) -> str:
-    return hashlib.sha256(f"{phone}:{code}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"{phone}:{code}".encode()).hexdigest()
 
 
 def _generate_username() -> str:
@@ -278,9 +275,10 @@ def creator_studio_view(request):
     )[:50]
 
     # Analytics (last 30 days)
-    from plays.models import PlayEvent
-    from django.db.models.functions import TruncDate
     from django.db.models import Count, Sum
+    from django.db.models.functions import TruncDate
+
+    from plays.models import PlayEvent
 
     since = timezone.now() - timedelta(days=30)
     daily = (
@@ -469,7 +467,9 @@ def dashboard_view(request):
     the play-gating system.
     """
     from datetime import date
+
     from django.db.models import Sum
+
     from core.models import PlatformSetting
     from plays.models import PointLedger
 

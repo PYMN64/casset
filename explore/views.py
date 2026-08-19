@@ -6,15 +6,11 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
-from tracks.models import Track, Genre
-from plays.models import PlayEvent
 from core.models import PlatformSetting
+from plays.models import PlayEvent
+from tracks.models import Genre, Track
+
 from .models import FeaturedPin
-
-
-
-
-
 
 User = get_user_model()
 

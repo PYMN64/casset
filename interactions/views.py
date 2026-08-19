@@ -4,9 +4,10 @@ from django.db.models import F
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
-from tracks.models import Track
 from accounts.models import UserProfile
-from .models import TrackLike, CreatorFollow
+from tracks.models import Track
+
+from .models import CreatorFollow, TrackLike
 
 User = get_user_model()
 

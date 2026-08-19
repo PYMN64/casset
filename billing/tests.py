@@ -6,7 +6,8 @@ from django.utils import timezone
 from accounts.models import UserProfile
 from core.models import PlatformSetting
 from core.test_utils import make_user
-from .models import Plan, Invoice, PayoutRequest
+
+from .models import Invoice, PayoutRequest, Plan
 
 User = get_user_model()
 

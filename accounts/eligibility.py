@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from django.utils import timezone
 
 from plays.models import PlayEvent
 from tracks.models import Track

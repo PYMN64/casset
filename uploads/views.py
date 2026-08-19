@@ -1,12 +1,13 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import models
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.db import models
 
 from core.models import PlatformSetting
 from tracks.models import Track
+
 from .forms import TrackUploadForm
 
 

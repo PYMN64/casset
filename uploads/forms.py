@@ -1,9 +1,9 @@
 from django import forms
 from django.core.exceptions import ValidationError as DjangoValidationError
 
-from tracks.models import Track, Album, Tag
 from core.models import PlatformSetting
 from core.validators import validate_audio, validate_image, validate_video
+from tracks.models import Album, Tag, Track
 
 # Podcast episodes and audiobook chapters run long — 25MB (core.validators'
 # generic default) is too tight for this product. Cap generously instead of

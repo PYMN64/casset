@@ -1,8 +1,8 @@
 from django import forms
 
 from core.models import PlatformSetting
-from .models import Album
 
+from .models import Album
 
 # Allowed image MIME types for album cover uploads.
 _COVER_ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp"}

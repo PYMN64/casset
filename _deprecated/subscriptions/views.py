@@ -2,11 +2,12 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
+from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from accounts.models import UserProfile
 from accounts.eligibility import compute_eligibility
+from accounts.models import UserProfile
+
 from .models import Plan, Subscription
 
 

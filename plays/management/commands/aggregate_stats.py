@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import Count, Q
 
-from plays.models import PlayEvent, DailyTrackStat
+from plays.models import DailyTrackStat, PlayEvent
 
 
 class Command(BaseCommand):

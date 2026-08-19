@@ -14,9 +14,9 @@ Security contract
   can NEVER appear as a runtime value again.
 """
 
-from pathlib import Path
 import os
 import secrets
+from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
 
