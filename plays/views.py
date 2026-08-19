@@ -20,6 +20,17 @@ from .utils import ip_hash, ua_hash
 logger = logging.getLogger("casset.plays")
 
 
+def _is_playable(track: Track) -> bool:
+    """A play/point may only be registered against approved, non-private
+    content. Without this, anyone who knows/guesses a track_id could
+    register plays (and earn the creator points) against another
+    creator's draft or private track."""
+    return (
+        track.status == Track.Status.APPROVED
+        and track.visibility != Track.Visibility.PRIVATE
+    )
+
+
 def _today_key() -> str:
     """Canonical day bucket for play events.
 
@@ -98,6 +109,9 @@ def register_play(request):
     except (Track.DoesNotExist, ValueError):
         return JsonResponse({"ok": False, "error": "track_not_found"}, status=404)
 
+    if not _is_playable(track):
+        return JsonResponse({"ok": False, "error": "track_not_playable"}, status=403)
+
     iph = ip_hash(request)
     uah = ua_hash(request)
     day_key = _today_key()
@@ -163,6 +177,9 @@ def register_progress(request):
         track = Track.objects.select_related("creator").get(id=track_id)
     except (Track.DoesNotExist, ValueError):
         return JsonResponse({"ok": False, "error": "track_not_found"}, status=404)
+
+    if not _is_playable(track):
+        return JsonResponse({"ok": False, "error": "track_not_playable"}, status=403)
 
     iph = ip_hash(request)
     day_key = _today_key()

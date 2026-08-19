@@ -25,12 +25,23 @@ def _make_user(username):
     return make_user(username)
 
 
-def _make_track(creator, duration=300, title="Test Track"):
+def _make_track(
+    creator,
+    duration=300,
+    title="Test Track",
+    status=Track.Status.APPROVED,
+    visibility=Track.Visibility.PUBLIC,
+):
+    """Approved + public by default — a track existing tests can actually
+    register plays against. Pass status=/visibility= explicitly for tests
+    that specifically cover the not-playable-yet rejection path."""
     return Track.objects.create(
         creator=creator,
         title=title,
         content_type="music",
         duration_seconds=duration,
+        status=status,
+        visibility=visibility,
     )
 
 
@@ -272,6 +283,35 @@ class RegisterPlayViewTests(TestCase):
         resp = self.client.get(reverse("api_play"))
         self.assertEqual(resp.status_code, 405)
 
+    def test_draft_track_rejected(self):
+        draft = _make_track(self.creator, status=Track.Status.DRAFT, title="Draft")
+        resp = self.client.post(reverse("api_play"), {"track_id": draft.id})
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.json()["error"], "track_not_playable")
+        self.assertFalse(PlayEvent.objects.filter(track=draft).exists())
+
+    def test_private_approved_track_rejected(self):
+        private = _make_track(
+            self.creator,
+            status=Track.Status.APPROVED,
+            visibility=Track.Visibility.PRIVATE,
+            title="Private",
+        )
+        resp = self.client.post(reverse("api_play"), {"track_id": private.id})
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(PlayEvent.objects.filter(track=private).exists())
+
+    def test_unlisted_approved_track_is_playable(self):
+        unlisted = _make_track(
+            self.creator,
+            status=Track.Status.APPROVED,
+            visibility=Track.Visibility.UNLISTED,
+            title="Unlisted",
+        )
+        resp = self.client.post(reverse("api_play"), {"track_id": unlisted.id})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["counted"])
+
 
 class RegisterProgressViewTests(TestCase):
     def setUp(self):
@@ -331,3 +371,25 @@ class RegisterProgressViewTests(TestCase):
         data = resp.json()
         self.assertTrue(data["awarded"], data)
         self.assertEqual(data["reason"], PointLedger.Reason.PLAY_REWARD)
+
+    def test_draft_track_rejected_no_point_awarded(self):
+        draft = _make_track(self.creator, duration=300, status=Track.Status.DRAFT, title="Draft")
+        resp = self.client.post(
+            reverse("api_play_progress"), {"track_id": draft.id, "progress": 0.9}
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(PointLedger.objects.filter(user=self.creator).count(), 0)
+
+    def test_private_track_rejected_no_point_awarded(self):
+        private = _make_track(
+            self.creator,
+            duration=300,
+            status=Track.Status.APPROVED,
+            visibility=Track.Visibility.PRIVATE,
+            title="Private",
+        )
+        resp = self.client.post(
+            reverse("api_play_progress"), {"track_id": private.id, "progress": 0.9}
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(PointLedger.objects.filter(user=self.creator).count(), 0)
