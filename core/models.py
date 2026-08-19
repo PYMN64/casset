@@ -22,6 +22,16 @@ class PlatformSetting(models.Model):
     free_upload_minutes = models.PositiveIntegerField(default=180)
     creator_daily_upload_limit = models.PositiveIntegerField(default=20)
 
+    # Moderation
+    auto_approve_tracks = models.BooleanField(
+        default=False,
+        help_text=(
+            "اگر فعال باشد، محتوای ارسالی کاربران بدون بررسی دستی staff فوراً "
+            "تایید و منتشر می‌شود (صف بررسی ترک دور زده می‌شود). برای شروع سریع‌تر "
+            "و کاهش اصطکاک مناسب است؛ گزارش‌دهی کاربران (Report) کماکان فعال می‌ماند."
+        ),
+    )
+
     # Points awarding threshold
     # Legacy (0.0 - 1.0)
     play_award_percent = models.FloatField(default=0.60)

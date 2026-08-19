@@ -2,7 +2,7 @@
 
 from django.contrib import admin
 
-from .models import Comment, CommentLike, CreatorFollow, TrackFavorite, TrackLike
+from .models import Comment, CommentLike, CreatorBlock, CreatorFollow, TrackFavorite, TrackLike
 
 
 @admin.register(Comment)
@@ -56,5 +56,15 @@ class TrackFavoriteAdmin(admin.ModelAdmin):
     list_filter = ("created_at",)
     search_fields = ("user__username", "track__title")
     autocomplete_fields = ("user", "track")
+    readonly_fields = ("created_at",)
+    ordering = ("-created_at",)
+
+
+@admin.register(CreatorBlock)
+class CreatorBlockAdmin(admin.ModelAdmin):
+    list_display = ("id", "creator", "blocked_user", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("creator__username", "blocked_user__username")
+    autocomplete_fields = ("creator", "blocked_user")
     readonly_fields = ("created_at",)
     ordering = ("-created_at",)

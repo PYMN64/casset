@@ -238,3 +238,50 @@ Creator اعلان دریافت‌های جدید را می‌بیند ──►
 - [بهترین پادکست‌های فارسی — چطور](https://www.chetor.com/229339-%D8%A8%D9%87%D8%AA%D8%B1%DB%8C%D9%86-%D9%BE%D8%A7%D8%AF%DA%A9%D8%B3%D8%AA-%D9%87%D8%A7%DB%8C-%D9%81%D8%A7%D8%B1%D8%B3%DB%8C/)
 - [نوار به اکوسیستم طاقچه پیوست — Taaghche Blog](https://taaghche.com/blog/1405/04/08/%D9%86%D9%88%D8%A7%D8%B1-%D8%A8%D9%87-%D8%A7%DA%A9%D9%88%D8%B3%DB%8C%D8%B3%D8%AA%D9%85-%D8%B7%D8%A7%D9%82%DA%86%D9%87-%D9%BE%DB%8C%D9%88%D8%B3%D8%AA/)
 - [10 Examples of Badges Used in Gamification — Trophy.so](https://trophy.so/blog/badges-feature-gamification-examples)
+
+---
+
+## بخش ۸ — فاز ۳: اعتماد و امنیت (Trust & Safety) — ✅ تحویل شد (۲۰۲۶-۰۸-۱۹)
+
+### ۸.۱ چرا این فاز
+بررسی کد قبل از شروع نشون داد صف بررسی/تایید/رد ترک و گزارش کامنت/ترک/پروفایل از قبل کار می‌کردن، ولی دو حفره واقعی وجود داشت: **staff هیچ اکشنی روی Report نداشت** (فقط لیست می‌دید، نمی‌تونست reviewed/actioned بزنه)، و **هیچ مکانیزم تعلیق حساب کاربری وجود نداشت**. همچنین `notifications.services.check_and_notify_milestone` از زمان ساخت اپ Notification (فاز ۱) نوشته شده بود ولی هیچ‌جا صدا زده نمی‌شد — کد مرده، دقیقاً همون الگوی کامنت در فاز ۲.
+
+کاربر پروژه هم‌زمان یک سوال محصولی مطرح کرد: آیا صف بررسی/رد ترک گزینه مناسبیه؟ و درخواست داد یک گزینه اضافه بشه که صف به‌صورت پیش‌فرض روی تایید خودکار باشه تا روند سایت روان‌تر باشه.
+
+### ۸.۲ تصمیم محصولی: Auto-approve به‌عنوان یک Toggle، نه جایگزین صف
+صف بررسی دستی (`track_queue.html`) به قوت خودش باقی موند — برای پلتفرمی که به «آمار پخش قابل‌اعتماد» و کیفیت محتوا حساسه، بررسی انسانی هنوز گزینه امن پیش‌فرضه. اما یک تنظیم جدید platform-wide اضافه شد: `PlatformSetting.auto_approve_tracks` (پیش‌فرض خاموش). وقتی روشنه، `submit_track` به‌جای گذاشتن ترک روی `SUBMITTED`، بلافاصله همون منطق `approve_track` استاف رو صدا می‌زنه (`actor=None` یعنی سیستمی) — یعنی صف بررسی همچنان وجود داره و در هر لحظه قابل خاموش‌کردنه، بدون این‌که ترک‌های قبلی یا جریان دستی خراب بشه.
+
+### ۸.۳ کد جدید
+- `core/models.py` — `PlatformSetting.auto_approve_tracks` (BooleanField) + admin fieldset «Moderation»
+- `moderation/services.py` — بازنویسی کامل: `approve_track`/`reject_track` از views.py به اینجا منتقل شدن (staff queue و مسیر auto-approve حالا دقیقاً یک پیاده‌سازی دارن)؛ `update_report_status`، `restore_comment`، `suspend_user`/`unsuspend_user` جدید — همه با AuditLog
+- `moderation/views.py` + `urls.py` — `update_report`، `restore_comment_view`، `suspend_profile`، `unsuspend_profile`
+- `uploads/views.py::submit_track` — چک `auto_approve_tracks` و صدازدن `moderation.services.approve_track(actor=None)`
+- `accounts/models.py` — `UserProfile.suspended_at`/`suspended_reason` (metadata حسابرسی؛ منبع حقیقت اجرا خود `User.is_active` استانداردِ جنگو است)
+- `accounts/views.py::phone_verify_view` — **یافته امنیتی حین پیاده‌سازی:** `django.contrib.auth.login()` خودش `is_active` رو چک نمی‌کنه (برخلاف `ModelBackend.authenticate` برای ورود با رمز) — بدون این فیکس، یک حساب تعلیق‌شده می‌تونست از مسیر OTP (تنها مسیر بدون رمز پروژه) دوباره وارد بشه. اضافه شد.
+- `config/settings/base.py` — سوییچ به `AllowAllUsersModelBackend` تا پیام فارسی واضح «این حساب تعلیق شده است» واقعاً نمایش داده بشه (با `ModelBackend` پیش‌فرض، جنگو حساب غیرفعال رو با پیام عمومی «نام کاربری/رمز اشتباه» قاطی می‌کنه چون اصلاً User برنمی‌گردونه)
+- `accounts/forms.py::LoginForm` — پیام فارسی برای `error_messages["inactive"]`
+- `interactions/models.py` — `CreatorBlock` (creator, blocked_user) — مدل جدید برای «بلاک کامنت‌گذار مزاحم از ترک‌های خودم»
+- `interactions/services.py` — `toggle_creator_block` + چک `CreatorBlock` داخل `add_comment` (reason=`blocked`)
+- `interactions/views.py` + `urls.py` — `api_block`
+- `plays/views.py::register_play` — صدازدن `check_and_notify_milestone` بعد از هر افزایش واقعی `play_count` (رفع کد مرده)
+- **حذف کد مرده:** `templates/tracks/detail.html` — قالب orphan که هیچ view ای رندرش نمی‌کرد و مدل کامنتش (`c.user`/`c.text`) اصلاً با مدل واقعی `Comment` (`author`/`body`) هم‌خونی نداشت؛ حذف کامل به‌جای نگه‌داشتن کد بلااستفاده
+
+### ۸.۴ فرانت‌اند (تغییرات کوچک ولی مشهود)
+- `templates/moderation/report_queue.html` — بازنویسی کامل: هر گزارش حالا دراپ‌داون تغییر وضعیت، دکمه «بازگردانی کامنت» (برای گزارش‌های کامنت مخفی‌شده)، و دکمه «تعلیق حساب»/«رفع تعلیق» (برای گزارش‌های پروفایل، با ورودی دلیل) داره
+- `templates/moderation/track_queue.html` — بنر هشدار وقتی auto-approve روشنه («این صف فقط محتوای قدیمی‌تر رو نشون می‌ده»)
+- `templates/tracks/track_detail.html` — دکمه «بلاک @username» روی کامنت‌های دیگران، فقط برای صاحب ترک
+- `static/app.js` — `handleBlockToggle`
+
+### ۸.۵ تست و تایید
+- ۲۸۶ → **۳۱۸ تست** (۳۲ تست جدید)، همه سبز
+- `test core.tests_smoke`، `makemigrations --check`، `ruff check .`، `manage.py check` — همه تمیز
+- تایید دستی کامل در مرورگر روی `runserver` واقعی: staff یک حساب رو تعلیق کرد → همون کاربر نتونست با رمز عبور وارد بشه (پیام فارسی واضح دیده شد) → بنر auto-approve روی صف ترک درست نشون داده شد → صاحب ترک روی کامنت یک کاربر دیگه کلیک «بلاک» زد و در دیتابیس واقعاً ثبت شد
+
+### ۸.۶ معیار Done فاز ۳ — همه برآورده شد
+۱. ✅ staff می‌تواند وضعیت هر Report را عوض کند (نه فقط ببیند)
+۲. ✅ حساب کاربری قابل تعلیق/رفع‌تعلیق است و تعلیق هر دو مسیر ورود (OTP + رمز) را واقعاً می‌بندد
+۳. ✅ کامنت auto-hide شده توسط staff قابل بازگردانی است
+۴. ✅ `PlatformSetting.auto_approve_tracks` صف بررسی را (اختیاری) دور می‌زند بدون حذف صف
+۵. ✅ یک کاربر می‌تواند کامنت‌گذار مزاحم را از ترک‌های خودش بلاک کند
+۶. ✅ اعلان نقطه‌عطف پخش واقعاً برای Creator ارسال می‌شود
+۷. ✅ هیچ کد مرده‌ی شناسایی‌شده‌ای بدون تصمیم (رفع یا حذف) باقی نماند

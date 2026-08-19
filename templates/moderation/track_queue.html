@@ -5,6 +5,14 @@
   <h1>صف بررسی محتوا</h1>
   <p class="muted small">فقط برای ادمین/استاف</p>
 
+  {% if platform.auto_approve_tracks %}
+    <div class="alert" style="margin-bottom:10px">
+      ⚡ تایید خودکار فعال است — محتوای جدید بدون رسیدن به این صف مستقیماً منتشر می‌شود.
+      این صف فقط محتوای قدیمی‌تر یا ثبت‌شده قبل از فعال‌سازی این تنظیم را نشان می‌دهد.
+      برای خاموش کردن: Admin → Core → Platform setting.
+    </div>
+  {% endif %}
+
   <div class="list">
     {% for t in tracks %}
       <div class="item" style="flex-direction:column;align-items:stretch">

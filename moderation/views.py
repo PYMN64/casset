@@ -10,7 +10,7 @@ from interactions.models import Comment
 from tracks.models import Track
 
 from . import services
-from .models import AuditLog, Report
+from .models import Report
 
 User = get_user_model()
 
@@ -151,28 +151,22 @@ def _staff_required(request):
 
 def track_queue(request):
     _staff_required(request)
+    from core.models import PlatformSetting
+
     qs = Track.objects.filter(status__in=[Track.Status.SUBMITTED, Track.Status.PENDING]).select_related('creator').order_by('-submitted_at','-created_at')
-    return render(request, 'moderation/track_queue.html', {'tracks': qs[:200]})
+    return render(request, 'moderation/track_queue.html', {
+        'tracks': qs[:200],
+        'platform': PlatformSetting.get_solo(),
+    })
 
 
 @require_POST
 def approve_track(request, track_id: int):
     _staff_required(request)
     track = get_object_or_404(Track, id=track_id)
-    if track.status == Track.Status.APPROVED:
-        # Idempotent no-op: without this, re-clicking (or revisiting the
-        # URL) resends the "track approved" notification every time — the
-        # signal in notifications/signals.py has no dedup of its own — and
-        # bumps published_at to a new timestamp on every re-click.
-        return redirect('moderation_track_queue')
-    track.status = Track.Status.APPROVED
-    track.reject_reason = ""
-    track.published_at = timezone.now()
-    # default to public when approved if still private
-    if track.visibility == Track.Visibility.PRIVATE:
-        track.visibility = Track.Visibility.PUBLIC
-    track.save(update_fields=['status','reject_reason','published_at','visibility'])
-    AuditLog.objects.create(actor=request.user, target_type=AuditLog.TargetType.TRACK, track=track, action='approve_track')
+    # services.approve_track() is idempotent (no-op if already approved) —
+    # see its docstring for why that matters on re-click/revisit.
+    services.approve_track(track=track, actor=request.user)
     return redirect('moderation_track_queue')
 
 
@@ -180,19 +174,55 @@ def approve_track(request, track_id: int):
 def reject_track(request, track_id: int):
     _staff_required(request)
     track = get_object_or_404(Track, id=track_id)
-    if track.status == Track.Status.REJECTED:
-        # Same idempotency reasoning as approve_track — avoid a duplicate
-        # "track rejected" notification on re-click/resubmission.
-        return redirect('moderation_track_queue')
     reason = (request.POST.get('reason') or '').strip()[:240]
-    track.status = Track.Status.REJECTED
-    track.reject_reason = reason or "رد شد"
-    track.save(update_fields=['status','reject_reason'])
-    AuditLog.objects.create(actor=request.user, target_type=AuditLog.TargetType.TRACK, track=track, action='reject_track', metadata={'reason': track.reject_reason})
+    services.reject_track(track=track, actor=request.user, reason=reason)
     return redirect('moderation_track_queue')
 
 
 def report_queue(request):
     _staff_required(request)
-    qs = Report.objects.all().select_related('reporter','track','target_user').order_by('-created_at')
-    return render(request, 'moderation/report_queue.html', {'reports': qs[:200]})
+    qs = (
+        Report.objects.all()
+        .select_related('reporter', 'track', 'target_user', 'comment', 'comment__author')
+        .order_by('-created_at')
+    )
+    return render(request, 'moderation/report_queue.html', {
+        'reports': qs[:200],
+        'report_statuses': Report.Status.choices,
+    })
+
+
+@require_POST
+def update_report(request, report_id: int):
+    _staff_required(request)
+    report = get_object_or_404(Report, id=report_id)
+    status = request.POST.get('status') or ''
+    note = request.POST.get('note') or ''
+    if not services.update_report_status(report=report, actor=request.user, status=status, note=note):
+        return JsonResponse({'ok': False, 'error': 'invalid_status'}, status=400)
+    return redirect('moderation_report_queue')
+
+
+@require_POST
+def restore_comment_view(request, comment_id: int):
+    _staff_required(request)
+    comment = get_object_or_404(Comment, id=comment_id)
+    services.restore_comment(comment=comment, actor=request.user)
+    return redirect('moderation_report_queue')
+
+
+@require_POST
+def suspend_profile(request, username: str):
+    _staff_required(request)
+    target = get_object_or_404(User, username=username)
+    reason = (request.POST.get('reason') or '').strip()
+    services.suspend_user(user=target, actor=request.user, reason=reason)
+    return redirect('moderation_report_queue')
+
+
+@require_POST
+def unsuspend_profile(request, username: str):
+    _staff_required(request)
+    target = get_object_or_404(User, username=username)
+    services.unsuspend_user(user=target, actor=request.user)
+    return redirect('moderation_report_queue')

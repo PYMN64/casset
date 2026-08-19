@@ -312,6 +312,37 @@ class RegisterPlayViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["counted"])
 
+    def test_crossing_a_milestone_notifies_creator(self):
+        """Regression: notifications.services.check_and_notify_milestone
+        existed since the Notification app was built but was never called
+        from anywhere — dead code. register_play is the one place play_count
+        actually changes, so it's the correct call site (Phase 3)."""
+        from notifications.models import Notification
+
+        self.track.play_count = 99
+        self.track.save(update_fields=["play_count"])
+
+        resp = self.client.post(reverse("api_play"), {"track_id": self.track.id})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["play_count"], 100)
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.creator, verb="milestone_plays", track=self.track,
+                extra__milestone=100,
+            ).exists()
+        )
+
+    def test_not_crossing_a_milestone_does_not_notify(self):
+        from notifications.models import Notification
+
+        self.track.play_count = 50
+        self.track.save(update_fields=["play_count"])
+
+        self.client.post(reverse("api_play"), {"track_id": self.track.id})
+        self.assertFalse(
+            Notification.objects.filter(recipient=self.creator, verb="milestone_plays").exists()
+        )
+
 
 class RegisterProgressViewTests(TestCase):
     def setUp(self):

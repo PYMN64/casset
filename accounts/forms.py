@@ -20,6 +20,11 @@ class LoginForm(AuthenticationForm):
     username = forms.CharField(widget=forms.TextInput(attrs={"autocomplete": "username"}))
     password = forms.CharField(widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}))
 
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        "inactive": "این حساب تعلیق شده است.",
+    }
+
 
 class ProfileSettingsForm(forms.ModelForm):
     email = forms.EmailField(required=True)

@@ -137,6 +137,18 @@ def register_play(request):
         return JsonResponse({"ok": False, "error": "server_error"}, status=500)
 
     track.refresh_from_db(fields=["play_count"])
+
+    if created:
+        # check_and_notify_milestone() existed since the Notification app was
+        # built but was never actually called from anywhere — dead code.
+        # This is the one real place a play count changes, so it's the
+        # correct (and only) call site.
+        try:
+            from notifications.services import check_and_notify_milestone
+            check_and_notify_milestone(track=track)
+        except Exception:
+            logger.exception("check_and_notify_milestone failed track=%s", track.id)
+
     return JsonResponse({"ok": True, "counted": created, "play_count": track.play_count})
 
 

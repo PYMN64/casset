@@ -106,3 +106,29 @@ class CommentLike(models.Model):
                 fields=["user", "comment"], name="uniq_like_user_comment"
             )
         ]
+
+
+class CreatorBlock(models.Model):
+    """A creator blocking a specific user from commenting on the creator's
+    own tracks. Scoped to the creator's tracks, not a platform-wide mute —
+    matches the MVP goal: let a creator protect their own space without a
+    full account-suspension decision (which is a staff-only action, see
+    moderation.services.suspend_user)."""
+
+    creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="blocked_commenters"
+    )
+    blocked_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="blocked_by_creators"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["creator", "blocked_user"], name="uniq_block_creator_blocked"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Block(creator={self.creator_id}, blocked={self.blocked_user_id})"

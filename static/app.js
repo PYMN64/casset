@@ -411,6 +411,17 @@ async function handleFavorite(btn) {
   showToast(data.favorited ? "به علاقه‌مندی‌ها اضافه شد ★" : "از علاقه‌مندی‌ها حذف شد", true);
 }
 
+async function handleBlockToggle(btn) {
+  const username = btn.dataset.username;
+  if (!username) return;
+
+  const data = await postForm("/api/v1/block/", { blocked_username: username });
+  if (!data || !data.ok) { showToast("انجام نشد ❌", false); return; }
+
+  btn.classList.toggle("primary", !!data.blocked);
+  showToast(data.blocked ? `@${username} بلاک شد 🚫` : `بلاک @${username} برداشته شد`, true);
+}
+
 async function handleShare(btn) {
   const url = btn.dataset.url || window.location.href;
   const title = btn.dataset.title || "Casset";
@@ -829,6 +840,9 @@ document.addEventListener("click", (e) => {
 
   const favoriteBtn = e.target.closest("[data-favorite]");
   if (favoriteBtn) { e.preventDefault(); handleFavorite(favoriteBtn); return; }
+
+  const blockBtn = e.target.closest("[data-block]");
+  if (blockBtn) { e.preventDefault(); handleBlockToggle(blockBtn); return; }
 
   const shareBtn = e.target.closest("[data-share]");
   if (shareBtn) { e.preventDefault(); handleShare(shareBtn); return; }

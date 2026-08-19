@@ -187,6 +187,13 @@ def phone_verify_view(request):
         profile = UserProfile.objects.filter(phone_number=phone).select_related("user").first()
         if profile:
             user = profile.user
+            if not user.is_active:
+                # django.contrib.auth.login() does NOT check is_active on its
+                # own (unlike ModelBackend.authenticate for password login) —
+                # without this explicit check, a suspended account could log
+                # back in through OTP, the only passwordless entry point.
+                messages.error(request, "این حساب تعلیق شده است.")
+                return redirect("phone_start")
         else:
             username = _generate_username()
             while User.objects.filter(username=username).exists():

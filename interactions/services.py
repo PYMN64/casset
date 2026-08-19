@@ -17,7 +17,7 @@ from django.db import IntegrityError, transaction
 
 from tracks.models import Track
 
-from .models import Comment, CommentLike, TrackFavorite
+from .models import Comment, CommentLike, CreatorBlock, TrackFavorite
 
 logger = logging.getLogger("casset.interactions")
 
@@ -61,6 +61,9 @@ def add_comment(*, author, track: Track, body: str) -> CommentResult:
 
     if not track.allow_comments:
         return CommentResult(ok=False, reason="comments_disabled")
+
+    if CreatorBlock.objects.filter(creator=track.creator_id, blocked_user=author.id).exists():
+        return CommentResult(ok=False, reason="blocked")
 
     body = (body or "").strip()
     if not body:
@@ -119,3 +122,23 @@ def toggle_favorite(*, user, track: Track) -> ToggleResult:
 
     count = TrackFavorite.objects.filter(track=track).count()
     return ToggleResult(ok=True, active=active, count=count)
+
+
+# ---------------------------------------------------------------------------
+# Creator block (mute a commenter from your own tracks)
+# ---------------------------------------------------------------------------
+
+def toggle_creator_block(*, creator, blocked_user) -> ToggleResult:
+    if blocked_user.id == creator.id:
+        return ToggleResult(ok=False, reason="cannot_block_self")
+
+    try:
+        with transaction.atomic():
+            CreatorBlock.objects.create(creator=creator, blocked_user=blocked_user)
+        active = True
+    except IntegrityError:
+        with transaction.atomic():
+            CreatorBlock.objects.filter(creator=creator, blocked_user=blocked_user).delete()
+        active = False
+
+    return ToggleResult(ok=True, active=active)

@@ -3,13 +3,16 @@
 ## Status
 Phase 1 (Foundation Stabilization) **closed** 2026-08-19 — all 8 items in CLAUDE.md §3 resolved.
 Phase 2 (revised — social endpoints + player UX, roadmap §7) **closed** 2026-08-19 — items #9/#10 resolved.
-Phase 3 (Moderation) is now the active milestone.
+Phase 3 (Trust & Safety, roadmap §8) **closed** 2026-08-19 — items #11/#12 resolved (report actions,
+account suspension, creator-side comment block, auto-approve toggle, milestone notification wired).
+Phase 4 (validated plays) is next — but most of it (PointLedger, the 4 fraud gates) was already built
+in item #3 back in Phase 1; check what's actually missing before assuming a full phase of work.
 
 ## Repository strategy
 Keep the existing Django modular monolith. Stabilize and refactor critical domains instead of rewriting.
 
 ## Current critical path
-S0 Foundation ✅ → S1 Identity ✅ → **S2 Content/Social (closing)** → S3 Moderation (active) → S4 Playback → S5 Play Intelligence → S6 Analytics → S7 Discovery → S8 Production.
+S0 Foundation ✅ → S1 Identity ✅ → S2 Content/Social ✅ → S3 Moderation ✅ → **S4 Playback (mostly done, verify gaps)** → S5 Play Intelligence → S6 Analytics → S7 Discovery → S8 Production.
 
 ## Current release criterion
 The creator/listener business flow must work end-to-end and produce trustworthy qualified-play, analytics and reward records.
@@ -24,9 +27,9 @@ Read that file at the start of every session to know what has changed and why.
 ## Test coverage baseline (2026-08-19, pre-Phase-2-delivery)
 `coverage run --source=. manage.py test` → **81% overall** (242 tests, 2640 statements, 494 missed).
 Full HTML report regeneratable with `coverage html`; not committed (`.gitignore`d).
-Superseded same day by the Phase 2 delivery below (242 → 286 tests); coverage not re-measured yet —
-`interactions` in particular should now score far above the 22% listed here since it went from 0
-tests to 34. Re-run `coverage html` before trusting these per-file numbers again.
+Superseded same day by the Phase 2 (242 → 286) and Phase 3 (286 → 318) deliveries below; coverage not
+re-measured yet — `interactions` in particular should now score far above the 22% listed here since
+it went from 0 tests to 42. Re-run `coverage html` before trusting these per-file numbers again.
 
 Notably low as of the 242-test baseline (real gaps, not noise):
 - `interactions/views.py` — 22% (likes/follows/comments — the social layer the product identity depends on; now covered by 34 tests, see changelog 2026-08-19 "فاز ۲ بازنگری‌شده تحویل شد")

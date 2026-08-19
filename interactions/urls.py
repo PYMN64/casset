@@ -4,6 +4,7 @@ from .views import (
     comment_add,
     comment_delete,
     comment_like,
+    toggle_block,
     toggle_favorite,
     toggle_follow,
     toggle_like,
@@ -16,4 +17,5 @@ urlpatterns = [
     path("api/v1/comment/<int:comment_id>/delete/", comment_delete, name="api_comment_delete"),
     path("api/v1/comment/<int:comment_id>/like/", comment_like, name="api_comment_like"),
     path("api/v1/favorite/", toggle_favorite, name="api_favorite"),
+    path("api/v1/block/", toggle_block, name="api_block"),
 ]

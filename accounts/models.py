@@ -93,6 +93,14 @@ class UserProfile(models.Model):
         max_length=16, choices=CreatorStatus.choices, default=CreatorStatus.NONE
     )
 
+    # --- Moderation: account suspension ---
+    # Enforcement is via the standard `User.is_active` flag (blocks password
+    # login automatically; phone-OTP login checks it explicitly — see
+    # accounts/views.py::phone_verify_view). These two fields are audit
+    # metadata only, not the source of truth for "is this account blocked".
+    suspended_at = models.DateTimeField(null=True, blank=True)
+    suspended_reason = models.CharField(max_length=240, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

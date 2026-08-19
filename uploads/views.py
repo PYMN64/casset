@@ -116,5 +116,12 @@ def submit_track(request, track_id: int):
     track.reject_reason = ""
     track.save(update_fields=["status", "submitted_at", "reject_reason"])
 
-    messages.success(request, "محتوا برای بررسی ارسال شد.")
+    setting = PlatformSetting.get_solo()
+    if setting.auto_approve_tracks:
+        from moderation.services import approve_track
+
+        approve_track(track=track, actor=None)
+        messages.success(request, "محتوا فوراً منتشر شد ✅ (تایید خودکار فعال است).")
+    else:
+        messages.success(request, "محتوا برای بررسی ارسال شد.")
     return redirect("my_tracks")

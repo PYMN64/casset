@@ -460,3 +460,61 @@ class SubmitTrackViewTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         track.refresh_from_db()
         self.assertEqual(track.status, Track.Status.SUBMITTED)
+
+
+@override_settings(MEDIA_ROOT=_MEDIA_ROOT)
+class SubmitTrackAutoApproveTests(TestCase):
+    """PlatformSetting.auto_approve_tracks — Phase 3."""
+
+    def setUp(self):
+        self.user = make_user("autosubmitter")
+        self.client.login(username="autosubmitter", password="pass12345")
+        self.track = Track.objects.create(
+            creator=self.user, title="T", content_type=Track.ContentType.MUSIC,
+            duration_seconds=60, status=Track.Status.DRAFT,
+            visibility=Track.Visibility.PRIVATE,
+        )
+
+    def test_default_off_still_goes_to_submitted_queue(self):
+        resp = self.client.post(reverse("submit_track", args=[self.track.id]))
+        self.assertEqual(resp.status_code, 302)
+        self.track.refresh_from_db()
+        self.assertEqual(self.track.status, Track.Status.SUBMITTED)
+
+    def test_enabled_auto_approves_and_publishes_immediately(self):
+        setting = PlatformSetting.get_solo()
+        setting.auto_approve_tracks = True
+        setting.save(update_fields=["auto_approve_tracks"])
+
+        resp = self.client.post(reverse("submit_track", args=[self.track.id]))
+        self.assertEqual(resp.status_code, 302)
+        self.track.refresh_from_db()
+        self.assertEqual(self.track.status, Track.Status.APPROVED)
+        self.assertEqual(self.track.visibility, Track.Visibility.PUBLIC)
+        self.assertIsNotNone(self.track.published_at)
+
+    def test_auto_approve_writes_system_audit_log(self):
+        from moderation.models import AuditLog
+
+        setting = PlatformSetting.get_solo()
+        setting.auto_approve_tracks = True
+        setting.save(update_fields=["auto_approve_tracks"])
+
+        self.client.post(reverse("submit_track", args=[self.track.id]))
+        log = AuditLog.objects.get(track=self.track, action="approve_track")
+        self.assertIsNone(log.actor)
+        self.assertTrue(log.metadata["auto"])
+
+    def test_auto_approve_still_notifies_creator(self):
+        from notifications.models import Notification
+
+        setting = PlatformSetting.get_solo()
+        setting.auto_approve_tracks = True
+        setting.save(update_fields=["auto_approve_tracks"])
+
+        self.client.post(reverse("submit_track", args=[self.track.id]))
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.user, verb="track_approved", track=self.track
+            ).exists()
+        )

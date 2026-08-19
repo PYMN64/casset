@@ -17,6 +17,54 @@
 > **قانون:** هر Claude که تغییری روی پروژه می‌ده، باید یک entry جدید بالای خط
 > `## [2026-08-17] اسکن کامل پروژه — باگ‌های کریتیکال، Security، تست و نقص‌ها
 
+## [2026-08-19] فاز ۳ (اعتماد و امنیت) تحویل شد — موارد #۱۱/#۱۲ بسته شدند + auto-approve
+
+**نوع:** Feature + Architecture + Security + Tests
+**انجام‌دهنده:** Claude (session با صاحب پروژه)
+
+**تصمیم:** کاربر درخواست فاز ۳ کامل (Trust & Safety) رو داد، به‌همراه یک سوال محصولی: آیا صف بررسی/رد ترک گزینه مناسبیه؟ و یک درخواست مشخص: امکان تایید خودکار پیش‌فرض برای روان‌تر شدن روند سایت. هم‌زمان خواسته شد تمام کد مرده‌ی شناسایی‌شده در بررسی‌های قبلی، بازبینی و یا رفع یا حذف بشه.
+
+**یافته‌های بحرانی (تایید‌شده با خوندن کد، نه فرض):**
+1. `moderation/views.py::report_queue` فقط لیست گزارش‌ها رو نشون می‌داد — staff هیچ راهی برای تغییر وضعیت (reviewed/actioned/rejected) نداشت.
+2. هیچ مکانیزم تعلیق حساب کاربری در کل پروژه وجود نداشت.
+3. `notifications/services.py::check_and_notify_milestone` از فاز ۱ نوشته شده بود ولی **هیچ‌جا صدا زده نمی‌شد** — کد مرده.
+4. **یافته امنیتی جدید حین پیاده‌سازی تعلیق:** `django.contrib.auth.login()` خودش `is_active` رو چک نمی‌کنه (برخلاف ورود با رمز که از `ModelBackend.authenticate` رد می‌شه) — یعنی بدون فیکس صریح، `phone_verify_view` (تنها مسیر ورود بدون رمز پروژه) می‌تونست تعلیق حساب رو کامل دور بزنه.
+
+**تصمیم محصولی (auto-approve):** صف بررسی دستی حذف نشد — یک `PlatformSetting.auto_approve_tracks` (پیش‌فرض خاموش) اضافه شد. روشن‌کردنش باعث می‌شه `submit_track` بلافاصله همون `moderation.services.approve_track(actor=None)` رو صدا بزنه که صف استاف هم استفاده می‌کنه — یک پیاده‌سازی مشترک، نه دو مسیر موازی.
+
+**فایل‌های تغییرکرده/جدید:**
+- `core/models.py`, `core/admin.py` — `PlatformSetting.auto_approve_tracks` (migration `0002`)
+- `moderation/services.py` — بازنویسی کامل: `approve_track`/`reject_track` از views.py منتقل شدن (staff queue و auto-approve حالا یک پیاده‌سازی مشترک دارن)؛ `update_report_status`، `restore_comment`، `suspend_user`/`unsuspend_user` جدید
+- `moderation/views.py`, `urls.py` — `update_report`، `restore_comment_view`، `suspend_profile`، `unsuspend_profile`
+- `moderation/tests.py` — ۱۹ تست جدید
+- `uploads/views.py::submit_track` — چک `auto_approve_tracks`؛ `uploads/tests.py` — ۴ تست جدید
+- `accounts/models.py` — `UserProfile.suspended_at`/`suspended_reason` (migration `0002`؛ اجرا از طریق `User.is_active` استاندارد جنگو، نه یک فلگ سفارشی)
+- `accounts/views.py::phone_verify_view` — چک صریح `is_active` (فیکس امنیتی بالا)
+- `accounts/forms.py::LoginForm` — پیام فارسی برای حساب تعلیق‌شده
+- `config/settings/base.py` — `AUTHENTICATION_BACKENDS = ["...AllowAllUsersModelBackend"]` تا پیام فارسی واقعاً نمایش داده بشه (با `ModelBackend` پیش‌فرض، جنگو حساب inactive رو با پیام عمومی «رمز اشتباه» قاطی می‌کنه چون از authenticate() اصلاً User برنمی‌گردونه)
+- `accounts/tests.py` — ۲ تست جدید (تعلیق در OTP و در ورود با رمز)
+- `interactions/models.py` — `CreatorBlock` (creator, blocked_user) — migration `0002`
+- `interactions/services.py` — `toggle_creator_block` + چک block داخل `add_comment`
+- `interactions/views.py`, `urls.py` — `api_block`
+- `interactions/tests.py` — ۹ تست جدید
+- `plays/views.py::register_play` — صدازدن `check_and_notify_milestone` بعد از هر play جدید؛ `plays/tests.py` — ۲ تست جدید
+- `templates/moderation/report_queue.html` — بازنویسی کامل با اکشن‌های staff
+- `templates/moderation/track_queue.html` — بنر auto-approve
+- `templates/tracks/track_detail.html` — دکمه «بلاک» برای صاحب ترک
+- `static/app.js` — `handleBlockToggle`
+- **حذف:** `templates/tracks/detail.html` — قالب orphan بدون هیچ رفرنس، با مدل کامنت ناهم‌خوان با `Comment` واقعی
+
+**تایید:**
+- `python manage.py test` → **۳۱۸ تست** (از ۲۸۶)، همه pass
+- `test core.tests_smoke`، `makemigrations --check`، `ruff check .`، `manage.py check` — تمیز
+- تایید دستی کامل در مرورگر: staff یک حساب رو تعلیق کرد با یادداشت دلیل → صفحه فوراً «تعلیق‌شده» نشون داد → همون کاربر با رمز درست نتونست وارد بشه و پیام فارسی «این حساب تعلیق شده است» رو دید → بنر auto-approve روی صف ترک درست ظاهر شد → صاحب ترک روی کامنت کاربر دیگه «بلاک» زد و در دیتابیس واقعاً ثبت شد (تایید مستقیم با query)
+
+**اثر:** صف Report دیگه فقط یک ویترین نیست — staff می‌تونه واقعاً تصمیم بگیره. تعلیق حساب اولین بار در پروژه پیاده‌سازی شد، با یک باگ امنیتی واقعی (OTP bypass) که قبل از انتشار پیدا و رفع شد. دو مورد کد مرده (milestone notification، template یتیم) به نتیجه رسیدن — یکی وصل شد، یکی حذف شد.
+
+**وضعیت CLAUDE.md:** موارد #۱۱ و #۱۲ بسته شدند ✅. جدول دامنه‌ها (بخش ۴): `accounts`, `uploads`, `plays`, `interactions`, `moderation` به‌روز شدند. بخش ۶: فاز ۳ ✅ بسته شد.
+
+---
+
 ## [2026-08-19] فاز ۲ بازنگری‌شده تحویل شد — موارد #۹/#۱۰ بسته شدند
 
 **نوع:** Feature + Architecture + Tests

@@ -20,6 +20,7 @@ class PlatformSettingAdmin(admin.ModelAdmin):
         "free_upload_minutes",
         "creator_daily_upload_limit",
         "playback_point_percent",
+        "auto_approve_tracks",
     )
 
     fieldsets = (
@@ -42,6 +43,12 @@ class PlatformSettingAdmin(admin.ModelAdmin):
                     "free_upload_minutes",
                     "creator_daily_upload_limit",
                 )
+            },
+        ),
+        (
+            "Moderation",
+            {
+                "fields": ("auto_approve_tracks",),
             },
         ),
         (

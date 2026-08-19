@@ -92,6 +92,17 @@ class LoginViewTests(TestCase):
         })
         self.assertEqual(resp.status_code, 200)
 
+    def test_suspended_user_blocked_with_persian_message(self):
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+        resp = self.client.post(reverse("login"), {
+            "username": "loginuser",
+            "password": "pass12345",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertContains(resp, "این حساب تعلیق شده است")
+
 
 # ---------------------------------------------------------------------------
 # Onboarding
@@ -349,6 +360,24 @@ class PhoneVerifyViewTests(TestCase):
 
         self.assertEqual(User.objects.filter(profile__phone_number=self.phone).count(), 1)
         self.assertEqual(int(self.client.session["_auth_user_id"]), existing.pk)
+
+    def test_suspended_user_cannot_log_in_via_otp(self):
+        """Regression: django.contrib.auth.login() does not check is_active
+        on its own (unlike password auth via ModelBackend) — phone_verify_view
+        must reject a suspended account explicitly, or OTP would be a way
+        to bypass a moderation suspension entirely."""
+        existing = _make_user("phone_suspended")
+        existing.profile.phone_number = self.phone
+        existing.profile.save(update_fields=["phone_number"])
+        existing.is_active = False
+        existing.save(update_fields=["is_active"])
+
+        code = self._request_code()
+        resp = self.client.post(reverse("phone_verify"), {"phone_number": self.phone, "code": code})
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, reverse("phone_start"))
+        self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_wrong_code_increments_attempts_and_does_not_log_in(self):
         self._request_code()

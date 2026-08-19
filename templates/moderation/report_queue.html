@@ -10,22 +10,74 @@
       <div class="item" style="flex-direction:column;align-items:stretch">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
           <div>
-            <div style="font-weight:900">Report #{{ r.id }} — {{ r.reason }}</div>
-            <div class="muted small">{{ r.target_type }} • {{ r.created_at }}</div>
+            <div style="font-weight:900">Report #{{ r.id }} — {{ r.get_reason_display }}</div>
+            <div class="muted small">{{ r.get_target_type_display }} • {{ r.created_at }}</div>
           </div>
-          <div class="muted small">Status: {{ r.status }}</div>
+          <div class="muted small">Status: <b>{{ r.get_status_display }}</b></div>
         </div>
 
         {% if r.track %}
-          <div class="muted small" style="margin-top:6px">Track: {{ r.track.title }} (id={{ r.track_id }})</div>
+          <div class="muted small" style="margin-top:6px">
+            Track: <a href="/t/{{ r.track.slug }}/">{{ r.track.title }}</a> (id={{ r.track_id }})
+          </div>
         {% endif %}
+
         {% if r.target_user %}
-          <div class="muted small" style="margin-top:6px">Profile: {{ r.target_user.username }}</div>
+          <div class="muted small" style="margin-top:6px">
+            Profile: <a href="/@{{ r.target_user.username }}/">{{ r.target_user.username }}</a>
+            — {% if r.target_user.is_active %}<span>فعال</span>{% else %}<b style="color:#ff6b6b">تعلیق‌شده</b>{% endif %}
+          </div>
+        {% endif %}
+
+        {% if r.comment %}
+          <div class="muted small" style="margin-top:6px">
+            Comment #{{ r.comment.id }} by @{{ r.comment.author.username }}:
+            «{{ r.comment.body|truncatechars:120 }}»
+            — {% if r.comment.is_public %}<span>نمایان</span>{% else %}<b style="color:#ff6b6b">مخفی</b>{% endif %}
+          </div>
         {% endif %}
 
         {% if r.details %}
           <div style="margin-top:8px">{{ r.details }}</div>
         {% endif %}
+
+        {% if r.admin_note %}
+          <div class="muted small" style="margin-top:6px">یادداشت staff: {{ r.admin_note }}</div>
+        {% endif %}
+
+        <div class="row row-wrap" style="margin-top:10px;gap:8px">
+          <form method="post" action="/moderation/reports/{{ r.id }}/status/" class="row row-wrap" style="gap:6px">
+            {% csrf_token %}
+            <select name="status">
+              {% for value, label in report_statuses %}
+                <option value="{{ value }}" {% if value == r.status %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn" type="submit">به‌روزرسانی وضعیت</button>
+          </form>
+
+          {% if r.target_type == "comment" and r.comment and not r.comment.is_public %}
+            <form method="post" action="/moderation/comments/{{ r.comment.id }}/restore/">
+              {% csrf_token %}
+              <button class="btn btn--primary" type="submit">بازگردانی کامنت</button>
+            </form>
+          {% endif %}
+
+          {% if r.target_type == "profile" and r.target_user and not r.target_user.is_staff %}
+            {% if r.target_user.is_active %}
+              <form method="post" action="/moderation/profile/@{{ r.target_user.username }}/suspend/" class="row row-wrap" style="gap:6px">
+                {% csrf_token %}
+                <input type="text" name="reason" placeholder="دلیل تعلیق" style="min-width:160px">
+                <button class="btn" type="submit" style="color:#ff6b6b">تعلیق حساب</button>
+              </form>
+            {% else %}
+              <form method="post" action="/moderation/profile/@{{ r.target_user.username }}/unsuspend/">
+                {% csrf_token %}
+                <button class="btn btn--primary" type="submit">رفع تعلیق</button>
+              </form>
+            {% endif %}
+          {% endif %}
+        </div>
       </div>
     {% empty %}
       <div class="item"><span class="muted">گزارشی ثبت نشده.</span></div>

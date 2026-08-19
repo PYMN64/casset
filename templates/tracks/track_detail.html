@@ -101,6 +101,11 @@
                   {% else %}
                     <a href="#" class="btn btn--ghost" data-comment-report="1" data-comment="{{ c.id }}">گزارش</a>
                   {% endif %}
+                  {% if track.creator_id == request.user.id and c.author_id != request.user.id %}
+                    <a href="#" class="btn btn--ghost" data-block="1" data-username="{{ c.author.username }}">
+                      بلاک @{{ c.author.username }}
+                    </a>
+                  {% endif %}
                 {% endif %}
               </div>
             </div>

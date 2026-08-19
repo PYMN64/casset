@@ -8,7 +8,15 @@ from notifications.models import Notification
 from tracks.models import Track
 
 from .models import AuditLog, Report
-from .services import AUTO_HIDE_REPORT_THRESHOLD, check_and_auto_hide_comment
+from .services import (
+    AUTO_HIDE_REPORT_THRESHOLD,
+    approve_track,
+    check_and_auto_hide_comment,
+    reject_track,
+    restore_comment,
+    suspend_user,
+    update_report_status,
+)
 
 
 class ModerationReportTests(TestCase):
@@ -370,3 +378,181 @@ class AutoHideCommentServiceTests(TestCase):
             )
         hidden = check_and_auto_hide_comment(comment=self.comment)
         self.assertFalse(hidden)
+
+
+class ApproveRejectTrackServiceTests(TestCase):
+    """Phase 3: approve_track/reject_track moved from views.py into
+    services.py so the staff queue and the auto-approve-on-submit path
+    (uploads/views.py) share one implementation."""
+
+    def setUp(self):
+        self.staff = make_superuser("svc_staff")
+        self.creator = make_user("svc_creator")
+        self.track = Track.objects.create(
+            creator=self.creator, title="T", status=Track.Status.SUBMITTED,
+            visibility=Track.Visibility.PRIVATE,
+        )
+
+    def test_approve_sets_status_visibility_published_at(self):
+        ok = approve_track(track=self.track, actor=self.staff)
+        self.assertTrue(ok)
+        self.track.refresh_from_db()
+        self.assertEqual(self.track.status, Track.Status.APPROVED)
+        self.assertEqual(self.track.visibility, Track.Visibility.PUBLIC)
+        self.assertIsNotNone(self.track.published_at)
+
+    def test_approve_is_idempotent(self):
+        approve_track(track=self.track, actor=self.staff)
+        second = approve_track(track=self.track, actor=self.staff)
+        self.assertFalse(second)
+        self.assertEqual(AuditLog.objects.filter(track=self.track, action="approve_track").count(), 1)
+
+    def test_approve_actor_none_means_system_audit_log(self):
+        approve_track(track=self.track, actor=None)
+        log = AuditLog.objects.get(track=self.track, action="approve_track")
+        self.assertIsNone(log.actor)
+        self.assertTrue(log.metadata["auto"])
+
+    def test_approve_actor_present_means_manual_audit_log(self):
+        approve_track(track=self.track, actor=self.staff)
+        log = AuditLog.objects.get(track=self.track, action="approve_track")
+        self.assertEqual(log.actor, self.staff)
+        self.assertFalse(log.metadata["auto"])
+
+    def test_reject_sets_status_and_reason(self):
+        ok = reject_track(track=self.track, actor=self.staff, reason="کیفیت پایین")
+        self.assertTrue(ok)
+        self.track.refresh_from_db()
+        self.assertEqual(self.track.status, Track.Status.REJECTED)
+        self.assertEqual(self.track.reject_reason, "کیفیت پایین")
+
+    def test_reject_is_idempotent(self):
+        reject_track(track=self.track, actor=self.staff)
+        second = reject_track(track=self.track, actor=self.staff)
+        self.assertFalse(second)
+
+
+class UpdateReportStatusViewTests(TestCase):
+    def setUp(self):
+        self.staff = make_superuser("ur_staff")
+        self.regular = make_user("ur_regular")
+        self.reporter = make_user("ur_reporter")
+        self.track = Track.objects.create(creator=make_user("ur_creator"), title="T")
+        self.report = Report.objects.create(
+            reporter=self.reporter, target_type=Report.TargetType.TRACK,
+            track=self.track, reason=Report.Reason.SPAM,
+        )
+
+    def test_non_staff_gets_404(self):
+        self.client.login(username="ur_regular", password="pass12345")
+        resp = self.client.post(
+            reverse("moderation_update_report", args=[self.report.id]), {"status": "actioned"}
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_valid_status_update(self):
+        self.client.login(username="ur_staff", password="pass12345")
+        resp = self.client.post(
+            reverse("moderation_update_report", args=[self.report.id]),
+            {"status": "reviewed", "note": "بررسی شد"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.report.refresh_from_db()
+        self.assertEqual(self.report.status, Report.Status.REVIEWED)
+        self.assertEqual(self.report.admin_note, "بررسی شد")
+        self.assertEqual(self.report.reviewed_by, self.staff)
+        self.assertIsNotNone(self.report.reviewed_at)
+
+    def test_invalid_status_rejected(self):
+        self.client.login(username="ur_staff", password="pass12345")
+        resp = self.client.post(
+            reverse("moderation_update_report", args=[self.report.id]),
+            {"status": "not_a_real_status"},
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.report.refresh_from_db()
+        self.assertEqual(self.report.status, Report.Status.PENDING)
+
+    def test_update_writes_audit_log(self):
+        update_report_status(report=self.report, actor=self.staff, status=Report.Status.ACTIONED)
+        self.assertTrue(
+            AuditLog.objects.filter(report=self.report, action="report_actioned").exists()
+        )
+
+
+class RestoreCommentViewTests(TestCase):
+    def setUp(self):
+        self.staff = make_superuser("rc_staff")
+        self.regular = make_user("rc_regular")
+        self.track = Track.objects.create(creator=make_user("rc_creator"), title="T")
+        self.comment = Comment.objects.create(
+            track=self.track, author=make_user("rc_author"), body="x", is_public=False
+        )
+
+    def test_non_staff_gets_404(self):
+        self.client.login(username="rc_regular", password="pass12345")
+        resp = self.client.post(reverse("moderation_restore_comment", args=[self.comment.id]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_staff_restores_comment(self):
+        self.client.login(username="rc_staff", password="pass12345")
+        resp = self.client.post(reverse("moderation_restore_comment", args=[self.comment.id]))
+        self.assertEqual(resp.status_code, 302)
+        self.comment.refresh_from_db()
+        self.assertTrue(self.comment.is_public)
+
+    def test_restore_service_is_idempotent(self):
+        restore_comment(comment=self.comment, actor=self.staff)
+        second = restore_comment(comment=self.comment, actor=self.staff)
+        self.assertFalse(second)
+        self.assertEqual(
+            AuditLog.objects.filter(action="restore_comment", metadata__comment_id=self.comment.id).count(), 1
+        )
+
+
+class SuspendUnsuspendProfileTests(TestCase):
+    def setUp(self):
+        self.staff = make_superuser("sp_staff")
+        self.regular = make_user("sp_regular")
+        self.target = make_user("sp_target")
+        self.other_staff = make_superuser("sp_staff2")
+
+    def test_non_staff_gets_404(self):
+        self.client.login(username="sp_regular", password="pass12345")
+        resp = self.client.post(reverse("moderation_suspend_profile", args=[self.target.username]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_staff_suspends_account(self):
+        self.client.login(username="sp_staff", password="pass12345")
+        resp = self.client.post(
+            reverse("moderation_suspend_profile", args=[self.target.username]),
+            {"reason": "هرزنامه مکرر"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.target.refresh_from_db()
+        self.assertFalse(self.target.is_active)
+        self.assertEqual(self.target.profile.suspended_reason, "هرزنامه مکرر")
+        self.assertIsNotNone(self.target.profile.suspended_at)
+        self.assertTrue(
+            AuditLog.objects.filter(target_user=self.target, action="suspend_user").exists()
+        )
+
+    def test_cannot_suspend_staff(self):
+        ok = suspend_user(user=self.other_staff, actor=self.staff)
+        self.assertFalse(ok)
+        self.other_staff.refresh_from_db()
+        self.assertTrue(self.other_staff.is_active)
+
+    def test_unsuspend_restores_login(self):
+        suspend_user(user=self.target, actor=self.staff)
+        self.client.login(username="sp_staff", password="pass12345")
+        resp = self.client.post(reverse("moderation_unsuspend_profile", args=[self.target.username]))
+        self.assertEqual(resp.status_code, 302)
+        self.target.refresh_from_db()
+        self.assertTrue(self.target.is_active)
+        self.assertIsNone(self.target.profile.suspended_at)
+
+    def test_suspend_is_idempotent(self):
+        suspend_user(user=self.target, actor=self.staff)
+        second = suspend_user(user=self.target, actor=self.staff)
+        self.assertFalse(second)

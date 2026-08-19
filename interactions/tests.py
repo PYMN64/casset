@@ -5,7 +5,7 @@ from core.test_utils import make_superuser, make_user
 from notifications.models import Notification
 from tracks.models import Track
 
-from .models import Comment, CommentLike, CreatorFollow, TrackFavorite, TrackLike
+from .models import Comment, CommentLike, CreatorBlock, CreatorFollow, TrackFavorite, TrackLike
 
 
 def make_public_track(creator, **extra):
@@ -323,3 +323,66 @@ class ToggleFavoriteViewTests(TestCase):
         resp = self.client.post(reverse("api_favorite"), {"track_id": self.track.id})
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["favorited"])
+
+
+class ToggleBlockViewTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("blk_creator")
+        self.pest = make_user("blk_pest")
+
+    def test_requires_login(self):
+        resp = self.client.post(reverse("api_block"), {"blocked_username": self.pest.username})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_unknown_user_404s(self):
+        self.client.login(username="blk_creator", password="pass12345")
+        resp = self.client.post(reverse("api_block"), {"blocked_username": "doesnotexist"})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_cannot_block_self(self):
+        self.client.login(username="blk_creator", password="pass12345")
+        resp = self.client.post(reverse("api_block"), {"blocked_username": self.creator.username})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_toggle_on_then_off(self):
+        self.client.login(username="blk_creator", password="pass12345")
+        r1 = self.client.post(reverse("api_block"), {"blocked_username": self.pest.username})
+        self.assertEqual(r1.status_code, 200)
+        self.assertTrue(r1.json()["blocked"])
+        self.assertTrue(
+            CreatorBlock.objects.filter(creator=self.creator, blocked_user=self.pest).exists()
+        )
+
+        r2 = self.client.post(reverse("api_block"), {"blocked_username": self.pest.username})
+        self.assertFalse(r2.json()["blocked"])
+        self.assertEqual(CreatorBlock.objects.count(), 0)
+
+
+class BlockedCommenterTests(TestCase):
+    """A creator blocking a user must stop that user from commenting on the
+    creator's tracks (Phase 3) — the block is creator-scoped, not global."""
+
+    def setUp(self):
+        self.creator = make_user("bc_creator")
+        self.pest = make_user("bc_pest")
+        self.other_creator = make_user("bc_other_creator")
+        self.track = make_public_track(self.creator, slug="bc-t")
+        self.other_track = make_public_track(self.other_creator, slug="bc-other-t")
+        CreatorBlock.objects.create(creator=self.creator, blocked_user=self.pest)
+
+    def test_blocked_user_cannot_comment_on_blockers_track(self):
+        self.client.login(username="bc_pest", password="pass12345")
+        resp = self.client.post(
+            reverse("api_comment_add"), {"track_id": self.track.id, "body": "spam"}
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.json()["reason"], "blocked")
+        self.assertEqual(Comment.objects.count(), 0)
+
+    def test_blocked_user_can_still_comment_on_other_creators_track(self):
+        self.client.login(username="bc_pest", password="pass12345")
+        resp = self.client.post(
+            reverse("api_comment_add"), {"track_id": self.other_track.id, "body": "hi"}
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])

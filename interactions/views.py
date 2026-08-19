@@ -158,3 +158,26 @@ def toggle_favorite(request):
     if not result.ok:
         return JsonResponse({"ok": False, "reason": result.reason}, status=404)
     return JsonResponse({"ok": True, "favorited": result.active, "favorite_count": result.count})
+
+
+# ---------------------------------------------------------------------------
+# Creator block (mute a commenter from your own tracks)
+# ---------------------------------------------------------------------------
+
+@require_POST
+def toggle_block(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "reason": "auth_required"}, status=401)
+
+    username = (request.POST.get("blocked_username") or "").strip()
+    if not username:
+        return JsonResponse({"ok": False, "reason": "invalid_user"}, status=400)
+
+    target = User.objects.filter(username=username).first()
+    if not target:
+        return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
+
+    result = services.toggle_creator_block(creator=request.user, blocked_user=target)
+    if not result.ok:
+        return JsonResponse({"ok": False, "reason": result.reason}, status=400)
+    return JsonResponse({"ok": True, "blocked": result.active})

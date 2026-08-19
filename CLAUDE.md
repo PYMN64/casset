@@ -50,6 +50,8 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 | 8 | ~~`SECRET_KEY`, `PLAY_IP_SALT`, `PLAY_UA_SALT` مقدار پیش‌فرض ناامن دارن و در صورت نبود env، بی‌صدا fallback می‌کنن~~ | — | ✅ حل‌شده — `_require_secret()` در prod به `ImproperlyConfigured` فیل می‌کند، در dev هشدار می‌دهد |
 | 9 | ~~`interactions/urls.py` فقط دو endpoint داشت (`toggle_like`, `toggle_follow`)~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۱۹) — `interactions/services.py` جدید + ۴ endpoint اضافه شد: `comment_add`, `comment_delete`, `comment_like`, `toggle_favorite`. کامنت گزارش‌پذیر است و بعد از ۳ گزارش خودکار مخفی می‌شود (`moderation/services.py::check_and_auto_hide_comment`). ۴۳ تست جدید (interactions ۳۶ + moderation ۷). |
 | 10 | ~~پلیر فعلی سرعت پخش/Resume/Sleep Timer نداشت~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۱۹) — `static/app.js`: کنترل سرعت (۰.۵x–۲x، ذخیره در localStorage)، Resume Position به‌ازای هر ترک، Sleep Timer با پله‌های ۱۵/۳۰/۴۵/۶۰ دقیقه. دکمه‌های `#pbSpeed`/`#pbSleep` در playerbar (`templates/base.html`). دستی در مرورگر تایید شد. |
+| 11 | ~~staff هیچ اکشنی روی Report نداشت (فقط لیست می‌دید، نمی‌تونست reviewed/actioned بزنه) و هیچ مکانیزم تعلیق حساب کاربری وجود نداشت~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۱۹، فاز ۳) — `moderation/services.py::update_report_status/suspend_user/unsuspend_user` + دکمه‌های اکشن در `report_queue.html`. تعلیق از طریق `User.is_active` استاندارد جنگو اعمال می‌شود؛ **مهم:** ورود با OTP از این چک صرف‌نظر می‌کرد (`django.contrib.auth.login()` خودش `is_active` را چک نمی‌کند) — در `phone_verify_view` صریحاً اضافه شد. |
+| 12 | ~~`check_and_notify_milestone` (اعلان ۱۰۰/۵۰۰/... پخش) نوشته شده بود ولی هیچ‌جا صدا زده نمی‌شد — کد مرده~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۱۹، فاز ۳) — در `plays/views.py::register_play` بعد از هر افزایش واقعی `play_count` صدا زده می‌شود. |
 
 > وقتی هرکدوم از این موارد رفع شد، این جدول باید در همین فایل آپدیت بشه (ردیف حذف یا وضعیت به ✅ تغییر کنه).
 
@@ -59,13 +61,13 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 
 | اپ | نقش | بلوغ فعلی |
 |---|---|---|
-| `accounts` | کاربر، پروفایل، OTP، آنبوردینگ Creator | متوسط — منطق VIP در مدل پخش شده، باید جمع بشه |
+| `accounts` | کاربر، پروفایل، OTP، آنبوردینگ Creator، تعلیق حساب | متوسط — منطق VIP در مدل پخش شده، باید جمع بشه. تعلیق حساب (`is_active` + `UserProfile.suspended_at/reason`) روی هر دو مسیر ورود (OTP + رمز عبور) اعمال می‌شود |
 | `tracks` | آلبوم/ترک، ژانر، تگ، چرخه انتشار | ✅ خوب — AlbumForm حرفه‌ای شد، cover validation، CRUD کامل، تست دارد |
-| `uploads` | آپلود فایل | نیاز به Service مجزا و اعتبارسنجی واقعی فایل |
-| `plays` | ثبت پخش، آمار روزانه، Fraud signal | ✅ خوب — PointLedger، ۴ دروازه امنیتی، services.py، recalculate_points |
-| `interactions` | لایک، فالو، علاقه‌مندی، کامنت | ✅ کامل — مدل + endpoint هر پنج نوع تعامل (like/follow/comment/comment-like/favorite) با `services.py`، همه به Notification وصل، ۳۴ تست |
+| `uploads` | آپلود فایل، ارسال برای بررسی | نیاز به Service مجزا برای اعتبارسنجی فایل؛ `submit_track` حالا `PlatformSetting.auto_approve_tracks` را چک می‌کند (فاز ۳) |
+| `plays` | ثبت پخش، آمار روزانه، Fraud signal، اعلان نقطه‌عطف | ✅ خوب — PointLedger، ۴ دروازه امنیتی، services.py، recalculate_points، `check_and_notify_milestone` حالا واقعاً صدا زده می‌شود |
+| `interactions` | لایک، فالو، علاقه‌مندی، کامنت، بلاک کامنت‌گذار | ✅ کامل — مدل + endpoint هر شش نوع تعامل (like/follow/comment/comment-like/favorite/block) با `services.py`، همه به Notification وصل، ۴۲ تست |
 | `explore` | پین محتوای ویژه در صفحه کشف | حداقلی |
-| `moderation` | گزارش، AuditLog، صف بررسی ترک | تایید/رد ترک کامل و تست دارد (`approve_track`/`reject_track`)؛ گزارش کامنت + مخفی‌سازی خودکار بعد ۳ گزارش هم اضافه شد (`moderation/services.py`) |
+| `moderation` | گزارش، AuditLog، صف بررسی ترک، اکشن staff | ✅ کامل‌تر شد — تایید/رد ترک (`approve_track`/`reject_track` حالا در `services.py`، به‌اشتراک با auto-approve)، گزارش کامنت + مخفی‌سازی خودکار، **و حالا** staff می‌تواند وضعیت Report را عوض کند، کامنت مخفی‌شده را برگرداند، و حساب تعلیق/رفع‌تعلیق کند |
 | `billing` | پلن، فاکتور، تراکنش، درخواست تسویه | تنها منبع حقیقت برای VIP/پلن — تمیز و دارای تست |
 | ~~`subscriptions`~~ | ~~پلن و اشتراک (نسخه قدیمی‌تر)~~ | ✅ حذف‌شده — در `_deprecated/` آرشیو شده، هیچ referenceای در کد زنده وجود ندارد |
 | `core` | تنظیمات پلتفرم (Singleton) | خوب |
@@ -99,8 +101,10 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 فاز ۱  (روز ۱-۱۴)   تثبیت پایه: رفع ۸ مورد بخش ۳، اولین تست‌ها، Postgres — ✅ بسته شد (۲۰۲۶-۰۸-۱۹)
 فاز ۲  (روز ۱۵-۳۸)  بازنگری‌شده — ✅ بسته شد (۲۰۲۶-۰۸-۱۹): موارد #۹/#۱۰ رفع شدند (کامنت/لایک‌کامنت/
                     Favorite + Player UX رقابتی). جزئیات کامل: `.casset/execution/90-day-roadmap.md` بخش ۷
-فاز ۳  (روز ۳۶-۴۹)  مدیریت محتوا (Moderation) حداقلی
-فاز ۴  (روز ۵۰-۷۰)  پخش معتبر + PointLedger واقعی
+فاز ۳  (روز ۳۹-۴۹)  اعتماد و امنیت (Trust & Safety) — ✅ بسته شد (۲۰۲۶-۰۸-۱۹): موارد #۱۱/#۱۲ رفع شدند
+                    (اکشن staff روی Report، تعلیق حساب، بلاک کامنت‌گذار، auto-approve، اعلان نقطه‌عطف).
+                    جزئیات کامل: `.casset/execution/90-day-roadmap.md` بخش ۸
+فاز ۴  (روز ۵۰-۷۰)  پخش معتبر + PointLedger واقعی — بخش عمده‌اش (مورد #۳) از فاز ۱ زودتر انجام شده
 فاز ۵  (روز ۷۱-۸۴)  لایه اجتماعی/اعلان (Notification+Feed) + آنالیتیکس + کشف محتوا
 فاز ۶  (روز ۸۵-۹۰)  سخت‌سازی Production و استقرار نهایی
 ```
