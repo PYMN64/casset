@@ -47,7 +47,7 @@ class HasVipTests(TestCase):
         self.assertTrue(self.profile.has_vip())
 
     def test_expired_invoice_does_not_grant_vip(self):
-        inv = Invoice.objects.create(
+        Invoice.objects.create(
             user=self.user,
             plan=self.plan,
             status=Invoice.Status.PAID,
