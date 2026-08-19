@@ -172,6 +172,22 @@ class PublicProfileViewTests(TestCase):
         resp = self.client.get(reverse("public_profile", args=["doesnotexist"]))
         self.assertEqual(resp.status_code, 404)
 
+    def test_likes_stat_reflects_real_track_likes(self):
+        """Regression: this view used to hardcode stats['likes'] = 0
+        regardless of actual TrackLike rows (public_profile_by_handle
+        computed it correctly; this path didn't)."""
+        from interactions.models import TrackLike
+        from tracks.models import Track
+
+        liker = _make_user("liker_for_stats")
+        track = Track.objects.create(
+            creator=self.user, title="T", slug="stats-t", status=Track.Status.APPROVED,
+        )
+        TrackLike.objects.create(user=liker, track=track)
+
+        resp = self.client.get(reverse("public_profile", args=["publicuser"]))
+        self.assertEqual(resp.context["stats"]["likes"], 1)
+
 
 # ---------------------------------------------------------------------------
 # Middleware: OnboardingRequired

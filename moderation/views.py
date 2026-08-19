@@ -6,8 +6,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from interactions.models import Comment
 from tracks.models import Track
 
+from . import services
 from .models import AuditLog, Report
 
 User = get_user_model()
@@ -110,6 +112,36 @@ def report_track(request, track_id: int):
     )
     _mark_reported(request.user.id, target_key)
     return JsonResponse({'ok': True})
+
+
+@require_POST
+@login_required
+def report_comment(request, comment_id: int):
+    comment = get_object_or_404(Comment, id=comment_id)
+    target_key = f"comment:{comment.id}"
+
+    if _already_reported_today(
+        request.user.id, target_key,
+        queryset=Report.objects.filter(
+            target_type=Report.TargetType.COMMENT, comment=comment
+        ),
+    ):
+        return JsonResponse(
+            {'ok': False, 'error': 'already_reported_today'}, status=429
+        )
+
+    reason = request.POST.get('reason') or Report.Reason.ABUSE
+    details = request.POST.get('details', '')
+    Report.objects.create(
+        reporter=request.user,
+        target_type=Report.TargetType.COMMENT,
+        comment=comment,
+        reason=reason,
+        details=details,
+    )
+    _mark_reported(request.user.id, target_key)
+    hidden = services.check_and_auto_hide_comment(comment=comment)
+    return JsonResponse({'ok': True, 'auto_hidden': hidden})
 
 
 def _staff_required(request):

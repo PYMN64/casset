@@ -396,6 +396,120 @@ async function handleLike(btn) {
   showToast(data.liked ? "لایک شد ♥" : "آنلایک شد", true);
 }
 
+async function handleFavorite(btn) {
+  const trackId = btn.dataset.track;
+  if (!trackId) return;
+
+  const data = await postForm("/api/v1/favorite/", { track_id: trackId });
+  if (!data || !data.ok) return;
+
+  const countEl = document.getElementById("favoriteCount");
+  if (countEl) countEl.textContent = data.favorite_count;
+
+  btn.classList.toggle("primary", !!data.favorited);
+  btn.setAttribute("aria-pressed", data.favorited ? "true" : "false");
+  showToast(data.favorited ? "به علاقه‌مندی‌ها اضافه شد ★" : "از علاقه‌مندی‌ها حذف شد", true);
+}
+
+async function handleShare(btn) {
+  const url = btn.dataset.url || window.location.href;
+  const title = btn.dataset.title || "Casset";
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, url });
+      return;
+    } catch (_) {
+      return; // user cancelled the native share sheet — not an error
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast("لینک کپی شد 🔗", true);
+  } catch (_) {
+    showToast("کپی لینک ممکن نشد", false);
+  }
+}
+
+// ---------- Comments ----------
+function renderCommentRow(c) {
+  const wrap = document.createElement("div");
+  wrap.className = "row";
+  wrap.style.cssText = "align-items:flex-start;gap:10px";
+  wrap.setAttribute("data-comment-row", c.id);
+  wrap.innerHTML = `
+    <div style="min-width:0;flex:1">
+      <div style="font-weight:900">@${c.author_username}</div>
+      <div class="muted small"></div>
+      <div class="row" style="justify-content:flex-start;gap:8px;margin-top:4px">
+        <a href="#" class="btn btn--ghost" data-comment-like="1" data-comment="${c.id}">♥ <span class="commentLikeCount">0</span></a>
+        <a href="#" class="btn btn--ghost" data-comment-delete="1" data-comment="${c.id}">حذف</a>
+      </div>
+    </div>
+  `;
+  wrap.querySelector(".muted.small").textContent = c.body; // textContent: never trust comment body as HTML
+  return wrap;
+}
+
+function bumpCommentCount(delta) {
+  const el = document.getElementById("commentCount");
+  if (!el) return;
+  const n = Math.max(0, (parseInt(el.textContent, 10) || 0) + delta);
+  el.textContent = n;
+}
+
+async function handleCommentSubmit(form) {
+  const trackId = form.dataset.track;
+  const textarea = form.querySelector("textarea[name=body]");
+  const body = (textarea.value || "").trim();
+  if (!trackId || !body) return;
+
+  const data = await postForm("/api/v1/comment/add/", { track_id: trackId, body });
+  if (!data || !data.ok) {
+    showToast("ارسال نظر انجام نشد ❌", false);
+    return;
+  }
+
+  const list = document.getElementById("commentList");
+  const emptyHint = document.getElementById("commentEmptyHint");
+  if (emptyHint) emptyHint.remove();
+  if (list) list.prepend(renderCommentRow(data.comment));
+  bumpCommentCount(1);
+
+  textarea.value = "";
+  showToast("نظر ثبت شد ✅", true);
+}
+
+async function handleCommentLike(btn) {
+  const commentId = btn.dataset.comment;
+  if (!commentId) return;
+  const data = await postForm(`/api/v1/comment/${commentId}/like/`, {});
+  if (!data || !data.ok) return;
+  const countEl = btn.querySelector(".commentLikeCount");
+  if (countEl) countEl.textContent = data.like_count;
+  btn.classList.toggle("primary", !!data.liked);
+}
+
+async function handleCommentDelete(btn) {
+  const commentId = btn.dataset.comment;
+  if (!commentId) return;
+  const data = await postForm(`/api/v1/comment/${commentId}/delete/`, {});
+  if (!data || !data.ok) { showToast("حذف انجام نشد ❌", false); return; }
+  const row = document.querySelector(`[data-comment-row="${commentId}"]`);
+  if (row) row.remove();
+  bumpCommentCount(-1);
+  showToast("نظر حذف شد", true);
+}
+
+async function handleCommentReport(btn) {
+  const commentId = btn.dataset.comment;
+  if (!commentId) return;
+  const data = await postForm(`/report/comment/${commentId}/`, {});
+  if (!data || !data.ok) { showToast("گزارش ثبت نشد ❌", false); return; }
+  showToast("گزارش ثبت شد. ممنون از توجهت 🙏", true);
+}
+
 async function handleFollow(btn) {
   const creator = btn.dataset.creator;
   if (!creator) return;
@@ -559,6 +673,119 @@ function renderQueuePanel() {
   }).join("");
 }
 
+// ---------- Player UX: speed / resume position / sleep timer ----------
+const SPEED_STEPS = [1, 1.25, 1.5, 1.75, 2, 0.5, 0.75];
+const SPEED_KEY = "casset.playbackRate.v1";
+const RESUME_PREFIX = "casset.resume.";
+const SLEEP_STEPS_MIN = [0, 15, 30, 45, 60];
+
+let __sleepTimer = null;
+let __sleepTimerEndsAt = null;
+
+function getSavedSpeed() {
+  let v = 1;
+  try { v = parseFloat(localStorage.getItem(SPEED_KEY) || "1"); } catch (_) {}
+  return SPEED_STEPS.includes(v) ? v : 1;
+}
+function applySpeed(rate) {
+  const audio = getAudioEl();
+  if (audio) audio.playbackRate = rate;
+  try { localStorage.setItem(SPEED_KEY, String(rate)); } catch (_) {}
+  const btn = document.getElementById("pbSpeed");
+  if (btn) btn.textContent = `${rate}x`;
+}
+function cycleSpeed() {
+  const cur = getSavedSpeed();
+  const idx = SPEED_STEPS.indexOf(cur);
+  const next = SPEED_STEPS[(idx + 1) % SPEED_STEPS.length];
+  applySpeed(next);
+  showToast(`سرعت پخش: ${next}x`, true);
+}
+
+function saveResumePosition(trackId, time) {
+  if (!trackId) return;
+  try { localStorage.setItem(RESUME_PREFIX + trackId, String(Math.floor(time))); } catch (_) {}
+}
+function loadResumePosition(trackId) {
+  if (!trackId) return 0;
+  let v = 0;
+  try { v = parseFloat(localStorage.getItem(RESUME_PREFIX + trackId) || "0"); } catch (_) {}
+  return Number.isFinite(v) ? v : 0;
+}
+function clearResumePosition(trackId) {
+  if (!trackId) return;
+  try { localStorage.removeItem(RESUME_PREFIX + trackId); } catch (_) {}
+}
+
+// Resume + speed are attached once per <audio> element (global bar and any
+// page-embedded player); trackId is read lazily via getTrackId() because it
+// can change (global bar swaps tracks without a new <audio> element).
+function hookResumeAndSpeed(audioEl, getTrackId) {
+  audioEl.addEventListener("loadedmetadata", () => {
+    audioEl.playbackRate = getSavedSpeed();
+    const trackId = getTrackId();
+    const resumeAt = loadResumePosition(trackId);
+    // Don't resume into the last 15s — that's "finished", not "paused".
+    if (resumeAt > 5 && audioEl.duration && resumeAt < audioEl.duration - 15) {
+      audioEl.currentTime = resumeAt;
+      showToast("از جایی که رها کرده بودی ادامه دادیم ⏱", true);
+    }
+  });
+
+  let lastSaved = 0;
+  audioEl.addEventListener("timeupdate", () => {
+    const trackId = getTrackId();
+    if (!trackId) return;
+    const now = audioEl.currentTime;
+    if (now - lastSaved >= 5) {
+      lastSaved = now;
+      saveResumePosition(trackId, now);
+    }
+  });
+
+  audioEl.addEventListener("ended", () => clearResumePosition(getTrackId()));
+}
+
+function updateSleepButtonUI() {
+  const btn = document.getElementById("pbSleep");
+  if (!btn) return;
+  btn.classList.toggle("primary", !!__sleepTimer);
+  if (__sleepTimer && __sleepTimerEndsAt) {
+    const mins = Math.max(0, Math.ceil((__sleepTimerEndsAt - Date.now()) / 60000));
+    btn.title = `تایمر خواب: ${mins} دقیقه مانده`;
+  } else {
+    btn.title = "تایمر خواب";
+  }
+}
+function clearSleepTimer() {
+  if (__sleepTimer) { clearTimeout(__sleepTimer); __sleepTimer = null; }
+  __sleepTimerEndsAt = null;
+  updateSleepButtonUI();
+}
+function cycleSleepTimer() {
+  const curMin = __sleepTimerEndsAt
+    ? Math.round((__sleepTimerEndsAt - Date.now()) / 60000)
+    : 0;
+  let idx = SLEEP_STEPS_MIN.findIndex((m) => m >= curMin);
+  if (idx === -1) idx = 0;
+  const nextMin = SLEEP_STEPS_MIN[(idx + 1) % SLEEP_STEPS_MIN.length];
+
+  clearSleepTimer();
+  if (nextMin === 0) {
+    showToast("تایمر خواب خاموش شد", true);
+    return;
+  }
+  __sleepTimerEndsAt = Date.now() + nextMin * 60000;
+  __sleepTimer = setTimeout(() => {
+    const audio = getAudioEl();
+    if (audio) audio.pause();
+    showToast("تایمر خواب: پخش متوقف شد 🌙", true);
+    clearSleepTimer();
+  }, nextMin * 60000);
+  showToast(`تایمر خواب: ${nextMin} دقیقه`, true);
+  updateSleepButtonUI();
+}
+
 // ---------- Click handler ----------
 document.addEventListener("click", (e) => {
   // Player buttons (support clicks on inner SVG)
@@ -572,6 +799,10 @@ document.addEventListener("click", (e) => {
   if (pbRepeatEl) { e.preventDefault(); cycleRepeat(); return; }
   const pbQueueEl = e.target.closest("#pbQueue");
   if (pbQueueEl) { e.preventDefault(); qPanelOpen(); return; }
+  const pbSpeedEl = e.target.closest("#pbSpeed");
+  if (pbSpeedEl) { e.preventDefault(); cycleSpeed(); return; }
+  const pbSleepEl = e.target.closest("#pbSleep");
+  if (pbSleepEl) { e.preventDefault(); cycleSleepTimer(); return; }
 
   if (e.target && e.target.id === "qClose") { e.preventDefault(); qPanelClose(); return; }
   const qPlay = e.target.closest("[data-q-play]");
@@ -595,6 +826,21 @@ document.addEventListener("click", (e) => {
 
   const followBtn = e.target.closest("[data-follow]");
   if (followBtn) { e.preventDefault(); handleFollow(followBtn); return; }
+
+  const favoriteBtn = e.target.closest("[data-favorite]");
+  if (favoriteBtn) { e.preventDefault(); handleFavorite(favoriteBtn); return; }
+
+  const shareBtn = e.target.closest("[data-share]");
+  if (shareBtn) { e.preventDefault(); handleShare(shareBtn); return; }
+
+  const commentLikeBtn = e.target.closest("[data-comment-like]");
+  if (commentLikeBtn) { e.preventDefault(); handleCommentLike(commentLikeBtn); return; }
+
+  const commentDeleteBtn = e.target.closest("[data-comment-delete]");
+  if (commentDeleteBtn) { e.preventDefault(); handleCommentDelete(commentDeleteBtn); return; }
+
+  const commentReportBtn = e.target.closest("[data-comment-report]");
+  if (commentReportBtn) { e.preventDefault(); handleCommentReport(commentReportBtn); return; }
 
   const plOpenBtn = e.target.closest("[data-pl-open]");
   if (plOpenBtn) {
@@ -621,6 +867,11 @@ document.addEventListener("click", (e) => {
   if (plModal && e.target === plModal) { e.preventDefault(); plModalClose(); return; }
 });
 
+document.addEventListener("submit", (e) => {
+  const commentForm = e.target.closest("[data-comment-form]");
+  if (commentForm) { e.preventDefault(); handleCommentSubmit(commentForm); return; }
+});
+
 // ---------- Boot ----------
 document.addEventListener("DOMContentLoaded", () => {
   loadQueueState();
@@ -628,10 +879,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const seconds = getPlayThresholdSeconds();
   const globalAudio = getAudioEl();
-  if (globalAudio) attachCountAfterSeconds(globalAudio, () => window.__nowTrackId, seconds);
+  if (globalAudio) {
+    attachCountAfterSeconds(globalAudio, () => window.__nowTrackId, seconds);
+    hookResumeAndSpeed(globalAudio, () => window.__nowTrackId);
+  }
 
   const pageAudio = document.querySelector("audio[data-track]");
-  if (pageAudio) attachCountAfterSeconds(pageAudio, () => pageAudio.getAttribute("data-track"), seconds);
+  if (pageAudio) {
+    attachCountAfterSeconds(pageAudio, () => pageAudio.getAttribute("data-track"), seconds);
+    hookResumeAndSpeed(pageAudio, () => pageAudio.getAttribute("data-track"));
+  }
+
+  applySpeed(getSavedSpeed());
+  updateSleepButtonUI();
+  setInterval(updateSleepButtonUI, 30000);
 
   hookSearchUI();
   hookAutoNext();

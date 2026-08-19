@@ -43,7 +43,27 @@ def track_detail(request, slug):
             raise Http404
         if track.visibility == Track.Visibility.PRIVATE:
             raise Http404
-    return render(request, "tracks/track_detail.html", {"track": track})
+
+    from django.db.models import Count
+
+    comments = (
+        track.comments.filter(is_public=True)
+        .select_related("author")
+        .annotate(like_count=Count("likes"))
+        .order_by("-created_at")[:100]
+    )
+
+    is_favorited = False
+    if request.user.is_authenticated:
+        is_favorited = track.favorited_by.filter(user=request.user).exists()
+
+    return render(request, "tracks/track_detail.html", {
+        "track": track,
+        "comments": comments,
+        "comment_count": track.comments.filter(is_public=True).count(),
+        "favorite_count": track.favorited_by.count(),
+        "is_favorited": is_favorited,
+    })
 
 
 def artist_profile(request, username):

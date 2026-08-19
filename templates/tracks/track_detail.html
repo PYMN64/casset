@@ -28,11 +28,25 @@
              ♥ Like <span class="muted" id="likeCount">{{ track.like_count }}</span>
           </a>
 
+          <a class="btn btn--ghost{% if is_favorited %} primary{% endif %}" href="#"
+             data-favorite="1"
+             data-track="{{ track.id }}"
+             aria-pressed="{% if is_favorited %}true{% else %}false{% endif %}">
+             ★ Favorite <span class="muted" id="favoriteCount">{{ favorite_count }}</span>
+          </a>
+
           <a class="btn btn--ghost" href="#"
              data-pl-open="1"
              data-track="{{ track.id }}"
              data-title="{{ track.title }}">
              ＋ Playlist
+          </a>
+
+          <a class="btn btn--ghost" href="#"
+             data-share="1"
+             data-url="{{ request.build_absolute_uri }}"
+             data-title="{{ track.title }}">
+             ↗ Share
           </a>
 
           {% if can_download %}
@@ -53,6 +67,49 @@
     {% if track.description %}
       <h2 style="margin-top:14px">About</h2>
       <p class="muted">{{ track.description }}</p>
+    {% endif %}
+
+    {% if track.allow_comments %}
+    <section id="comments" style="margin-top:20px">
+      <h2>نظرات <span class="muted small">(<span id="commentCount">{{ comment_count }}</span>)</span></h2>
+
+      {% if request.user.is_authenticated %}
+        <form class="list" id="commentForm" data-comment-form="1" data-track="{{ track.id }}">
+          <textarea name="body" class="input" rows="3" maxlength="1500"
+                    placeholder="نظرت را بنویس..." required></textarea>
+          <div class="row" style="justify-content:flex-end">
+            <button class="btn btn--primary" type="submit">ارسال نظر</button>
+          </div>
+        </form>
+      {% else %}
+        <p class="muted small"><a href="/login/?next={{ request.path }}">وارد شو</a> تا بتوانی نظر بدهی.</p>
+      {% endif %}
+
+      <div class="list" id="commentList">
+        {% for c in comments %}
+          <div class="row" data-comment-row="{{ c.id }}" style="align-items:flex-start;gap:10px">
+            <div style="min-width:0;flex:1">
+              <div style="font-weight:900">@{{ c.author.username }}</div>
+              <div class="muted small">{{ c.body }}</div>
+              <div class="row" style="justify-content:flex-start;gap:8px;margin-top:4px">
+                <a href="#" class="btn btn--ghost" data-comment-like="1" data-comment="{{ c.id }}">
+                  ♥ <span class="commentLikeCount">{{ c.like_count }}</span>
+                </a>
+                {% if request.user.is_authenticated %}
+                  {% if c.author_id == request.user.id or request.user.is_staff %}
+                    <a href="#" class="btn btn--ghost" data-comment-delete="1" data-comment="{{ c.id }}">حذف</a>
+                  {% else %}
+                    <a href="#" class="btn btn--ghost" data-comment-report="1" data-comment="{{ c.id }}">گزارش</a>
+                  {% endif %}
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% empty %}
+          <p class="muted small" id="commentEmptyHint">هنوز نظری ثبت نشده. اولین نفر باش.</p>
+        {% endfor %}
+      </div>
+    </section>
     {% endif %}
   </section>
 

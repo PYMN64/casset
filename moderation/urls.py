@@ -5,6 +5,7 @@ from . import views
 urlpatterns = [
     path('report/profile/@<str:username>/', views.report_profile, name='report_profile'),
     path('report/track/<int:track_id>/', views.report_track, name='report_track'),
+    path('report/comment/<int:comment_id>/', views.report_comment, name='report_comment'),
 
     # Staff moderation
     path('moderation/tracks/', views.track_queue, name='moderation_track_queue'),

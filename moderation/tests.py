@@ -3,10 +3,12 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from core.test_utils import make_superuser, make_user
+from interactions.models import Comment
 from notifications.models import Notification
 from tracks.models import Track
 
 from .models import AuditLog, Report
+from .services import AUTO_HIDE_REPORT_THRESHOLD, check_and_auto_hide_comment
 
 
 class ModerationReportTests(TestCase):
@@ -270,3 +272,101 @@ class ReportQueueViewTests(TestCase):
         resp = self.client.get(reverse("moderation_report_queue"))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.context["reports"]), 1)
+
+
+class ReportCommentViewTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.creator = make_user("cc_creator")
+        self.author = make_user("cc_author")
+        self.track = Track.objects.create(
+            creator=self.creator, title="T", slug="cc-t", status=Track.Status.APPROVED
+        )
+        self.comment = Comment.objects.create(
+            track=self.track, author=self.author, body="hello"
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_requires_login(self):
+        resp = self.client.post(reverse("report_comment", args=[self.comment.id]))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_valid_report_creates_record(self):
+        reporter = make_user("cc_reporter")
+        self.client.login(username="cc_reporter", password="pass12345")
+        resp = self.client.post(
+            reverse("report_comment", args=[self.comment.id]),
+            {"reason": "spam"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        report = Report.objects.get(comment=self.comment)
+        self.assertEqual(report.reporter, reporter)
+        self.assertEqual(report.target_type, Report.TargetType.COMMENT)
+
+    def test_once_per_day_per_comment(self):
+        make_user("cc_reporter2")
+        self.client.login(username="cc_reporter2", password="pass12345")
+        r1 = self.client.post(reverse("report_comment", args=[self.comment.id]))
+        self.assertEqual(r1.status_code, 200)
+        r2 = self.client.post(reverse("report_comment", args=[self.comment.id]))
+        self.assertEqual(r2.status_code, 429)
+        self.assertEqual(Report.objects.filter(comment=self.comment).count(), 1)
+
+    def test_auto_hides_after_threshold_reports(self):
+        for i in range(AUTO_HIDE_REPORT_THRESHOLD):
+            make_user(f"cc_bulk_{i}")
+            self.client.login(username=f"cc_bulk_{i}", password="pass12345")
+            resp = self.client.post(reverse("report_comment", args=[self.comment.id]))
+            self.assertEqual(resp.status_code, 200)
+            self.client.logout()
+
+        self.comment.refresh_from_db()
+        self.assertFalse(self.comment.is_public)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                target_type=AuditLog.TargetType.COMMENT, action="auto_hide_comment"
+            ).exists()
+        )
+        self.assertTrue(resp.json()["auto_hidden"])
+
+
+class AutoHideCommentServiceTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("ah_creator")
+        self.author = make_user("ah_author")
+        self.track = Track.objects.create(
+            creator=self.creator, title="T", slug="ah-t", status=Track.Status.APPROVED
+        )
+        self.comment = Comment.objects.create(
+            track=self.track, author=self.author, body="hi"
+        )
+
+    def test_no_op_below_threshold(self):
+        Report.objects.create(
+            reporter=self.creator, target_type=Report.TargetType.COMMENT,
+            comment=self.comment, reason=Report.Reason.SPAM,
+        )
+        hidden = check_and_auto_hide_comment(comment=self.comment)
+        self.assertFalse(hidden)
+        self.comment.refresh_from_db()
+        self.assertTrue(self.comment.is_public)
+
+    def test_already_hidden_comment_is_noop(self):
+        self.comment.is_public = False
+        self.comment.save(update_fields=["is_public"])
+        hidden = check_and_auto_hide_comment(comment=self.comment)
+        self.assertFalse(hidden)
+        self.assertEqual(AuditLog.objects.count(), 0)
+
+    def test_rejected_reports_dont_count_toward_threshold(self):
+        for i in range(AUTO_HIDE_REPORT_THRESHOLD):
+            Report.objects.create(
+                reporter=make_user(f"ah_r_{i}"), target_type=Report.TargetType.COMMENT,
+                comment=self.comment, reason=Report.Reason.SPAM,
+                status=Report.Status.REJECTED,
+            )
+        hidden = check_and_auto_hide_comment(comment=self.comment)
+        self.assertFalse(hidden)

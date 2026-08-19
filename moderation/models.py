@@ -6,6 +6,7 @@ class Report(models.Model):
     class TargetType(models.TextChoices):
         TRACK = 'track', 'Track'
         PROFILE = 'profile', 'Profile'
+        COMMENT = 'comment', 'Comment'
 
     class Reason(models.TextChoices):
         IMPERSONATION = 'impersonation', 'Impersonation / Username claim'
@@ -22,9 +23,10 @@ class Report(models.Model):
 
     reporter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='reports_made')
     target_type = models.CharField(max_length=16, choices=TargetType.choices)
-    # Track or profile target
+    # Track, profile, or comment target
     track = models.ForeignKey('tracks.Track', on_delete=models.CASCADE, null=True, blank=True, related_name='reports')
     target_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name='reports_received')
+    comment = models.ForeignKey('interactions.Comment', on_delete=models.CASCADE, null=True, blank=True, related_name='reports')
     reported_username = models.CharField(max_length=150, blank=True)
 
     reason = models.CharField(max_length=32, choices=Reason.choices)
@@ -50,6 +52,7 @@ class AuditLog(models.Model):
         TRACK = "track", "Track"
         REPORT = "report", "Report"
         PROFILE = "profile", "Profile"
+        COMMENT = "comment", "Comment"
 
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_actions")
     target_type = models.CharField(max_length=16, choices=TargetType.choices)

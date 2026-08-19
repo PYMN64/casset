@@ -2,12 +2,14 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
 from accounts.models import UserProfile
 from tracks.models import Track
 
-from .models import CreatorFollow, TrackLike
+from . import services
+from .models import Comment, CreatorFollow, TrackLike
 
 User = get_user_model()
 
@@ -75,3 +77,84 @@ def toggle_follow(request):
 
     creator.profile.refresh_from_db(fields=["follower_count"])
     return JsonResponse({"ok": True, "following": following, "follower_count": creator.profile.follower_count})
+
+
+# ---------------------------------------------------------------------------
+# Comments
+# ---------------------------------------------------------------------------
+
+@require_POST
+def comment_add(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "reason": "auth_required"}, status=401)
+
+    track_id = request.POST.get("track_id")
+    if not track_id or not str(track_id).isdigit():
+        return JsonResponse({"ok": False, "reason": "invalid_track_id"}, status=400)
+
+    track = Track.objects.filter(id=int(track_id)).select_related("creator").first()
+    if not track:
+        return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
+
+    result = services.add_comment(author=request.user, track=track, body=request.POST.get("body", ""))
+    if not result.ok:
+        status = 404 if result.reason == "not_found" else 400
+        return JsonResponse({"ok": False, "reason": result.reason}, status=status)
+
+    c = result.comment
+    return JsonResponse({
+        "ok": True,
+        "comment": {
+            "id": c.id,
+            "body": c.body,
+            "author_username": c.author.username,
+            "created_at": c.created_at.isoformat(),
+        },
+    })
+
+
+@require_POST
+def comment_delete(request, comment_id: int):
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "reason": "auth_required"}, status=401)
+
+    comment = get_object_or_404(Comment, id=comment_id)
+    result = services.delete_comment(user=request.user, comment=comment)
+    if not result.ok:
+        return JsonResponse({"ok": False, "reason": result.reason}, status=403)
+    return JsonResponse({"ok": True})
+
+
+@require_POST
+def comment_like(request, comment_id: int):
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "reason": "auth_required"}, status=401)
+
+    comment = get_object_or_404(Comment, id=comment_id)
+    result = services.toggle_comment_like(user=request.user, comment=comment)
+    if not result.ok:
+        return JsonResponse({"ok": False, "reason": result.reason}, status=404)
+    return JsonResponse({"ok": True, "liked": result.active, "like_count": result.count})
+
+
+# ---------------------------------------------------------------------------
+# Favorites
+# ---------------------------------------------------------------------------
+
+@require_POST
+def toggle_favorite(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "reason": "auth_required"}, status=401)
+
+    track_id = request.POST.get("track_id")
+    if not track_id or not str(track_id).isdigit():
+        return JsonResponse({"ok": False, "reason": "invalid_track_id"}, status=400)
+
+    track = Track.objects.filter(id=int(track_id)).first()
+    if not track:
+        return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
+
+    result = services.toggle_favorite(user=request.user, track=track)
+    if not result.ok:
+        return JsonResponse({"ok": False, "reason": result.reason}, status=404)
+    return JsonResponse({"ok": True, "favorited": result.active, "favorite_count": result.count})

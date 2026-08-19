@@ -17,6 +17,108 @@
 > **قانون:** هر Claude که تغییری روی پروژه می‌ده، باید یک entry جدید بالای خط
 > `## [2026-08-17] اسکن کامل پروژه — باگ‌های کریتیکال، Security، تست و نقص‌ها
 
+## [2026-08-19] فاز ۲ بازنگری‌شده تحویل شد — موارد #۹/#۱۰ بسته شدند
+
+**نوع:** Feature + Architecture + Tests
+**انجام‌دهنده:** Claude (session با صاحب پروژه)
+
+**تصمیم:** طبق بازنگری فاز ۲ (entry قبلی همین روز، بخش ۷ `90-day-roadmap.md`)، دو حفره باز کدنویسی شدند: endpoint‌های اجتماعی گمشده (مورد #۹، بحرانی) و Player UX رقابتی (مورد #۱۰).
+
+**فایل‌های تغییرکرده/جدید:**
+- `interactions/services.py` (جدید) — لایه Service طبق قانون بخش ۲: `add_comment`, `delete_comment`, `toggle_comment_like`, `toggle_favorite`؛ کنترل دسترسی (owner/staff، visibility ترک) اینجا تمرکز دارد، نه در view
+- `interactions/views.py`, `urls.py` — ۴ endpoint جدید: `POST /api/v1/comment/add/`, `.../<id>/delete/`, `.../<id>/like/`, `POST /api/v1/favorite/`
+- `interactions/tests.py` — از خالی به ۳۶ تست (شامل `toggle_like`/`toggle_follow` که تا امروز هم بدون تست بودند)
+- `moderation/models.py` — `Report.TargetType.COMMENT` + فیلد `comment` FK (migration `0002_report_comment_alter_auditlog_target_type_and_more`)؛ `AuditLog.TargetType.COMMENT` هم اضافه شد
+- `moderation/services.py` (جدید) — `check_and_auto_hide_comment`: بعد از ۳ گزارش باز (pending/reviewed)، کامنت خودکار `is_public=False` می‌شود + یک `AuditLog` ثبت می‌کند؛ ایده‌مپوتنت (کامنت از قبل مخفی → no-op)
+- `moderation/views.py`, `urls.py` — `report_comment` (همان الگوی rate-limit روزانه `report_track`/`report_profile`)
+- `moderation/tests.py` — ۷ تست جدید برای `report_comment` + auto-hide
+- `tracks/views.py::track_detail` — کامنت‌های عمومی (`is_public=True`) + وضعیت Favorite کاربر را به context اضافه می‌کند؛ با `annotate(like_count=Count("likes"))` از N+1 روی هر ردیف کامنت جلوگیری شد
+- `templates/tracks/track_detail.html` — دکمه Favorite، دکمه Share (لینک مطلق صفحه)، بخش کامل نظرات (فرم ارسال + لیست + دکمه‌های لایک/حذف/گزارش هر کامنت)
+- `static/app.js` — `handleFavorite`, `handleShare` (Web Share API با fallback به clipboard)، `handleCommentSubmit/Like/Delete/Report`، و بخش جدید «Player UX»: `cycleSpeed` (۷ پله ۰.۵x–۲x، ذخیره در `localStorage`)، `hookResumeAndSpeed` (ذخیره/بازیابی موقعیت پخش هر ۵ ثانیه به‌ازای هر `trackId`، صرف‌نظر از اینکه پخش‌کننده Global bar باشد یا Audio داخل صفحه)، `cycleSleepTimer` (پله‌های خاموش/۱۵/۳۰/۴۵/۶۰ دقیقه)
+- `templates/base.html` — دکمه‌های `#pbSpeed`/`#pbSleep` در playerbar
+- `accounts/views.py::public_profile` — باگ واقعی رفع شد: `stats.likes` همیشه هاردکد `0` بود در حالی که `public_profile_by_handle` (همان صفحه با URL کوتاه) این عدد را درست حساب می‌کرد؛ حالا هر دو مسیر یکسان `Count("likes")` می‌زنند
+- `accounts/tests.py` — یک تست رگرسیون برای همین باگ
+- `moderation/admin.py` — فیلد `comment` به `ReportAdmin` اضافه شد
+
+**یافته جانبی مهم:** حین بررسی `accounts/views.py` برای مورد Rate-limit سطح IP روی OTP (که در بازنگری فاز ۲ به‌عنوان کار هفته ۴ فرض شده بود)، مشخص شد **این قبلاً پیاده‌سازی شده** (`_rate_limited()` در `phone_start_view`/`phone_verify_view`) — احتمالاً در یک session موازی دیگر. چیزی برایش ساخته نشد؛ فقط سند بازنگری فاز ۲ اصلاح شد تا این واقعیت را منعکس کند.
+
+**یافته code review (قبل از commit):** `toggle_comment_like` فقط `comment.is_public` را چک می‌کرد، نه visibility ترک زیرش — یعنی اگه یک ترک بعداً `private` بشه، بقیه کاربرها همچنان می‌تونستن با صدازدن مستقیم API روی کامنت‌های اون لایک بذارن (دکمه در UI دیده نمی‌شد ولی endpoint باز بود). با فراخوانی همون `_track_visible_to()` که `add_comment`/`toggle_favorite` هم استفاده می‌کنن رفع شد؛ ۲ تست رگرسیون اضافه شد (`interactions/tests.py::CommentLikeViewTests`).
+
+**تایید:**
+- `python manage.py test` → **۲۸۶ تست** (از ۲۴۲)، همه pass
+- `python manage.py test core.tests_smoke` → ۳۴ تست، pass
+- `python manage.py makemigrations --check --dry-run` → «No changes detected»
+- `ruff check .` → فقط همان ۴ هشدار cosmetic از قبل موجود در `config/urls.py` (بی‌ربط)
+- تایید دستی مرورگر روی `runserver` واقعی با دو کاربر (Creator + Viewer): ورود، ارسال کامنت (ظاهر شدن آنی بدون رفرش)، Favorite toggle (0→1)، تغییر سرعت پخش (1x→1.25x) — همه کار کردند؛ داده‌های seed تست بعد از تایید پاک شدند
+
+**اثر:** فاز ۲ بازنگری‌شده (بخش ۷ `90-day-roadmap.md`) کامل تحویل شد. کامنت/لایک‌کامنت/Favorite — که تا امروز فقط در دیتابیس وجود داشتند و هیچ کاربری نمی‌توانست ازشان استفاده کند — الان یک قابلیت واقعی کاربر است.
+
+**وضعیت CLAUDE.md:** موارد #۹ و #۱۰ بسته شدند ✅. جدول دامنه‌ها (بخش ۴): `interactions` و `moderation` به‌روز شدند. بخش ۶ (مسیر فعلی): فاز ۲ ✅ بسته شد.
+
+---
+
+## [2026-08-19] مورد #۴ — Postgres هاردن شد و فاز ۱ رسماً بسته شد
+
+**نوع:** Architecture + Security + Docs
+**انجام‌دهنده:** Claude (session با صاحب پروژه)
+
+**یافته ابتدای بررسی:** جدول بخش ۳ `CLAUDE.md` مورد #۴ را 🟠 باز نشون می‌داد با توضیح *"prod.py تنظیمات Postgres نداره"*. با خوندن کد واقعی مشخص شد این توضیح دیگه درست نیست — `config/settings/base.py` از قبل یک toggle کامل `DB_ENGINE=sqlite|postgresql` داشت (ENGINE/NAME/USER/PASSWORD/HOST/PORT/CONN_MAX_AGE از env، `psycopg[binary]>=3.3` هم در `pyproject.toml` نصب بود) و `prod.py` هم با `from .base import *` اون رو ارث می‌برد. یعنی مستندات کهنه بود، نه کد ناقص. با این حال، بازبینی چند شکاف واقعی معماری/امنیتی رو نشون داد که برای یک استقرار Production حرفه‌ای لازم بودن و رفع شدن.
+
+**فایل‌های تغییرکرده:**
+- `config/settings/base.py` — بلوک `DB_ENGINE == "postgresql"`: اضافه شدن `CONN_HEALTH_CHECKS: True` (همراه با `CONN_MAX_AGE` از قبل موجود، جلوی استفاده از یک connection مرده بعد از idle-timeout/failover سرور رو می‌گیره) و `OPTIONS` جدید شامل `sslmode` (از `DB_SSLMODE` env، پیش‌فرض `"prefer"`) و `connect_timeout` (از `DB_CONNECT_TIMEOUT`، پیش‌فرض ۱۰ ثانیه — جلوی hang نامحدود در صورت غیرقابل‌دسترس بودن دیتابیس)
+- `config/settings/prod.py` — سه دروازه دفاعی جدید، همون الگوی fail-fast موجود برای `ALLOWED_HOSTS`:
+  1. اگه `DB_ENGINE != "postgresql"` باشه → `ImproperlyConfigured` (طبق قانون بخش ۲ Constitution: *"محیط Production باید PostgreSQL باشه، نه SQLite"* — قبلاً این قانون فقط مستند بود، الان enforce می‌شه)
+  2. اگه `DB_PASSWORD` خالی باشه → `ImproperlyConfigured` (تا امروز یک پسورد خالی در prod بی‌صدا به Postgres ارسال می‌شد و فقط موقع اتصال واقعی fail می‌کرد، نه در استارت‌آپ)
+  3. اگه operator صریحاً `DB_SSLMODE` ست نکرده باشه، پیش‌فرض از `"prefer"` (که اجازه fallback بی‌صدا به اتصال رمزنگاری‌نشده رو می‌ده) به `"require"` ارتقا پیدا می‌کنه — با این حال یک override صریح (مثلاً `disable` روی یک VPC خصوصی مورد اعتماد) همچنان قابل استفاده‌ست
+- `.env.example` — مستندسازی `DB_SSLMODE` و `DB_CONNECT_TIMEOUT` با توضیح واضح، و یادآوری اینکه prod حالا `DB_ENGINE=postgresql` + `DB_PASSWORD` غیرخالی رو الزامی می‌کنه
+- `CLAUDE.md` — مورد #۴ به ✅ تغییر کرد؛ بخش ۶ (نقشه مسیر) فاز ۱ رو "بسته شد" علامت زد
+- `.casset/state/current.md` — Status و critical path به‌روز شد (فاز ۱ ✅، فاز ۲ فعال)
+
+**راستی‌آزمایی انجام‌شده (بدون Postgres واقعی روی این ماشین — نه Docker نه نصب محلی موجود بود):**
+1. `manage.py test` (sqlite, dev) → همچنان **۲۴۲ تست، همه pass** — بدون رگرسیون
+2. `manage.py check` با `DB_ENGINE=postgresql` شبیه‌سازی‌شده (بدون سرور واقعی) → بدون خطا، یعنی خود منطق ساخت `DATABASES` و import کردن `psycopg` صحیحه
+3. تست مستقیم هر ۴ رفتار جدید (نه فقط ادعا):
+   - prod + `DB_ENGINE=sqlite` → `ImproperlyConfigured` با پیام واضح ✅
+   - prod + `DB_ENGINE=postgresql` بدون `DB_PASSWORD` → `ImproperlyConfigured` ✅
+   - prod + پیکربندی کامل معتبر → `check --deploy` تمیز (فقط همون هشدار قدیمی و بی‌خطر `W004` HSTS) ✅
+   - `sslmode` در dev = `"prefer"`, در prod بدون override = `"require"`, در prod با `DB_SSLMODE=disable` صریح = `"disable"` ✅ (هر سه حالت با پرینت مستقیم `settings.DATABASES` تایید شد)
+4. `makemigrations --check --dry-run` → «No changes detected»
+5. `ruff check` روی فایل‌های تغییرکرده → تمیز؛ `ruff check .` کامل روی کل ریپو فقط همون ۴ خطای cosmetic از قبل موجود در `config/urls.py` (بی‌ربط به این تغییر) رو نشون داد
+
+**محدودیت صادقانه:** این راستی‌آزمایی **اتصال زنده و `migrate` واقعی روی یک سرور PostgreSQL در حال اجرا رو تست نکرده** — چون نه Docker و نه نصب محلی Postgres روی این ماشین موجود بود. تنظیمات از نظر منطق/syntax/fail-fast کاملاً تایید شدن، ولی قبل از اولین deploy واقعی روی Production باید یک بار `DB_ENGINE=postgresql` با یک Postgres واقعی (Docker یا سرویس مدیریت‌شده) امتحان بشه: `migrate` + `test core.tests_smoke`.
+
+**وضعیت CLAUDE.md:** مورد #۴ بسته شد ✅ — **هر ۸ مورد جدول بخش ۳ حالا ✅ هستن.**
+
+## نتیجه‌گیری فاز ۱
+
+طبق معیار Done روادمپ (*"پروژه از صفر با یک `.env` بالا میاد، `pytest` پاس می‌شه، فرم آلبوم کرش نمی‌کنه، امتیاز از Ledger میاد نه مستقیم از پروفایل"*) — همه این‌ها تایید شدن. **فاز ۱ (تثبیت پایه) رسماً بسته شد.** فاز ۲ (هویت کاربر + آپلود + انتشار محتوا + پایه Notification) طبق `.casset/execution/90-day-roadmap.md` فاز فعال بعدی است.
+
+---
+
+## [2026-08-19] بازنگری نقشه راه فاز ۲ + کشف حفره اجتماعی (کامنت/لایک‌کامنت/Favorite بدون endpoint)
+
+**نوع:** Docs + Audit
+**انجام‌دهنده:** Claude (session با صاحب پروژه)
+
+**فایل‌های تغییرکرده:**
+- `CLAUDE.md` — ردیف #۹ و #۱۰ جدید در جدول بخش ۳؛ ردیف `interactions` در جدول بخش ۴ اصلاح شد؛ بخش ۶ (مسیر فعلی) برای فاز ۲ به‌روزرسانی شد
+- `.casset/execution/90-day-roadmap.md` — بخش ۷ کاملاً جدید اضافه شد (بازنگری فاز ۲ + تحقیق رقبا)؛ یادداشت ارجاع در ابتدای فاز ۲ اصلی؛ سه آیتم جدید به Icebox (بخش ۵) اضافه شد
+- هیچ کد تغییر نکرد — این session فقط ممیزی و مستندسازی بود
+
+**تصمیم:**
+درخواست کاربر بررسی کامل فاز ۲ نسبت به نمونه‌سایت‌های مشابه (SoundCloud، Spotify for Creators، شنوتو، کست‌باکس، طاقچه/نوار/فیدیبو) و ارائه‌ی نقشه راه واقع‌بینانه بود. حین ممیزی کد (نه فقط سند)، `interactions/urls.py` بررسی شد.
+
+**یافته بحرانی (تایید‌شده با خوندن کد واقعی):**
+`interactions/urls.py` فقط ۲ endpoint دارد (`toggle_like`, `toggle_follow`). مدل‌های `Comment`, `CommentLike`, `TrackFavorite` در دیتابیس کامل‌اند ولی **هیچ view/endpoint‌ای برای ثبت/حذف کامنت، لایک کامنت، یا Favorite کردن ترک وجود ندارد** — سیستم Notification (`track_comment`, `comment_liked`) آماده‌ی گوش‌دادن است ولی هیچ مسیری برای کاربر برای تولید این رویدادها نیست. سند و CLAUDE.md قبلی این app را «کامل‌تر از انتظار» توصیف می‌کردند که فقط در سطح مدل درست بود، نه endpoint.
+
+**یافته دوم:** `static/app.js` سرعت پخش، Resume Position، یا Sleep Timer ندارد — فیچرهایی که رقبای ایرانی (طاقچه/نوار/فیدیبو) به‌عنوان استاندارد پایه ارائه می‌دن.
+
+**اثر:** فاز ۲ به ۴ هفته مشخص با معیار Done دقیق بازتعریف شد (بخش ۷ roadmap). اولویت اول = بستن endpoint اجتماعی، نه فیچر رقابتی جدید.
+
+**وضعیت CLAUDE.md:** ردیف #۹ باز شد 🔴 (بحرانی، اولویت اول فاز ۲)؛ ردیف #۱۰ باز شد 🟡 (پیشنهادی، هفته ۲ فاز ۲).
+
+---
+
 ## [2026-08-18] راستی‌آزمایی کامل قبل از push + پاک‌سازی .gitignore
 
 **نوع:** Config + Verification

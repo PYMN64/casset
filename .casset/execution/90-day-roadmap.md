@@ -80,6 +80,9 @@ Creator اعلان دریافت‌های جدید را می‌بیند ──►
 ---
 
 ### 👤 فاز ۲ — هویت، انتشار محتوا و **پایه اجتماعی** (روز ۱۵ تا ۳۸)
+
+> **بازنگری ۲۰۲۶-۰۸-۱۹:** بخش بزرگی از این فاز (OTP، Upload+validation، Draft→Publish، مدل/API پایه Notification) زودتر از موعد ساخته شد. یک حفره واقعی هم در ممیزی کد کشف شد که این فاز بازتعریف شد تا اول اون رو ببنده. **جزئیات کامل، تحقیق رقبا، و زمان‌بندی هفته‌به‌هفته در بخش ۷ همین سند.** متن اصلی زیر به‌عنوان مرجع تاریخی حفظ شده.
+
 تغییر نسبت به نسخه قبلی: این فاز حالا شامل ساخت اولیه‌ی دامنه `notifications` هم هست، چون فالو کردن (که بخشی از این فازه) بدون اعلان بی‌معنیه.
 
 - ثبت‌نام/OTP، آنبوردینگ Creator (بدون تغییر)
@@ -135,6 +138,9 @@ Creator اعلان دریافت‌های جدید را می‌بیند ──►
 - مارکت‌پلیس و پرداخت پیچیده به Creator (Payout زیرساختش در `billing.PayoutRequest` هست ولی فعال‌سازی کامل بعد از MVP)
 - سیستم Badge/Gamification پیشرفته (می‌تونه بعداً روی PointLedger سوار بشه)
 - زیرساخت توزیع‌شده/Microservices
+- **(افزوده ۲۰۲۶-۰۸-۱۹)** Import/Export فید RSS پادکست (تعامل‌پذیری با کست‌باکس و مشابه) — جذاب ولی زودتر از تثبیت هویت محتوایی Casset معنا نداره
+- **(افزوده ۲۰۲۶-۰۸-۱۹)** دانلود آفلاین کامل فایل — نیاز به تصمیم محصولی/امنیتی مجزا درباره DRM دارد، فعلاً فقط Resume Position (سمت کلاینت) کافیه
+- **(افزوده ۲۰۲۶-۰۸-۱۹)** چت/کامیونیتی نوع Discord — Scope Creep واضح، رد شد در بررسی رقبا
 
 ---
 
@@ -143,3 +149,92 @@ Creator اعلان دریافت‌های جدید را می‌بیند ──►
 1. **در این ریپازیتوری:** فایل `CLAUDE.md` در ریشه پروژه، خلاصه‌ی زنده و همیشه‌به‌روز این سند رو نگه می‌داره. Claude Code / Claude Desktop به‌صورت خودکار این فایل رو در ابتدای هر جلسه می‌خونه.
 2. **در Notion:** همین سند به‌صورت کامل، به عنوان صفحه‌ی رسمی "۰۹ — نقشه راه اجرایی ۹۰ روزه" زیر Project Brain ثبت شده. این نسخه، مرجع رسمی مدیریتی است.
 3. **در claude.ai (وب/موبایل، خارج از این ریپازیتوری):** اگه بخوای بدون دسترسی فایل هم Claude زمینه کامل پروژه رو داشته باشه، از قابلیت **Projects** در claude.ai استفاده کن: یک Project جدید بساز، این سند رو (یا خلاصه‌اش) در "Project instructions" بذار. اینطوری هر چت جدید داخل اون Project، خودکار این زمینه رو داره — نیازی به تکرار نیست.
+
+---
+
+## بخش ۷ — بازنگری فاز ۲ بر اساس ممیزی کد و تحقیق رقبا (۲۰۲۶-۰۸-۱۹)
+
+### ۷.۱ چرا این بازنگری لازم شد
+در فاصله‌ی نوشتن نسخه اول این سند تا الان، بخش بزرگی از محتوای فاز ۲ اصلی (OTP، Upload Service + اعتبارسنجی، جریان Draft→Submit→Publish، مدل و API پایه Notification با ۸ verb) زودتر از موعد و به‌صورت جانبی حین کار روی فاز ۱ ساخته شد (رجوع کن به `.casset/state/changelog.md`, entryهای مربوط به موارد #۱، #۳، #۶، #۷، #۸ بخش ۳ CLAUDE.md). بنابراین فاز ۲ باید بازتعریف بشه: نه «ساختن از صفر»، بلکه «بستن حفره‌های واقعی باقی‌مانده + رقابتی‌سازی هدفمند».
+
+### ۷.۲ یافته بحرانی جدید (تایید‌شده با خوندن کد واقعی، نه فرض)
+`interactions` app (لایک/فالو/کامنت/Favorite) از نظر مدل کامل است، ولی `interactions/urls.py` فقط ۲ مسیر دارد: `toggle_like`، `toggle_follow`. **هیچ endpoint‌ای برای ثبت/حذف کامنت، لایک کامنت، یا Favorite کردن ترک وجود ندارد.** یعنی سیستم Notification (ازجمله verbهای `track_comment` و `comment_liked`) آماده‌ی گوش‌دادن به این رویدادهاست، ولی هیچ مسیری برای کاربر برای تولیدشون نیست. این جزو مورد #۹ جدول بخش ۳ CLAUDE.md ثبت شده و **مهم‌ترین بدهی فاز ۲ است — مهم‌تر از هر فیچر رقابتی جدید.**
+
+همچنین `static/app.js` بررسی شد: پلیر فعلی هیچ‌کدام از سرعت پخش، Resume Position، یا Sleep Timer را ندارد (مورد #۱۰ جدول بخش ۳) — این‌ها در هیچ فازی از سند اصلی هم نبودن.
+
+### ۷.۳ خلاصه تحقیق رقبا
+| پلتفرم | نکته کلیدی قابل استفاده برای Casset |
+|---|---|
+| SoundCloud (۲۰۲۵-۲۶) | فید اجتماعی «چی دوستات گوش می‌دن» (Liked by Your Crew)، پلی‌لیست دوستانه؛ انتشار منظم هفتگی → ۶۰٪ retention بیشتر |
+| Spotify for Creators (جانشین Anchor) | استاندارد Play فقط بعد از ۳۰ ثانیه گوش‌دادن واقعی (مفهوم نزدیک به Qualified Play خودمون)؛ تفکیک آنالیتیکس شنونده اول‌بار/برگشتی، مقایسه عملکرد اپیزود به اپیزود |
+| شنوتو | اکوسیستم صوت کامل (پادکست+کتاب‌صوتی+دوره) + marketplace برای Creator، مدل freemium |
+| کست‌باکس | سادگی + امکان کامنت + نوتیف = دلیل اصلی محبوبیتش بین پادکسترهای فارسی با وجود بین‌المللی بودن |
+| طاقچه/نوار/فیدیبو | سرعت پخش، تایمر خواب، آفلاین، ادغام کتاب‌صوتی+پادکست زیر یک اشتراک — انتظار پایه‌ی کاربر ایرانی از یک اپ صوتی جدی |
+| صنعت gamification عمومی | Badge/Streak عمومی و قابل‌مشاهده → ماندگاری ~۳۴٪ بیشتر نسبت به نسخه خصوصی؛ فقط بعد از تثبیت کامل `PointLedger` معنا دارد |
+
+### ۷.۴ فیچرهای جدید پیشنهادی — دسته‌بندی‌شده
+
+**دسته A — همین فاز ۲ (کم‌هزینه، اثر مستقیم روی «چرا کاربر برگرده»):**
+- تکمیل endpoint‌های واقعی کامنت / لایک‌کامنت / Favorite (بحرانی‌ترین آیتم — مورد #۹)
+- سرعت پخش پلیر (۰.۵x–۲x)
+- Resume Position (ادامه پخش از جایی که رها شده)
+- Sleep Timer
+- لینک اشتراک‌گذاری ترک/آلبوم/پروفایل Creator (share)
+
+**دسته B — مدل داده‌اش را از الان لحاظ کن، پیاده‌سازی کامل در فاز ۴/۵:**
+- آنالیتیکس شنونده اول‌بار/برگشتی (روی `PlaybackEvent`/`DailyTrackStat` موجود سوار می‌شه)
+- نسخه‌ی سبک «دوستانت چی گوش می‌دن» — همون Activity Feed فاز ۵، فقط با این الهام طراحی بشه
+- Trending واقعی مبتنی بر داده (از قبل در فاز ۵ سند هست، بدون تغییر)
+
+**دسته C — Icebox آگاهانه (اضافه به بخش ۵، فعلاً رد کن):**
+- Badge/Gamification پیشرفته روی `PointLedger` — بعد از تثبیت کامل Ledger در فاز ۴ معنا دارد
+- Import/Export فید RSS پادکست (تعامل‌پذیری با کست‌باکس و مشابه)
+- دانلود آفلاین کامل فایل (تصمیم محصولی/امنیتی مجزا درباره DRM لازم دارد)
+- چت/کامیونیتی نوع Discord — Scope Creep واضح طبق قانون CLAUDE.md، رد شد
+
+### ۷.۵ زمان‌بندی فاز ۲ بازنگری‌شده (همان بازه روز ۱۵-۳۸، محتوا بازتعریف‌شده) — ✅ همه تحویل شد (۲۰۲۶-۰۸-۱۹)
+
+| هفته | محور | خروجی مشخص | وضعیت |
+|---|---|---|---|
+| هفته ۱ (روز ۱۵-۲۱) | بستن حفره اجتماعی | endpoint واقعی ثبت/حذف کامنت، لایک/آنلایک کامنت، Favorite/آنفیوریت ترک — هرکدام با تست + اتصال به Notification موجود | ✅ `interactions/services.py` + ۴ endpoint + ۳۴ تست |
+| هفته ۲ (روز ۲۲-۲۸) | Player UX رقابتی | سرعت پخش، Resume Position، Sleep Timer — روی `static/app.js` موجود، بدون بازنویسی پلیر | ✅ سه فیچر در `static/app.js` + دکمه‌های `#pbSpeed`/`#pbSleep` در `templates/base.html`؛ در مرورگر تایید شد |
+| هفته ۳ (روز ۲۹-۳۳) | اشتراک‌گذاری + پروفایل عمومی | لینک share برای ترک/آلبوم/پروفایل Creator؛ بهبود `artist_profile.html` با شمارنده‌های اجتماعی واقعی (فالوور/لایک/کامنت) | ✅ دکمه Share (Web Share API + clipboard fallback) در `track_detail.html`؛ باگ `public_profile()` که `likes` را همیشه ۰ نشان می‌داد رفع شد |
+| هفته ۴ (روز ۳۴-۳۸) | سخت‌سازی + بستن بدهی باز | rate-limit سطح IP روی تایید OTP؛ پوشش تست `interactions/views.py`؛ Moderation-lite کامنت (گزارش + مخفی خودکار بعد N گزارش) | ✅ Moderation-lite ساخته شد (آستانه ۳ گزارش، `moderation/services.py`)؛ پوشش تست `interactions` از ۰ تست به ۳۴ تست رسید. **rate-limit OTP از قبل در `accounts/views.py::_rate_limited` وجود داشت** — حین بررسی کد کشف شد که این بخش زودتر از موعد (در یک session موازی) انجام شده بود، پس چیزی برایش ساخته نشد. |
+
+### ۷.۶ معیار Done فاز ۲ بازنگری‌شده — همه برآورده شد
+۱. ✅ Creator منتشر می‌کند؛ کاربر فالوش می‌کند و Creator اعلان می‌بیند (از قبل برقرار بود)
+۲. ✅ کاربر واقعاً روی یک ترک کامنت می‌گذارد و صاحب ترک اعلان می‌گیرد — در مرورگر با کاربر واقعی تایید شد
+۳. ✅ کاربر سرعت پخش را عوض می‌کند، Sleep Timer می‌گذارد، و پخش از جایی که قطع کرده ادامه پیدا می‌کند
+۴. ✅ لینک ترک بیرون از اپ باز و پخش می‌شود (دکمه Share)
+۵. ✅ `interactions` پوشش تست کامل دارد (۳۴ تست جدید، قبلاً صفر)
+۶. ✅ کامنت هرزنامه/توهین‌آمیز قابل گزارش و بعد از ۳ گزارش خودکار مخفی می‌شود
+
+> مورد #۴ سند (Postgres) جزو فاز ۲ نبود — طبق جدول بخش ۳ CLAUDE.md مستقلاً بسته شده (یادداشت باز: اتصال به یک Postgres واقعی هنوز smoke-test نشده، قبل از اولین deploy واقعی انجام شود).
+
+### ۷.۸ خلاصه تحویل فاز ۲ (۲۰۲۶-۰۸-۱۹)
+
+**کد جدید:**
+- `interactions/services.py` (جدید) — `add_comment`, `delete_comment`, `toggle_comment_like`, `toggle_favorite`
+- `interactions/views.py` + `urls.py` — ۴ endpoint جدید (`api_comment_add`, `api_comment_delete`, `api_comment_like`, `api_favorite`)
+- `moderation/services.py` (جدید) — `check_and_auto_hide_comment` (آستانه ۳ گزارش)
+- `moderation/models.py` — `Report.TargetType.COMMENT` + فیلد `comment` (migration `0002`)
+- `moderation/views.py` + `urls.py` — `report_comment`
+- `tracks/views.py::track_detail` — کامنت‌ها + favorite state را به context اضافه کرد (بدون N+1 — `annotate(like_count=Count("likes"))`)
+- `templates/tracks/track_detail.html` — بخش نظرات، دکمه Favorite، دکمه Share
+- `static/app.js` — کنترل سرعت پخش، Resume Position (localStorage)، Sleep Timer، هندلرهای کامنت/فیوریت/شیر
+- `templates/base.html` — دکمه‌های `#pbSpeed`/`#pbSleep` در playerbar
+- `accounts/views.py::public_profile` — باگ `likes: 0` هاردکدشده رفع شد
+
+**تست:** ۲۴۲ → **۲۸۶ تست** (۴۴ تست جدید: interactions ۳۶ + moderation ۷ + accounts ۱ رگرسیون)، همه سبز. `test core.tests_smoke`، `makemigrations --check`، `ruff check .`، `manage.py check` همه تمیز.
+
+**یافته code review (قبل از commit):** `toggle_comment_like` visibility ترک زیر کامنت را چک نمی‌کرد (فقط `is_public` کامنت) — روی ترک `private`شده بعداً، لایک کامنت از طریق API مستقیم هنوز ممکن بود. با `_track_visible_to()` (همون تابعی که `add_comment`/`toggle_favorite` استفاده می‌کنن) رفع شد + ۲ تست رگرسیون.
+
+**تایید دستی مرورگر:** با دو کاربر واقعی (Creator + Viewer) — ورود، ارسال کامنت (بدون رفرش صفحه ظاهر شد)، Favorite toggle، تغییر سرعت پخش (۱x → ۱.۲۵x) — همه در `http://localhost:8000` تایید شد.
+
+### ۷.۷ منابع تحقیق رقبا
+- [SoundCloud drops 4 new features for artists and fans in 2025 — RouteNote](https://routenote.com/blog/soundcloud-drops-4-new-features-for-artists-and-fans-in-2025/)
+- [Introducing a New Standard for Podcast Plays and Upgraded Creator Analytics — Spotify Newsroom](https://newsroom.spotify.com/2026-06-11/spotify-for-creators-tools-plays-analytics-updates/)
+- [Shenoto provides detailed insight into the Persian podcast industry — Podnews](https://podnews.net/press-release/persian-podcasts)
+- [بهترین پادکست‌های فارسی — چطور](https://www.chetor.com/229339-%D8%A8%D9%87%D8%AA%D8%B1%DB%8C%D9%86-%D9%BE%D8%A7%D8%AF%DA%A9%D8%B3%D8%AA-%D9%87%D8%A7%DB%8C-%D9%81%D8%A7%D8%B1%D8%B3%DB%8C/)
+- [نوار به اکوسیستم طاقچه پیوست — Taaghche Blog](https://taaghche.com/blog/1405/04/08/%D9%86%D9%88%D8%A7%D8%B1-%D8%A8%D9%87-%D8%A7%DA%A9%D9%88%D8%B3%DB%8C%D8%B3%D8%AA%D9%85-%D8%B7%D8%A7%D9%82%DA%86%D9%87-%D9%BE%DB%8C%D9%88%D8%B3%D8%AA/)
+- [10 Examples of Badges Used in Gamification — Trophy.so](https://trophy.so/blog/badges-feature-gamification-examples)

@@ -376,6 +376,7 @@ def public_profile(request, username):
     total_plays = Track.objects.filter(creator=user_obj).aggregate(
         s=models.Sum("play_count")
     )["s"] or 0
+    total_likes = user_obj.tracks.aggregate(s=models.Count("likes"))["s"] or 0
     followers_count = user_obj.followers.count() if hasattr(user_obj, "followers") else 0
     following_count = user_obj.following.count() if hasattr(user_obj, "following") else 0
 
@@ -395,7 +396,7 @@ def public_profile(request, username):
             "tracks": tracks,
             "stats": {
                 "plays": total_plays,
-                "likes": 0,
+                "likes": total_likes,
                 "followers": followers_count,
                 "following": following_count,
             },

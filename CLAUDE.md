@@ -43,11 +43,13 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 | 1 | ~~`AlbumForm` به فیلدهای `kind`/`is_public` ارجاع می‌ده که در مدل `Album` وجود ندارن (کرش فعال)~~ | — | ✅ حل‌شده — باگ `kind` رفع، cover validation (Pillow)، album_delete، N+1 fix، content_type guard، تست‌های کامل |
 | 2 | ~~دو مدل `Plan` موازی و ناسازگار در `billing` و `subscriptions`~~ | — | ✅ حل‌شده — `subscriptions` به `_deprecated/` منتقل و از INSTALLED_APPS حذف شد؛ `billing` تنها منبع حقیقت است |
 | 3 | ~~امتیاز مستقیم روی `UserProfile.points` نوشته می‌شه، نه از طریق Ledger~~ | — | ✅ حل‌شده — `PointLedger` ساخته شد، `services.py` تنها منبع تصمیم award، چهار دروازه دفاعی |
-| 4 | دیتابیس فعلی SQLite است؛ `prod.py` تنظیمات Postgres نداره با اینکه `psycopg` نصبه | `config/settings/*.py` | 🟠 باز |
+| 4 | ~~دیتابیس فعلی SQLite است؛ `prod.py` تنظیمات Postgres نداره با اینکه `psycopg` نصبه~~ | — | ✅ حل‌شده — `DB_ENGINE=postgresql` در `base.py` هاردن شد (`CONN_HEALTH_CHECKS`, `OPTIONS.sslmode`, `connect_timeout`)؛ `prod.py` اکنون با `ImproperlyConfigured` فیل می‌کند اگر `DB_ENGINE≠postgresql` یا `DB_PASSWORD` خالی باشد، و پیش‌فرض `sslmode` را به `require` ارتقا می‌دهد. **اتصال زنده به یک Postgres واقعی هنوز تست نشده** (نه Docker نه نصب محلی روی این ماشین موجود بود) — قبل از اولین deploy واقعی حتماً `migrate` روی یک Postgres واقعی smoke-test شود.
 | 5 | ~~`pyproject.toml` با پکیج‌های واقعاً استفاده‌شده (`allauth`, `pillow`, `django-filter`, DRF) هماهنگ نیست~~ | — | ✅ حل‌شده — بازنویسی کامل با بخش‌بندی دقیق، ruff و pytest-cov اضافه شد |
 | 6 | ~~تست خودکار عملاً صفر است~~ | — | ✅ حل‌شده — تست‌های accounts، plays، tracks، billing اضافه شد |
 | 7 | ~~هیچ سیستم Notification / Activity Feed وجود نداره~~ | — | ✅ حل‌شده — اپ `notifications` با ۸ verb، grouping، signals، API و ۴۲ تست |
 | 8 | ~~`SECRET_KEY`, `PLAY_IP_SALT`, `PLAY_UA_SALT` مقدار پیش‌فرض ناامن دارن و در صورت نبود env، بی‌صدا fallback می‌کنن~~ | — | ✅ حل‌شده — `_require_secret()` در prod به `ImproperlyConfigured` فیل می‌کند، در dev هشدار می‌دهد |
+| 9 | ~~`interactions/urls.py` فقط دو endpoint داشت (`toggle_like`, `toggle_follow`)~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۱۹) — `interactions/services.py` جدید + ۴ endpoint اضافه شد: `comment_add`, `comment_delete`, `comment_like`, `toggle_favorite`. کامنت گزارش‌پذیر است و بعد از ۳ گزارش خودکار مخفی می‌شود (`moderation/services.py::check_and_auto_hide_comment`). ۴۳ تست جدید (interactions ۳۶ + moderation ۷). |
+| 10 | ~~پلیر فعلی سرعت پخش/Resume/Sleep Timer نداشت~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۱۹) — `static/app.js`: کنترل سرعت (۰.۵x–۲x، ذخیره در localStorage)، Resume Position به‌ازای هر ترک، Sleep Timer با پله‌های ۱۵/۳۰/۴۵/۶۰ دقیقه. دکمه‌های `#pbSpeed`/`#pbSleep` در playerbar (`templates/base.html`). دستی در مرورگر تایید شد. |
 
 > وقتی هرکدوم از این موارد رفع شد، این جدول باید در همین فایل آپدیت بشه (ردیف حذف یا وضعیت به ✅ تغییر کنه).
 
@@ -61,9 +63,9 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 | `tracks` | آلبوم/ترک، ژانر، تگ، چرخه انتشار | ✅ خوب — AlbumForm حرفه‌ای شد، cover validation، CRUD کامل، تست دارد |
 | `uploads` | آپلود فایل | نیاز به Service مجزا و اعتبارسنجی واقعی فایل |
 | `plays` | ثبت پخش، آمار روزانه، Fraud signal | ✅ خوب — PointLedger، ۴ دروازه امنیتی، services.py، recalculate_points |
-| `interactions` | لایک، فالو، علاقه‌مندی، کامنت | **از قبل کامل‌تر از چیزیه که مستندات نشون می‌دن** — پایه خوبی برای لایه اجتماعی |
+| `interactions` | لایک، فالو، علاقه‌مندی، کامنت | ✅ کامل — مدل + endpoint هر پنج نوع تعامل (like/follow/comment/comment-like/favorite) با `services.py`، همه به Notification وصل، ۳۴ تست |
 | `explore` | پین محتوای ویژه در صفحه کشف | حداقلی |
-| `moderation` | گزارش و AuditLog | مدل خوب، جریان کاری هنوز وصل نشده |
+| `moderation` | گزارش، AuditLog، صف بررسی ترک | تایید/رد ترک کامل و تست دارد (`approve_track`/`reject_track`)؛ گزارش کامنت + مخفی‌سازی خودکار بعد ۳ گزارش هم اضافه شد (`moderation/services.py`) |
 | `billing` | پلن، فاکتور، تراکنش، درخواست تسویه | تنها منبع حقیقت برای VIP/پلن — تمیز و دارای تست |
 | ~~`subscriptions`~~ | ~~پلن و اشتراک (نسخه قدیمی‌تر)~~ | ✅ حذف‌شده — در `_deprecated/` آرشیو شده، هیچ referenceای در کد زنده وجود ندارد |
 | `core` | تنظیمات پلتفرم (Singleton) | خوب |
@@ -94,8 +96,9 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 ## ۶. مسیر فعلی (خلاصه) — جزییات کامل در `.casset/execution/90-day-roadmap.md`
 
 ```
-فاز ۱  (روز ۱-۱۴)   تثبیت پایه: رفع ۸ مورد بخش ۳، اولین تست‌ها، Postgres
-فاز ۲  (روز ۱۵-۳۵)  هویت کاربر + آپلود + انتشار محتوا
+فاز ۱  (روز ۱-۱۴)   تثبیت پایه: رفع ۸ مورد بخش ۳، اولین تست‌ها، Postgres — ✅ بسته شد (۲۰۲۶-۰۸-۱۹)
+فاز ۲  (روز ۱۵-۳۸)  بازنگری‌شده — ✅ بسته شد (۲۰۲۶-۰۸-۱۹): موارد #۹/#۱۰ رفع شدند (کامنت/لایک‌کامنت/
+                    Favorite + Player UX رقابتی). جزئیات کامل: `.casset/execution/90-day-roadmap.md` بخش ۷
 فاز ۳  (روز ۳۶-۴۹)  مدیریت محتوا (Moderation) حداقلی
 فاز ۴  (روز ۵۰-۷۰)  پخش معتبر + PointLedger واقعی
 فاز ۵  (روز ۷۱-۸۴)  لایه اجتماعی/اعلان (Notification+Feed) + آنالیتیکس + کشف محتوا
