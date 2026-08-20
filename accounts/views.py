@@ -668,9 +668,14 @@ def creator_studio_view(request):
             "profile": profile,
             "tracks": my_tracks,
             "daily": daily,
-            "chart_labels": [str(d["day"]) for d in daily],
-            "chart_plays": [d["plays"] for d in daily],
-            "chart_points": [d["points"] for d in daily],
+            # One payload rendered through |json_script, which escapes
+            # </script> and friends — safer than interpolating a
+            # pre-dumped string into an inline <script>.
+            "chart_data": {
+                "labels": [str(d["day"]) for d in daily],
+                "plays": [d["plays"] for d in daily],
+                "points": [d["points"] for d in daily],
+            },
             "totals": totals,
             "first_time_listeners": first_time_listeners,
             "returning_listeners": returning_listeners,
@@ -1008,9 +1013,11 @@ def dashboard_view(request):
             "total_revenue": total_revenue,
             "since": since,
             "platform": platform,
-            "chart_labels": labels,
-            "chart_plays": plays_series,
-            "chart_points": points_series,
+            "chart_data": {
+                "labels": labels,
+                "plays": plays_series,
+                "points": points_series,
+            },
             "plays_30d": cur_plays,
             "plays_delta_pct": delta_pct,
             # A direction string, not a None check: Django's template `if`

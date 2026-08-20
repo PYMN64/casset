@@ -132,7 +132,7 @@ def creator_detail(request, user_id: int):
     return render(
         request,
         "staff/creator_detail.html",
-        {"profile": profile, "tracks": tracks, "totals": totals, "chart_json": json.dumps(chart)},
+        {"profile": profile, "tracks": tracks, "totals": totals, "chart_data": chart},
     )
 
 
@@ -217,7 +217,7 @@ def platform_dashboard(request):
         "staff/platform_dashboard.html",
         {
             "revenue_total": revenue_total,
-            "charts_json": json.dumps(charts),
+            "charts_data": charts,
             "points_issued": points_issued,
             "points_redeemed": points_redeemed,
             "points_outstanding": points_issued - points_redeemed,

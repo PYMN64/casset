@@ -1,131 +1,178 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Staff • Dashboard{% endblock %}
+{% block title %}داشبورد مدیریت | کست{% endblock %}
+
 {% block content %}
-<div class="container" style="max-width:1100px;">
-  <h1 style="margin:16px 0;">داشبورد مدیریت پلتفرم</h1>
-
-  <div class="grid" style="grid-template-columns:repeat(3, minmax(0,1fr));gap:12px">
-    <div class="card" style="padding:14px">
-      <div class="muted small">درآمد کل (پلن‌های پرداخت‌شده)</div>
-      <div style="font-weight:900;font-size:26px">{{ revenue_total }}</div>
-    </div>
-    <div class="card" style="padding:14px">
-      <div class="muted small">امتیاز صادرشده / بازخریدشده</div>
-      <div style="font-weight:900;font-size:22px">{{ points_issued }} / {{ points_redeemed }}</div>
-    </div>
-    <div class="card" style="padding:14px">
-      <div class="muted small">امتیاز معلق (صادرشده − بازخریدشده)</div>
-      <div style="font-weight:900;font-size:26px">{{ points_outstanding }}</div>
-    </div>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>داشبورد پلتفرم</h1>
+    <p>وضعیت کلی کست — ۳۰ روز اخیر.</p>
   </div>
-
-  <h2 style="margin:20px 0 8px">روند ۳۰ روز اخیر</h2>
-  <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
-    <div class="card chart-card">
-      <div class="muted small">پخش‌های واجد شرایط روزانه</div>
-      <canvas id="chartPlays" height="140"></canvas>
-    </div>
-    <div class="card chart-card">
-      <div class="muted small">درآمد روزانه (تومان)</div>
-      <canvas id="chartRevenue" height="140"></canvas>
-    </div>
-    <div class="card chart-card">
-      <div class="muted small">اقتصاد امتیاز روزانه (صادر / بازخرید)</div>
-      <canvas id="chartPoints" height="140"></canvas>
-    </div>
-    <div class="card chart-card">
-      <div class="muted small">ثبت‌نام کاربر جدید روزانه</div>
-      <canvas id="chartSignups" height="140"></canvas>
-    </div>
-  </div>
-
-  <h2 style="margin:20px 0 8px">صف‌های نیازمند بررسی</h2>
-  <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
-    <a class="card" href="/moderation/tracks/" style="padding:14px;display:block;text-decoration:none;color:inherit">
-      <div class="muted small">ترک‌های در انتظار بررسی</div>
-      <div style="font-weight:900;font-size:22px">{{ pending_tracks }}</div>
-    </a>
-    <a class="card" href="/moderation/reports/" style="padding:14px;display:block;text-decoration:none;color:inherit">
-      <div class="muted small">گزارش‌های در انتظار</div>
-      <div style="font-weight:900;font-size:22px">{{ pending_reports }}</div>
-    </a>
-    <a class="card" href="/staff/payouts/" style="padding:14px;display:block;text-decoration:none;color:inherit">
-      <div class="muted small">درخواست‌های تسویه در انتظار</div>
-      <div style="font-weight:900;font-size:22px">{{ pending_payout_count }} <span class="muted small">({{ pending_payout_amount }})</span></div>
-    </a>
-    <a class="card" href="/staff/creators/?status=pending" style="padding:14px;display:block;text-decoration:none;color:inherit">
-      <div class="muted small">Creatorهای در انتظار تایید</div>
-      <div style="font-weight:900;font-size:22px">{{ pending_creators }}</div>
-    </a>
-  </div>
-
-  <h2 style="margin:20px 0 8px">وضعیت کلی</h2>
-  <div class="grid" style="grid-template-columns:repeat(3, minmax(0,1fr));gap:12px">
-    <div class="card" style="padding:14px">
-      <div class="muted small">Creatorهای تاییدشده</div>
-      <div style="font-weight:900;font-size:22px">{{ active_creators }}</div>
-    </div>
-    <div class="card" style="padding:14px">
-      <div class="muted small">حساب‌های تعلیق‌شده</div>
-      <div style="font-weight:900;font-size:22px">{{ suspended_users }}</div>
-    </div>
-    <a class="card" href="/staff/users/" style="padding:14px;display:block;text-decoration:none;color:inherit">
-      <div class="muted small">مشاهده</div>
-      <div style="font-weight:900;font-size:16px">همه کاربران</div>
-    </a>
+  <div class="cluster">
+    <a class="btn btn--ghost btn--sm" href="{% url 'staff:users_console' %}">کاربران</a>
+    <a class="btn btn--ghost btn--sm" href="{% url 'staff:creators_console' %}">سازنده‌ها</a>
+    <a class="btn btn--ghost btn--sm" href="/admin/">پنل ادمین</a>
   </div>
 </div>
+
+<!-- ============ Headline numbers ============ -->
+<div class="stat-grid stat-grid--3">
+  <div class="stat-card stat-card--good">
+    <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-wallet"/></svg></span></div>
+    <b class="stat-card__value">{{ revenue_total }}</b>
+    <span class="stat-card__label">درآمد کل (پلن‌های پرداخت‌شده)</span>
+  </div>
+  <div class="stat-card stat-card--gold">
+    <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-coin"/></svg></span></div>
+    <b class="stat-card__value">{{ points_issued }} / {{ points_redeemed }}</b>
+    <span class="stat-card__label">امتیاز صادرشده / بازخریدشده</span>
+  </div>
+  <div class="stat-card stat-card--purple">
+    <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-trend"/></svg></span></div>
+    <b class="stat-card__value">{{ points_outstanding }}</b>
+    <span class="stat-card__label">امتیاز معلق (تعهد مالی)</span>
+  </div>
+</div>
+
+<!-- ============ Queues ============ -->
+<div class="section-head"><h2>نیازمند بررسی</h2></div>
+<div class="stat-grid">
+  <a class="stat-card queue-card" href="{% url 'moderation_track_queue' %}">
+    <div class="stat-card__top">
+      <span class="stat-card__icon"><svg class="icon"><use href="#i-music"/></svg></span>
+      <svg class="icon chip__caret"><use href="#i-chevron-left"/></svg>
+    </div>
+    <b class="stat-card__value">{{ pending_tracks }}</b>
+    <span class="stat-card__label">اثر در انتظار بررسی</span>
+  </a>
+  <a class="stat-card queue-card" href="{% url 'moderation_report_queue' %}">
+    <div class="stat-card__top">
+      <span class="stat-card__icon stat-card__icon--gold"><svg class="icon"><use href="#i-alert"/></svg></span>
+      <svg class="icon chip__caret"><use href="#i-chevron-left"/></svg>
+    </div>
+    <b class="stat-card__value">{{ pending_reports }}</b>
+    <span class="stat-card__label">گزارش باز</span>
+  </a>
+  <a class="stat-card queue-card" href="{% url 'staff_payout_queue' %}">
+    <div class="stat-card__top">
+      <span class="stat-card__icon stat-card__icon--good"><svg class="icon"><use href="#i-wallet"/></svg></span>
+      <svg class="icon chip__caret"><use href="#i-chevron-left"/></svg>
+    </div>
+    <b class="stat-card__value">{{ pending_payout_count }}</b>
+    <span class="stat-card__label">تسویه در انتظار ({{ pending_payout_amount }})</span>
+  </a>
+  <a class="stat-card queue-card" href="{% url 'staff:creators_console' %}?status=pending">
+    <div class="stat-card__top">
+      <span class="stat-card__icon stat-card__icon--purple"><svg class="icon"><use href="#i-mic"/></svg></span>
+      <svg class="icon chip__caret"><use href="#i-chevron-left"/></svg>
+    </div>
+    <b class="stat-card__value">{{ pending_creators }}</b>
+    <span class="stat-card__label">سازنده در انتظار</span>
+  </a>
+</div>
+
+<!-- ============ Trends ============ -->
+<div class="section-head"><h2>روند ۳۰ روز اخیر</h2></div>
+<div class="grid-3 chart-grid">
+  <div class="card chart-card">
+    <div class="card__title">پخش معتبر روزانه</div>
+    <div class="chart-wrap chart-wrap--sm"><canvas id="chartPlays" aria-label="نمودار پخش معتبر روزانه"></canvas></div>
+  </div>
+  <div class="card chart-card">
+    <div class="card__title">درآمد روزانه (تومان)</div>
+    <div class="chart-wrap chart-wrap--sm"><canvas id="chartRevenue" aria-label="نمودار درآمد روزانه"></canvas></div>
+  </div>
+  <div class="card chart-card">
+    <div class="card__title">اقتصاد امتیاز</div>
+    <div class="chart-wrap chart-wrap--sm"><canvas id="chartPoints" aria-label="نمودار صدور و بازخرید امتیاز"></canvas></div>
+  </div>
+  <div class="card chart-card">
+    <div class="card__title">ثبت‌نام روزانه</div>
+    <div class="chart-wrap chart-wrap--sm"><canvas id="chartSignups" aria-label="نمودار ثبت‌نام روزانه"></canvas></div>
+  </div>
+</div>
+
+<!-- ============ Health ============ -->
+<div class="section-head"><h2>وضعیت کلی</h2></div>
+<div class="stat-grid stat-grid--3">
+  <div class="stat-card">
+    <div class="stat-card__top"><span class="stat-card__icon stat-card__icon--purple"><svg class="icon"><use href="#i-mic"/></svg></span></div>
+    <b class="stat-card__value">{{ active_creators }}</b>
+    <span class="stat-card__label">سازنده تاییدشده</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-shield"/></svg></span></div>
+    <b class="stat-card__value">{{ suspended_users }}</b>
+    <span class="stat-card__label">حساب تعلیق‌شده</span>
+  </div>
+  <a class="stat-card queue-card" href="{% url 'health_check' %}" target="_blank" rel="noopener">
+    <div class="stat-card__top">
+      <span class="stat-card__icon stat-card__icon--good"><svg class="icon"><use href="#i-check-circle"/></svg></span>
+      <svg class="icon chip__caret"><use href="#i-external"/></svg>
+    </div>
+    <b class="stat-card__value t-lg">health check</b>
+    <span class="stat-card__label">وضعیت دیتابیس و کش</span>
+  </a>
+</div>
 {% endblock %}
+
 {% block scripts %}
 <script src="{% static 'vendor/chart.umd.min.js' %}"></script>
+{{ charts_data|json_script:"platformCharts" }}
 <script>
-(function(){
-  const data = JSON.parse('{{ charts_json|escapejs }}');
-  const css = getComputedStyle(document.documentElement);
-  const accent = css.getPropertyValue('--accent').trim() || '#ff9338';
-  const purple = css.getPropertyValue('--purple').trim() || '#9a5cff';
-  const text = css.getPropertyValue('--text').trim() || '#f4f2ff';
-  const line = css.getPropertyValue('--line').trim() || 'rgba(154,92,255,.2)';
+(function () {
+  var el = document.getElementById("platformCharts");
+  if (!el || typeof Chart === "undefined") return;
+  var data = JSON.parse(el.textContent);
 
-  Chart.defaults.color = text;
-  Chart.defaults.borderColor = line;
-  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  var css = getComputedStyle(document.documentElement);
+  var accent = css.getPropertyValue("--accent").trim();
+  var purple = css.getPropertyValue("--purple").trim();
+  var gold = css.getPropertyValue("--gold").trim();
 
-  function shortLabels(labels){
-    // Show just day/month for a 30-point x-axis instead of full ISO dates.
-    return labels.map(function(d){ var p = d.split('-'); return p[2] + '/' + p[1]; });
+  Chart.defaults.color = css.getPropertyValue("--text").trim();
+  Chart.defaults.borderColor = css.getPropertyValue("--line").trim();
+  Chart.defaults.font.family = "Vazirmatn, system-ui, sans-serif";
+
+  /* A 30-point axis has no room for full ISO dates; day/month is enough
+     to orient, and the tooltip still carries the exact value. */
+  function shortLabels(labels) {
+    return labels.map(function (d) { var p = d.split("-"); return p[2] + "/" + p[1]; });
   }
-  function lineChart(canvasId, labels, datasets, opts){
-    const el = document.getElementById(canvasId);
-    if (!el) return;
-    new Chart(el.getContext('2d'), {
-      type: 'line',
+
+  function lineChart(canvasId, labels, datasets) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    new Chart(canvas, {
+      type: "line",
       data: { labels: shortLabels(labels), datasets: datasets },
-      options: Object.assign({
-        responsive: true,
-        interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { display: datasets.length > 1 } },
-        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-      }, opts || {}),
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { display: datasets.length > 1, position: "bottom", labels: { boxWidth: 12 } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
+          y: { beginAtZero: true, ticks: { precision: 0 } }
+        }
+      }
     });
   }
 
-  lineChart('chartPlays', data.plays.labels, [{
-    label: 'پخش واجد شرایط', data: data.plays.values,
-    borderColor: accent, backgroundColor: 'rgba(255,147,56,.15)', fill: true, tension: .3,
+  lineChart("chartPlays", data.plays.labels, [{
+    label: "پخش معتبر", data: data.plays.values,
+    borderColor: accent, backgroundColor: accent + "22", fill: true, tension: .3, pointRadius: 0, borderWidth: 2
   }]);
-  lineChart('chartRevenue', data.revenue.labels, [{
-    label: 'درآمد', data: data.revenue.values,
-    borderColor: purple, backgroundColor: 'rgba(154,92,255,.15)', fill: true, tension: .3,
+  lineChart("chartRevenue", data.revenue.labels, [{
+    label: "درآمد", data: data.revenue.values,
+    borderColor: purple, backgroundColor: purple + "22", fill: true, tension: .3, pointRadius: 0, borderWidth: 2
   }]);
-  lineChart('chartPoints', data.points.labels, [
-    { label: 'صادرشده', data: data.points.issued, borderColor: accent, tension: .3 },
-    { label: 'بازخریدشده', data: data.points.redeemed, borderColor: purple, tension: .3 },
+  lineChart("chartPoints", data.points.labels, [
+    { label: "صادرشده", data: data.points.issued, borderColor: gold, tension: .3, pointRadius: 0, borderWidth: 2 },
+    { label: "بازخریدشده", data: data.points.redeemed, borderColor: purple, tension: .3, pointRadius: 0, borderWidth: 2, borderDash: [5, 4] }
   ]);
-  lineChart('chartSignups', data.signups.labels, [{
-    label: 'ثبت‌نام جدید', data: data.signups.values,
-    borderColor: accent, backgroundColor: 'rgba(255,147,56,.15)', fill: true, tension: .3, stepped: false,
+  lineChart("chartSignups", data.signups.labels, [{
+    label: "ثبت‌نام", data: data.signups.values,
+    borderColor: accent, backgroundColor: accent + "22", fill: true, tension: .3, pointRadius: 0, borderWidth: 2
   }]);
 })();
 </script>

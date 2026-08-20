@@ -1,56 +1,102 @@
+{% load static thumbnails %}
 <!doctype html>
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ track.title }} — Casset</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@500;700&display=swap" rel="stylesheet">
+  <meta name="robots" content="noindex">
+  <title>{{ track.title }} — کست</title>
+
+  {% comment %}
+    Standalone page: no base.html, no nav, no global player. It is meant to
+    be dropped into someone else's site in an <iframe>, so it must be tiny
+    and self-contained.
+
+    Font and stylesheet are local — the previous version pulled Vazirmatn
+    from Google Fonts, which the site's own CSP blocks, so the embed
+    rendered in a fallback font on every site that used it.
+  {% endcomment %}
+  <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
   <style>
-    :root { color-scheme: dark; }
+    /* The embed carries its own miniature copy of the palette rather than
+       loading the full stylesheet: a 30 kB CSS file for a 90-pixel-tall
+       widget is a cost paid by every site that embeds us. */
+    :root {
+      color-scheme: dark;
+      --bg: #13111a;
+      --panel: #1b1626;
+      --line: rgba(154,92,255,.20);
+      --text: #f5f3ff;
+      --muted: rgba(245,243,255,.62);
+      --accent: #ff8a3d;
+      --purple: #8b5cf6;
+    }
     * { box-sizing: border-box; }
     body {
       margin: 0; padding: 12px;
-      font-family: 'Vazirmatn', Tahoma, sans-serif;
-      background: #17140F; color: #F2EBDC;
+      font-family: "Vazirmatn", Tahoma, system-ui, sans-serif;
+      background: var(--bg); color: var(--text);
     }
     .embed {
       display: flex; align-items: center; gap: 12px;
-      background: #1F1A13; border: 1px solid #332C21;
-      border-radius: 12px; padding: 12px;
+      background: linear-gradient(135deg, rgba(255,138,61,.08), rgba(139,92,246,.06)), var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px; padding: 12px;
     }
     .cover {
-      width: 56px; height: 56px; border-radius: 8px; flex: none;
-      background: #332C21 center/cover no-repeat;
+      width: 62px; height: 62px; border-radius: 10px; flex: none;
+      background: linear-gradient(135deg, rgba(255,138,61,.35), rgba(139,92,246,.30)) center/cover no-repeat;
+      border: 1px solid var(--line);
     }
     .meta { min-width: 0; flex: 1; }
     .title { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .by { font-size: 12.5px; color: #B3A791; margin-top: 2px; }
+    .title a { color: inherit; text-decoration: none; }
+    .title a:hover { color: var(--accent); }
+    .by { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .by a { color: inherit; }
-    audio { width: 100%; margin-top: 8px; }
-    a.brand {
-      display: block; text-align: left; margin-top: 8px;
-      font-size: 11px; color: #B3A791; text-decoration: none;
+    audio { width: 100%; margin-top: 8px; height: 34px; }
+    .foot {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 8px; font-size: 11px; color: var(--muted);
+    }
+    .foot a { color: var(--muted); text-decoration: none; }
+    .foot a:hover { color: var(--accent); }
+    .brand { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; }
+    .brand span {
+      width: 14px; height: 14px; border-radius: 4px;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
     }
   </style>
 </head>
 <body>
   <div class="embed">
-    {% if track.cover %}
-      <div class="cover" style="background-image:url('{{ track.cover.url }}')"></div>
-    {% else %}
-      <div class="cover"></div>
-    {% endif %}
+    <div class="cover" {% if track.cover %}style="background-image:url('{{ track.cover|thumbnail_url:'200x200' }}')"{% endif %}></div>
     <div class="meta">
-      <div class="title">{{ track.title }}</div>
-      <div class="by">از <a href="{% url 'public_profile' username=track.creator.username %}" target="_blank" rel="noopener">@{{ track.creator.username }}</a></div>
+      <div class="title">
+        <a href="{% url 'track_detail' slug=track.slug %}" target="_blank" rel="noopener">{{ track.title }}</a>
+      </div>
+      <div class="by">
+        از <a href="{{ track.creator.profile.profile_url }}" target="_blank" rel="noopener">{{ track.creator.profile.public_name }}</a>
+      </div>
       {% if track.audio %}
-        <audio controls preload="none" style="width:100%">
-          <source src="{{ track.audio.url }}" type="audio/mpeg">
+        {% comment %}
+          A native <audio> element here, unlike everywhere else on the
+          site: the embed has no global player to hand playback to, and a
+          third-party page should not have to load our JavaScript.
+        {% endcomment %}
+        <audio controls preload="none">
+          <source src="{{ track.audio.url }}">
+          مرورگر شما از پخش صدا پشتیبانی نمی‌کند.
         </audio>
       {% endif %}
     </div>
   </div>
-  <a class="brand" href="{% url 'track_detail' slug=track.slug %}" target="_blank" rel="noopener">در Casset گوش کن ↗</a>
+
+  <div class="foot">
+    <a class="brand" href="{% url 'track_detail' slug=track.slug %}" target="_blank" rel="noopener">
+      <span aria-hidden="true"></span>در کست بشنو
+    </a>
+    <span>{{ track.play_count }} پخش</span>
+  </div>
 </body>
 </html>

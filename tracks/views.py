@@ -34,7 +34,12 @@ def track_embed(request, slug):
 def track_list(request):
     genre_slug = request.GET.get("genre")
     album_id = request.GET.get("album")
-    qs = Track.objects.filter(status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC).select_related("creator").prefetch_related("genres")
+    qs = (
+        Track.objects
+        .filter(status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC)
+        .select_related("creator", "creator__profile")
+        .prefetch_related("genres")
+    )
 
     active_genre = None
     if genre_slug:
@@ -151,10 +156,13 @@ def show_detail(request, album_id: int):
         Track.objects.filter(
             album=album, status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
         )
-        .select_related("creator")
+        .select_related("creator", "creator__profile")
         .order_by("-published_at")
     )
-    return render(request, "tracks/show_detail.html", {"album": album, "episodes": episodes})
+    return render(request, "tracks/show_detail.html", {
+        "album": album,
+        "episodes": list(episodes),
+    })
 
 
 @login_required

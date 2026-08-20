@@ -1,84 +1,195 @@
 {% extends "base.html" %}
-{% load static %}
-{% block title %}Staff • {{ profile.public_name }}{% endblock %}
+{% load static thumbnails %}
+{% block title %}{{ profile.public_name }} — پنل سازنده | کست{% endblock %}
+
 {% block content %}
-<div class="container" style="max-width:1100px;">
-  <h1 style="margin:16px 0;">جزئیات سازنده</h1>
-
-  <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
-    <div class="card">
-      <div style="font-size:18px;font-weight:900">
-        {{ profile.public_name }}
-        {% if profile.is_verified %}<span class="verified-badge" title="Creator تاییدشده">✔</span>{% endif %}
-      </div>
-      <div class="muted small">@{{ profile.user.username }}</div>
-      <div style="margin-top:8px">ایمیل: {{ profile.user.email|default:"—" }}</div>
-      <div>وضعیت: {{ profile.get_creator_status_display }}</div>
-      <div>هندل: {% if profile.public_handle %}<a href="/{{ profile.public_handle }}/" target="_blank">/{{ profile.public_handle }}/</a>{% else %}—{% endif %}</div>
-      <form method="post" action="{% url 'staff:toggle_verified' user_id=profile.user_id %}" style="margin-top:10px">
-        {% csrf_token %}
-        {% if profile.is_verified %}
-          <button class="btn btn--ghost" type="submit">حذف نشان تایید</button>
-        {% else %}
-          <button class="btn btn--primary" type="submit">اعطای نشان تایید ✔</button>
-        {% endif %}
-      </form>
-    </div>
-
-    <div class="card">
-      <div style="font-weight:900;margin-bottom:8px">آمار</div>
-      <div class="profile-stats" style="margin:0">
-        <div class="profile-stat profile-stat--static"><div class="stat">{{ totals.plays|default:0 }}</div><div class="muted small">کل پخش‌ها</div></div>
-        <div class="profile-stat profile-stat--static"><div class="stat">{{ totals.valid_plays|default:0 }}</div><div class="muted small">پخش معتبر</div></div>
-        <div class="profile-stat profile-stat--static"><div class="stat">{{ tracks|length }}</div><div class="muted small">تعداد محتوا</div></div>
-        <div class="profile-stat profile-stat--static"><div class="stat">{{ profile.points|default:0 }}</div><div class="muted small">موجودی امتیاز</div></div>
-      </div>
-    </div>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>جزئیات سازنده</h1>
+    <p>وضعیت، آمار و آثار این حساب.</p>
   </div>
-
-  {% if chart_json %}
-    <div class="card chart-card" style="margin-bottom:16px">
-      <div class="muted small">پرمخاطب‌ترین ترک‌ها (بر اساس پخش)</div>
-      <canvas id="chartCreatorTracks" height="120"></canvas>
-    </div>
-  {% endif %}
-
-  <h2 style="margin:16px 0 8px;font-size:18px">آخرین محتواها</h2>
-  <div class="list">
-    {% for t in tracks %}
-      <div class="item">
-        <div>
-          <div style="font-weight:900">{{ t.title }}</div>
-          <div class="muted small">{{ t.get_content_type_display }} • {{ t.play_count }} پخش</div>
-        </div>
-        <div class="muted small" style="text-align:left">
-          <div>{{ t.get_status_display }}</div>
-          <div>{% if t.published_at %}{{ t.published_at|date:"Y-m-d" }}{% else %}—{% endif %}</div>
-        </div>
-      </div>
-    {% empty %}
-      <div class="item"><span class="muted">محتوایی وجود ندارد.</span></div>
-    {% endfor %}
+  <div class="cluster">
+    <a class="btn btn--ghost btn--sm" href="{% url 'staff:creators_console' %}">بازگشت به فهرست</a>
+    {% if profile.public_handle %}
+      <a class="btn btn--ghost btn--sm" href="/{{ profile.public_handle }}/" target="_blank" rel="noopener">
+        <svg class="icon"><use href="#i-external"/></svg>صفحه عمومی
+      </a>
+    {% endif %}
   </div>
 </div>
+
+<div class="grid-2">
+  <div>
+    <section class="card">
+      <div class="creator-box mb-4">
+        <span class="creator-box__av" aria-hidden="true"
+              {% if profile.avatar %}style="background-image:url('{{ profile.avatar|thumbnail_url:'160x160' }}')"{% endif %}></span>
+        <div class="flex-1">
+          <div class="cluster cluster--gap-2">
+            <b class="t-lg">{{ profile.public_name }}</b>
+            {% if profile.is_verified %}
+              <svg class="icon verified-badge" role="img" aria-label="تاییدشده"><use href="#i-verified"/></svg>
+            {% endif %}
+            {% if not profile.user.is_active %}<span class="status status--bad">تعلیق‌شده</span>{% endif %}
+          </div>
+          <div class="muted t-xs" dir="ltr">{{ profile.user.username }}</div>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-row__text"><b>ایمیل</b><span dir="ltr">{{ profile.user.email|default:"—" }}</span></div>
+        {% if profile.email_verified %}<span class="status status--good">تاییدشده</span>{% else %}<span class="status status--muted">تایید نشده</span>{% endif %}
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-row__text">
+          <b>شماره موبایل</b>
+          <span dir="ltr" class="num">{{ profile.phone_number|default:"—" }}</span>
+        </div>
+        {% if profile.phone_verified %}<span class="status status--good">تاییدشده</span>{% else %}<span class="status status--warn">تایید نشده</span>{% endif %}
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-row__text">
+          <b>یوزرنیم عمومی</b>
+          <span dir="ltr">{% if profile.public_handle %}/{{ profile.public_handle }}/{% else %}—{% endif %}</span>
+        </div>
+        <span class="status status--muted">{{ profile.get_creator_status_display }}</span>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-row__text">
+          <b>نشان تایید</b>
+          <span>
+            نشان اعتماد است، نه اجازه انتشار — یعنی «تیم کست هویت این حساب را تایید کرده».
+          </span>
+        </div>
+        <form method="post" action="{% url 'staff:toggle_verified' user_id=profile.user_id %}">
+          {% csrf_token %}
+          {% if profile.is_verified %}
+            <button class="btn btn--ghost btn--sm" type="submit"
+                    data-confirm="نشان تایید از این حساب برداشته می‌شود."
+                    data-confirm-title="حذف نشان تایید">حذف نشان</button>
+          {% else %}
+            <button class="btn btn--primary btn--sm" type="submit">
+              <svg class="icon"><use href="#i-verified"/></svg>اعطای نشان
+            </button>
+          {% endif %}
+        </form>
+      </div>
+    </section>
+
+    {% if chart_data %}
+      <section class="card chart-card mt-4">
+        <div class="card__title">پرمخاطب‌ترین آثار</div>
+        <div class="chart-wrap chart-wrap--sm"><canvas id="chartCreatorTracks" aria-label="نمودار پخش هر اثر"></canvas></div>
+      </section>
+    {% endif %}
+
+    <section class="card mt-4">
+      <div class="card__title">آخرین آثار</div>
+      {% if tracks %}
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>عنوان</th><th>نوع</th><th>وضعیت</th><th>پخش</th><th>انتشار</th></tr></thead>
+            <tbody>
+              {% for t in tracks %}
+                <tr>
+                  <td><a href="{% url 'track_detail' t.slug %}">{{ t.title }}</a></td>
+                  <td class="muted t-xs">{{ t.get_content_type_display }}</td>
+                  <td>
+                    {% if t.status == "approved" %}
+                      <span class="status status--good">منتشرشده</span>
+                    {% elif t.status == "submitted" or t.status == "pending" %}
+                      <span class="status status--warn">در بررسی</span>
+                    {% elif t.status == "rejected" %}
+                      <span class="status status--bad">رد شده</span>
+                    {% else %}
+                      <span class="status status--muted">{{ t.get_status_display }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="num">{{ t.play_count }}</td>
+                  <td class="muted t-xs num">{% if t.published_at %}{{ t.published_at|date:"Y/m/d" }}{% else %}—{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted t-sm mb-0">این حساب هنوز اثری ندارد.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside>
+    <div class="stat-grid stat-grid--3 aside-stats">
+      <div class="stat-card">
+        <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-play"/></svg></span></div>
+        <b class="stat-card__value">{{ totals.plays|default:0 }}</b>
+        <span class="stat-card__label">کل پخش</span>
+      </div>
+      <div class="stat-card stat-card--good">
+        <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-check-circle"/></svg></span></div>
+        <b class="stat-card__value">{{ totals.valid_plays|default:0 }}</b>
+        <span class="stat-card__label">پخش معتبر</span>
+      </div>
+      <div class="stat-card stat-card--purple">
+        <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-music"/></svg></span></div>
+        <b class="stat-card__value">{{ tracks|length }}</b>
+        <span class="stat-card__label">تعداد اثر</span>
+      </div>
+      <div class="stat-card stat-card--gold">
+        <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-coin"/></svg></span></div>
+        <b class="stat-card__value">{{ profile.points|default:0 }}</b>
+        <span class="stat-card__label">موجودی امتیاز</span>
+      </div>
+    </div>
+
+    {% if profile.suspended_reason %}
+      <div class="notice notice--bad mt-4">
+        <svg class="icon"><use href="#i-shield"/></svg>
+        <div><b>دلیل تعلیق:</b> {{ profile.suspended_reason }}</div>
+      </div>
+    {% endif %}
+  </aside>
+</div>
 {% endblock %}
+
 {% block scripts %}
-{% if chart_json %}
+{% if chart_data %}
 <script src="{% static 'vendor/chart.umd.min.js' %}"></script>
+{{ chart_data|json_script:"creatorChart" }}
 <script>
-(function(){
-  const data = JSON.parse('{{ chart_json|escapejs }}');
-  const css = getComputedStyle(document.documentElement);
-  const accent = css.getPropertyValue('--accent').trim() || '#ff9338';
-  Chart.defaults.color = css.getPropertyValue('--text').trim() || '#f4f2ff';
-  const el = document.getElementById('chartCreatorTracks');
-  if (el && data.labels.length) {
-    new Chart(el.getContext('2d'), {
-      type: 'bar',
-      data: { labels: data.labels, datasets: [{ label: 'پخش', data: data.values, backgroundColor: accent, borderRadius: 6 }] },
-      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
-    });
-  }
+(function () {
+  var el = document.getElementById("creatorChart");
+  var canvas = document.getElementById("chartCreatorTracks");
+  if (!el || !canvas || typeof Chart === "undefined") return;
+  var data = JSON.parse(el.textContent);
+  if (!data.labels.length) return;
+
+  var css = getComputedStyle(document.documentElement);
+  Chart.defaults.color = css.getPropertyValue("--text").trim();
+  Chart.defaults.font.family = "Vazirmatn, system-ui, sans-serif";
+
+  new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: data.labels,
+      datasets: [{
+        label: "پخش", data: data.values,
+        backgroundColor: css.getPropertyValue("--accent").trim(),
+        borderRadius: 6, maxBarThickness: 28
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: { beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
 })();
 </script>
 {% endif %}

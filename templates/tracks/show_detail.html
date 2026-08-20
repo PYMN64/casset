@@ -1,86 +1,115 @@
 {% extends "base.html" %}
-{% load casset_urls %}
-{% block title %}{{ album.title }} • Casset{% endblock %}
-{% block meta %}
-<meta name="description" content="{{ album.description|default:album.title|truncatechars:160 }}" />
-<meta property="og:site_name" content="Casset" />
-<meta property="og:type" content="music.album" />
-<meta property="og:title" content="{{ album.title }} — @{{ album.creator.username }}" />
-<meta property="og:description" content="{{ album.description|default:album.title|truncatechars:160 }}" />
-<meta property="og:url" content="{{ request.build_absolute_uri }}" />
-{% if album.cover %}<meta property="og:image" content="{% abs_url album.cover.url %}" />{% endif %}
-{% endblock %}
+{% load casset_urls thumbnails %}
+
+{% block title %}{{ album.title }} — {{ album.creator.profile.public_name }} | کست{% endblock %}
+{% block meta_description %}{{ album.description|default:album.title|truncatechars:150 }}{% endblock %}
+{% block og_type %}music.album{% endblock %}
+{% block og_title %}{{ album.title }} — {{ album.creator.profile.public_name }}{% endblock %}
+{% block og_description %}{{ album.description|default:album.title|truncatechars:150 }}{% endblock %}
+{% block og_image %}{% if album.cover %}{% abs_url album.cover.url %}{% else %}{{ request.scheme }}://{{ request.get_host }}{{ block.super }}{% endif %}{% endblock %}
+{% block twitter_title %}{{ album.title }} — {{ album.creator.profile.public_name }}{% endblock %}
+
 {% block content %}
-<div class="grid">
-  <section class="card">
-    <div class="row" style="align-items:flex-start;gap:16px">
-      {% if album.cover %}
-        <img src="{{ album.cover.url }}" alt="" style="width:96px;height:96px;border-radius:12px;object-fit:cover;flex:none">
+<section class="card track-hero">
+  <div class="track-hero__art"
+       {% if album.cover %}style="background-image:url('{{ album.cover|thumbnail_url:'600x600' }}')"{% endif %}
+       aria-hidden="true"></div>
+
+  <div class="track-hero__meta">
+    <div class="cluster mb-2">
+      <span class="status status--info">
+        {% if album.content_type == "podcast" %}پادکست{% else %}آلبوم{% endif %}
+      </span>
+      {% if not album.is_public %}
+        <span class="status status--warn"><svg class="icon icon--xs"><use href="#i-lock"/></svg>هنوز عمومی نیست</span>
       {% endif %}
-      <div style="min-width:0">
-        <h1 style="margin:0">{{ album.title }}</h1>
-        <p class="muted small" style="margin:4px 0 0">
-          از <a href="/artist/{{ album.creator.username }}/">@{{ album.creator.username }}</a>
-          • {{ episodes|length }} قسمت
-          {% if album.content_type == "podcast" %}• پادکست{% endif %}
-        </p>
-      </div>
+    </div>
+
+    <h1 class="t-2xl w-900 lh-tight mb-2">{{ album.title }}</h1>
+
+    <div class="cluster muted t-sm mb-4">
+      <a class="w-700" href="{{ album.creator.profile.profile_url }}">
+        {{ album.creator.profile.public_name }}
+        {% if album.creator.profile.is_verified %}<svg class="icon verified-badge"><use href="#i-verified"/></svg>{% endif %}
+      </a>
+      <span aria-hidden="true">·</span>
+      <span class="num">{{ episodes|length }} {% if album.content_type == "podcast" %}قسمت{% else %}اثر{% endif %}</span>
     </div>
 
     {% if album.description %}
-      <p class="muted" style="margin-top:14px">{{ album.description }}</p>
+      <p class="muted lh-body">{{ album.description|linebreaksbr }}</p>
     {% endif %}
 
-    {% if album.content_type == "podcast" %}
-      <div class="row" style="justify-content:flex-start;gap:10px;margin-top:14px;flex-wrap:wrap">
-        <a class="btn btn--primary" href="{% url 'show_rss' album_id=album.id %}">📶 اشتراک با RSS</a>
-        <span class="muted small" style="align-self:center">این لینک را در اپل پادکست، گوگل پادکست یا هر اپ دیگری وارد کن.</span>
-      </div>
-      {% if not album.is_public %}
-        <p class="muted small" style="margin-top:10px;color:#e2a03f">
-          ⚠ این مجموعه هنوز عمومی نیست — فقط خودت این صفحه و فید RSS را می‌بینی.
-        </p>
+    <div class="cluster">
+      {% if episodes %}
+        <button class="btn btn--primary" type="button" id="playAllBtn">
+          <svg class="icon"><use href="#i-play"/></svg>پخش از ابتدا
+        </button>
       {% endif %}
-    {% endif %}
-
-    <h2 class="mt">قسمت‌ها</h2>
-    <div class="list">
-      {% for t in episodes %}
-        <div class="row">
-          <div style="min-width:0">
-            <a href="{% url 'track_detail' slug=t.slug %}" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              {{ t.title }}
-            </a>
-            <div class="muted small">{{ t.published_at|date:"Y-m-d" }} • {{ t.play_count }} پخش</div>
-          </div>
-          {% if t.audio %}
-            <a class="btn btn--primary" href="#"
-               data-play="1" data-src="{{ t.audio.url }}" data-title="{{ t.title }}"
-               data-by="@{{ t.creator.username }}" data-track="{{ t.id }}"
-               data-peaks="{{ t.waveform_peaks|jsonify }}"
-               data-cover="{% if t.cover %}{{ t.cover.url }}{% elif album.cover %}{{ album.cover.url }}{% endif %}">
-               پخش
-            </a>
-          {% endif %}
-        </div>
-      {% empty %}
-        <div class="row"><span class="muted">هنوز قسمتی منتشر نشده.</span></div>
-      {% endfor %}
+      <button class="btn btn--ghost" type="button"
+              data-share="1" data-url="{{ request.build_absolute_uri }}" data-title="{{ album.title }}">
+        <svg class="icon"><use href="#i-share"/></svg>اشتراک‌گذاری
+      </button>
+      {% if album.content_type == "podcast" %}
+        <a class="btn btn--ghost" href="{% url 'show_rss' album_id=album.id %}">
+          <svg class="icon"><use href="#i-external"/></svg>فید RSS
+        </a>
+      {% endif %}
     </div>
-  </section>
+  </div>
+</section>
 
-  <aside class="card">
-    <h2>سازنده</h2>
-    <div class="row">
-      <div style="min-width:0">
-        <div style="font-weight:900">
-          {{ album.creator.get_full_name|default:album.creator.username }}
-          {% if album.creator.profile.is_verified %}<span class="verified-badge">✔</span>{% endif %}
+{% if album.content_type == "podcast" %}
+  <div class="notice mt-4">
+    <svg class="icon"><use href="#i-mic"/></svg>
+    <div>
+      <b>در اپ پادکست خودت دنبال کن.</b>
+      لینک فید RSS بالا را در اپل پادکست، گوگل پادکست، Castbox یا هر اپ دیگری وارد کن
+      تا قسمت‌های تازه خودکار برایت بیایند.
+      {% if not album.is_public %}
+        <div class="mt-2 text-bad">
+          این مجموعه هنوز عمومی نیست — تا وقتی عمومی نشود، فقط خودت این صفحه و فید را می‌بینی.
         </div>
-        <div class="muted small">@{{ album.creator.username }}</div>
-      </div>
-      <a class="btn btn--ghost" href="/artist/{{ album.creator.username }}/">مشاهده پروفایل</a>
+      {% endif %}
     </div>
-  </aside>
+  </div>
+{% endif %}
+
+<div class="section-head">
+  <h2>{% if album.content_type == "podcast" %}قسمت‌ها{% else %}آثار{% endif %}</h2>
 </div>
+
+{% if episodes %}
+  <div class="card list" id="episodeList" data-queue-scope>
+    {% for t in episodes %}{% include "partials/_track_row.html" with t=t %}{% endfor %}
+  </div>
+{% else %}
+  <div class="empty">
+    <div class="empty__icon"><svg class="icon"><use href="#i-music"/></svg></div>
+    <div class="empty__title">هنوز چیزی منتشر نشده</div>
+    <p class="empty__text">
+      {% if request.user.id == album.creator_id %}
+        از صفحه‌ی آپلود، اثر جدید بساز و این مجموعه را برایش انتخاب کن.
+      {% else %}
+        این مجموعه هنوز خالی است. سازنده را دنبال کن تا اولین قسمت را از دست ندهی.
+      {% endif %}
+    </p>
+    {% if request.user.id == album.creator_id %}
+      <a class="btn btn--primary" href="{% url 'upload_track' %}">آپلود اثر</a>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var btn = document.getElementById("playAllBtn");
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    var first = document.querySelector("#episodeList [data-play]");
+    if (first) first.click();
+  });
+})();
+</script>
 {% endblock %}

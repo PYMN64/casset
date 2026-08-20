@@ -1,65 +1,42 @@
 {% extends "base.html" %}
-{% load thumbnails %}
-{% block title %}Tracks • Casset{% endblock %}
+{% block title %}همه آثار کست — موسیقی، پادکست و کتاب صوتی{% endblock %}
+{% block meta_description %}فهرست کامل آثار منتشرشده در کست، با امکان فیلتر بر اساس ژانر.{% endblock %}
+
 {% block content %}
-<div class="grid">
-  <section class="card">
-    <h1>Tracks</h1>
-    <p class="muted small">آخرین ترک‌های تاییدشده</p>
-
-    <div class="list">
-      {% for t in tracks %}
-        <div class="row">
-          <div style="display:flex;gap:12px;align-items:center;min-width:0">
-            <div class="row-cover" style="{% if t.cover %}background-image:url('{{ t.cover|thumbnail_url:"120x120" }}');{% endif %}"></div>
-            <div style="min-width:0">
-              <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                {{ t.title }}
-              </a>
-              <div class="muted small">
-                {{ t.play_count }} plays •
-                <a href="/artist/{{ t.creator.username }}/"><u>@{{ t.creator.username }}</u></a>
-              </div>
-            </div>
-          </div>
-
-          {% if t.audio %}
-            <a class="btn btn--primary" href="#"
-               data-play="1"
-               data-src="{{ t.audio.url }}"
-               data-title="{{ t.title }}"
-               data-by="@{{ t.creator.username }}"
-               data-track="{{ t.id }}"
-               data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">
-               Play
-            </a>
-          {% endif %}
-        </div>
-      {% empty %}
-        <div class="row"><span class="muted">هیچ ترکی ثبت نشده.</span></div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <aside class="card">
-    <h2>Genres</h2>
-    <p class="muted small">فیلتر ساده</p>
-
-    <div class="list">
-      <div class="row">
-        <a class="btn btn--ghost" href="/tracks/">همه</a>
-        {% if active_genre %}<span class="muted small">فعال: {{ active_genre.name }}</span>{% endif %}
-      </div>
-
-      {% for g in genres %}
-        <div class="row">
-          <a class="btn btn--ghost" href="/tracks/?genre={{ g.slug }}">{{ g.name }}</a>
-          <span class="muted small">{{ g.tracks.count }} tracks</span>
-        </div>
-      {% empty %}
-        <div class="row"><span class="muted">ژانری موجود نیست.</span></div>
-      {% endfor %}
-    </div>
-  </aside>
+<div class="page-head">
+  <h1>همه آثار</h1>
+  <p>تازه‌ترین آثار تاییدشده{% if active_genre %} در ژانر «{{ active_genre.name }}»{% endif %}.</p>
 </div>
+
+{% if genres %}
+  <div class="cluster mb-4">
+    <a class="pill {% if not active_genre %}pill--active{% endif %}" href="{% url 'track_list' %}">همه ژانرها</a>
+    {% for g in genres %}
+      <a class="pill {% if active_genre.id == g.id %}pill--active{% endif %}" href="{% url 'track_list' %}?genre={{ g.slug }}">
+        {{ g.name }}
+      </a>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% if tracks %}
+  <div class="card list" data-queue-scope>
+    {% for t in tracks %}{% include "partials/_track_row.html" with t=t %}{% endfor %}
+  </div>
+{% else %}
+  <div class="empty">
+    <div class="empty__icon"><svg class="icon"><use href="#i-music"/></svg></div>
+    <div class="empty__title">
+      {% if active_genre %}هنوز اثری در این ژانر نیست{% else %}هنوز اثری منتشر نشده{% endif %}
+    </div>
+    <p class="empty__text">
+      {% if active_genre %}
+        ژانر دیگری را امتحان کن، یا همه‌ی آثار را ببین.
+      {% else %}
+        اولین آثار کست همین روزها منتشر می‌شوند.
+      {% endif %}
+    </p>
+    <a class="btn btn--primary" href="{% url 'discover' %}">کشف</a>
+  </div>
+{% endif %}
 {% endblock %}

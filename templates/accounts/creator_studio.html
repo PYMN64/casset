@@ -222,9 +222,7 @@
 {% block scripts %}
 {% if daily %}
 <script src="{% static 'vendor/chart.umd.min.js' %}"></script>
-<script id="studioData" type="application/json">
-{"labels": {{ chart_labels|jsonify }}, "plays": {{ chart_plays|jsonify }}, "points": {{ chart_points|jsonify }}}
-</script>
+{{ chart_data|json_script:"studioData" }}
 <script>
 (function () {
   var canvas = document.getElementById("studioChart");

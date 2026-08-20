@@ -1040,3 +1040,53 @@ input[type="file"]::file-selector-button:hover { filter: brightness(1.05); }
   .mytrack { flex-wrap: wrap; }
   .mytrack__actions { width: 100%; justify-content: flex-start; }
 }
+
+/* Album/show cards */
+.album-card .mini-card__cover {
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line);
+}
+.album-card .mini-card__cover .icon { width: 34px; height: 34px; color: var(--text); opacity: .5; }
+.mini-card__cover--playlist { display: flex; align-items: center; justify-content: center; }
+.mini-card__cover--playlist .icon { width: 32px; height: 32px; color: var(--text); opacity: .5; }
+
+/* ---------------------------------------------------------------------
+   24. Moderation queues
+   ------------------------------------------------------------------ */
+.review-row { display: flex; align-items: flex-start; gap: var(--sp-3); padding: var(--sp-4) 0; }
+.review-row + .review-row { border-top: 1px solid var(--line); }
+.review-row:first-child { padding-top: 0; }
+.review-row__meta { flex: 1; min-width: 0; }
+.review-row__actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+.review-row__reason { min-width: 200px; height: 34px; font-size: var(--fs-xs); }
+@media (max-width: 860px){
+  .review-row { flex-wrap: wrap; }
+  .review-row__actions { width: 100%; justify-content: flex-start; }
+}
+
+.report-card__target { display: flex; flex-direction: column; gap: var(--sp-2); }
+.report-card__target .icon { width: 16px; height: 16px; color: var(--muted); flex: none; }
+.report-card__quote {
+  margin: 0; padding: var(--sp-2) var(--sp-3);
+  border-inline-start: 3px solid var(--line);
+  background: var(--surface-1); border-radius: var(--radius-1);
+  font-size: var(--fs-sm); color: var(--muted); line-height: 1.8;
+}
+
+/* Pagination */
+.pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: var(--sp-3); margin-top: var(--sp-4); flex-wrap: wrap;
+}
+.pagination [aria-disabled="true"] { opacity: .4; pointer-events: none; }
+
+/* Staff dashboard tweaks */
+.queue-card { display: block; transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.queue-card:hover { border-color: rgb(var(--accent-rgb) / .45); transform: translateY(-2px); }
+.chart-grid { grid-template-columns: 1fr; }
+@media (min-width: 900px){ .chart-grid { grid-template-columns: 1fr 1fr; } }
+.aside-stats { grid-template-columns: 1fr 1fr; }
+
+/* The inline <symbol> sprite is markup, not content: take it out of flow
+   entirely rather than relying on an inline style attribute. */
+.icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }

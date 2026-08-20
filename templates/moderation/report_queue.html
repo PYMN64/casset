@@ -1,98 +1,145 @@
 {% extends "base.html" %}
-{% block title %}Moderation • Reports{% endblock %}
+{% block title %}صف گزارش‌ها | کست{% endblock %}
+
 {% block content %}
-<div class="card">
-  <h1>گزارش‌ها</h1>
-  <p class="muted small">فقط برای ادمین/استاف</p>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>گزارش‌ها</h1>
+    <p>گزارش‌های کاربران درباره اثر، پروفایل و نظر.</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost btn--sm" href="{% url 'moderation_track_queue' %}">صف بررسی آثار</a>
+    <a class="btn btn--ghost btn--sm" href="{% url 'staff:platform_dashboard' %}">داشبورد</a>
+  </div>
+</div>
 
-  <form method="get" class="row row-wrap" style="gap:8px;margin-bottom:14px">
-    <select name="status">
-      <option value="">همه وضعیت‌ها</option>
-      {% for value, label in report_statuses %}
-        <option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-    <button class="btn btn--ghost" type="submit">فیلتر</button>
-  </form>
+<form class="card cluster cluster--gap-3 mb-4" method="get">
+  <label class="sr-only" for="reportStatus">فیلتر وضعیت</label>
+  <select id="reportStatus" name="status" data-autosubmit>
+    <option value="">همه وضعیت‌ها</option>
+    {% for value, label in report_statuses %}
+      <option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn--primary" type="submit">اعمال فیلتر</button>
+</form>
 
-  <div class="list">
+{% if reports %}
+  <div class="flow-lg">
     {% for r in reports %}
-      <div class="item" style="flex-direction:column;align-items:stretch">
-        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
-          <div>
-            <div style="font-weight:900">Report #{{ r.id }} — {{ r.get_reason_display }}</div>
-            <div class="muted small">{{ r.get_target_type_display }} • {{ r.created_at }}</div>
+      <article class="card report-card">
+        <div class="cluster cluster--between mb-3">
+          <div class="cluster cluster--gap-3">
+            <span class="muted t-xs num">#{{ r.id }}</span>
+            <b class="t-sm">{{ r.get_reason_display }}</b>
+            <span class="status status--muted">{{ r.get_target_type_display }}</span>
           </div>
-          <div class="muted small">Status: <b>{{ r.get_status_display }}</b></div>
+          <div class="cluster">
+            {% if r.status == "open" or r.status == "pending" %}
+              <span class="status status--warn">{{ r.get_status_display }}</span>
+            {% elif r.status == "actioned" %}
+              <span class="status status--good">{{ r.get_status_display }}</span>
+            {% else %}
+              <span class="status status--muted">{{ r.get_status_display }}</span>
+            {% endif %}
+            <span class="muted t-xs">{{ r.created_at|date:"Y/m/d H:i" }}</span>
+          </div>
         </div>
 
-        {% if r.track %}
-          <div class="muted small" style="margin-top:6px">
-            Track: <a href="/t/{{ r.track.slug }}/">{{ r.track.title }}</a> (id={{ r.track_id }})
-          </div>
-        {% endif %}
+        <!-- ---- What was reported ---- -->
+        <div class="report-card__target">
+          {% if r.track %}
+            <div class="cluster cluster--gap-3">
+              <svg class="icon"><use href="#i-music"/></svg>
+              <a class="w-700 t-sm" href="{% url 'track_detail' r.track.slug %}">{{ r.track.title }}</a>
+              <span class="muted t-xs">از {{ r.track.creator.profile.public_name }}</span>
+            </div>
+          {% endif %}
 
-        {% if r.target_user %}
-          <div class="muted small" style="margin-top:6px">
-            Profile: <a href="/@{{ r.target_user.username }}/">{{ r.target_user.username }}</a>
-            — {% if r.target_user.is_active %}<span>فعال</span>{% else %}<b style="color:#ff6b6b">تعلیق‌شده</b>{% endif %}
-          </div>
-        {% endif %}
+          {% if r.target_user %}
+            <div class="cluster cluster--gap-3">
+              <svg class="icon"><use href="#i-user"/></svg>
+              <a class="w-700 t-sm" href="{{ r.target_user.profile.profile_url }}">{{ r.target_user.profile.public_name }}</a>
+              {% if r.target_user.is_active %}
+                <span class="status status--good">فعال</span>
+              {% else %}
+                <span class="status status--bad">تعلیق‌شده</span>
+              {% endif %}
+            </div>
+          {% endif %}
 
-        {% if r.comment %}
-          <div class="muted small" style="margin-top:6px">
-            Comment #{{ r.comment.id }} by @{{ r.comment.author.username }}:
-            «{{ r.comment.body|truncatechars:120 }}»
-            — {% if r.comment.is_public %}<span>نمایان</span>{% else %}<b style="color:#ff6b6b">مخفی</b>{% endif %}
-          </div>
-        {% endif %}
+          {% if r.comment %}
+            <div class="cluster cluster--top cluster--gap-3">
+              <svg class="icon"><use href="#i-comment"/></svg>
+              <div class="flex-1">
+                <div class="muted t-xs mb-1">
+                  نظر از {{ r.comment.author.profile.public_name }}
+                  {% if r.comment.is_public %}
+                    <span class="status status--good">نمایان</span>
+                  {% else %}
+                    <span class="status status--bad">مخفی</span>
+                  {% endif %}
+                </div>
+                <blockquote class="report-card__quote">{{ r.comment.body|truncatechars:200 }}</blockquote>
+              </div>
+            </div>
+          {% endif %}
+        </div>
 
         {% if r.details %}
-          <div style="margin-top:8px">{{ r.details }}</div>
+          <p class="muted t-sm lh-body mt-3 mb-0"><b>توضیح گزارش‌دهنده:</b> {{ r.details }}</p>
         {% endif %}
-
         {% if r.admin_note %}
-          <div class="muted small" style="margin-top:6px">یادداشت staff: {{ r.admin_note }}</div>
+          <p class="muted t-xs mt-2 mb-0"><b>یادداشت تیم:</b> {{ r.admin_note }}</p>
         {% endif %}
 
-        <div class="row row-wrap" style="margin-top:10px;gap:8px">
-          <form method="post" action="/moderation/reports/{{ r.id }}/status/" class="row row-wrap" style="gap:6px">
+        <!-- ---- Actions ---- -->
+        <div class="cluster cluster--gap-3 mt-4">
+          <form method="post" action="{% url 'moderation_update_report' r.id %}" class="cluster cluster--gap-2">
             {% csrf_token %}
-            <select name="status">
+            <label class="sr-only" for="status-{{ r.id }}">وضعیت گزارش</label>
+            <select id="status-{{ r.id }}" name="status">
               {% for value, label in report_statuses %}
                 <option value="{{ value }}" {% if value == r.status %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>
-            <button class="btn" type="submit">به‌روزرسانی وضعیت</button>
+            <button class="btn btn--ghost btn--sm" type="submit">ثبت وضعیت</button>
           </form>
 
           {% if r.target_type == "comment" and r.comment and not r.comment.is_public %}
-            <form method="post" action="/moderation/comments/{{ r.comment.id }}/restore/">
+            <form method="post" action="{% url 'moderation_restore_comment' r.comment.id %}">
               {% csrf_token %}
-              <button class="btn btn--primary" type="submit">بازگردانی کامنت</button>
+              <button class="btn btn--primary btn--sm" type="submit">بازگردانی نظر</button>
             </form>
           {% endif %}
 
           {% if r.target_type == "profile" and r.target_user and not r.target_user.is_staff %}
             {% if r.target_user.is_active %}
-              <form method="post" action="/moderation/profile/@{{ r.target_user.username }}/suspend/" class="row row-wrap" style="gap:6px">
+              <form method="post" action="{% url 'moderation_suspend_profile' r.target_user.username %}" class="cluster cluster--gap-2">
                 {% csrf_token %}
-                <input type="text" name="reason" placeholder="دلیل تعلیق" style="min-width:160px">
-                <button class="btn" type="submit" style="color:#ff6b6b">تعلیق حساب</button>
+                <label class="sr-only" for="suspend-{{ r.id }}">دلیل تعلیق</label>
+                <input type="text" id="suspend-{{ r.id }}" name="reason" placeholder="دلیل تعلیق" maxlength="240">
+                <button class="btn btn--danger btn--sm" type="submit"
+                        data-confirm="این حساب تعلیق می‌شود و کاربر دیگر نمی‌تواند وارد شود."
+                        data-confirm-title="تعلیق حساب">تعلیق حساب</button>
               </form>
             {% else %}
-              <form method="post" action="/moderation/profile/@{{ r.target_user.username }}/unsuspend/">
+              <form method="post" action="{% url 'moderation_unsuspend_profile' r.target_user.username %}">
                 {% csrf_token %}
-                <button class="btn btn--primary" type="submit">رفع تعلیق</button>
+                <button class="btn btn--primary btn--sm" type="submit">رفع تعلیق</button>
               </form>
             {% endif %}
           {% endif %}
         </div>
-      </div>
-    {% empty %}
-      <div class="item"><span class="muted">گزارشی ثبت نشده.</span></div>
+      </article>
     {% endfor %}
   </div>
   {% include "staff/_pagination.html" %}
-</div>
+{% else %}
+  <div class="empty">
+    <div class="empty__icon"><svg class="icon"><use href="#i-shield"/></svg></div>
+    <div class="empty__title">گزارشی در این وضعیت نیست</div>
+    <p class="empty__text">فیلتر را تغییر بده یا بردار تا همه‌ی گزارش‌ها را ببینی.</p>
+  </div>
+{% endif %}
 {% endblock %}

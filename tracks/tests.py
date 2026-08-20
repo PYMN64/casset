@@ -172,7 +172,7 @@ class AlbumViewTests(TestCase):
     def test_album_create_get_renders_form(self):
         resp = self.client.get(reverse("album_create"))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "ساخت آلبوم")
+        self.assertContains(resp, "ساخت مجموعه")
 
     def test_album_create_post_creates_album_owned_by_user(self):
         resp = self.client.post(reverse("album_create"), {

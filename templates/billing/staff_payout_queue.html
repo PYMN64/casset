@@ -1,54 +1,95 @@
 {% extends "base.html" %}
-{% block title %}Staff • Payouts{% endblock %}
+{% block title %}صف تسویه | کست{% endblock %}
+
 {% block content %}
-<div class="card">
-  <h1>درخواست‌های تسویه</h1>
-  <p class="muted small">فقط برای ادمین/استاف — تایید یک درخواست، امتیاز کاربر را از طریق PointLedger کسر می‌کند.</p>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>درخواست‌های تسویه</h1>
+    <p>تایید یک درخواست، امتیاز کاربر را از طریق دفتر تراکنش کسر می‌کند — نه با دستکاری مستقیم موجودی.</p>
+  </div>
+  <a class="btn btn--ghost btn--sm" href="{% url 'staff:platform_dashboard' %}">داشبورد</a>
+</div>
 
-  <div class="list">
+<div class="section-head mt-0"><h2>در انتظار بررسی</h2></div>
+
+{% if payouts %}
+  <div class="card">
     {% for p in payouts %}
-      <div class="item" style="flex-direction:column;align-items:stretch">
-        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
-          <div>
-            <div style="font-weight:900">@{{ p.user.username }} — {{ p.amount }}</div>
-            <div class="muted small">{{ p.points }} امتیاز • {{ p.created_at }}</div>
+      <article class="review-row">
+        <div class="review-row__meta">
+          <div class="cluster cluster--gap-3">
+            <a class="w-800 t-sm" href="{{ p.user.profile.profile_url }}">{{ p.user.profile.public_name }}</a>
+            <span class="muted t-xs" dir="ltr">{{ p.user.username }}</span>
           </div>
-          <div class="muted small">موجودی فعلی: {{ p.user.profile.points }}</div>
+          <div class="muted t-xs mt-1">
+            مبلغ <b class="num">{{ p.amount }}</b> تومان ·
+            <span class="num">{{ p.points }}</span> امتیاز ·
+            {{ p.created_at|date:"Y/m/d H:i" }}
+          </div>
+          <div class="muted t-xs mt-1">
+            موجودی فعلی کاربر: <b class="num">{{ p.user.profile.points }}</b>
+            {% if p.points > p.user.profile.points %}
+              <span class="status status--bad">موجودی کافی نیست</span>
+            {% endif %}
+          </div>
         </div>
 
-        <div class="row row-wrap" style="margin-top:10px;gap:8px">
-          <form method="post" action="/staff/payouts/{{ p.id }}/approve/">
+        <div class="review-row__actions">
+          <form method="post" action="{% url 'staff_approve_payout' p.id %}">
             {% csrf_token %}
-            <button class="btn btn--primary" type="submit">تایید و پرداخت</button>
+            <button class="btn btn--primary btn--sm" type="submit"
+                    data-confirm="امتیاز معادل از حساب کاربر کسر می‌شود و درخواست تایید می‌گردد. این عمل در دفتر تراکنش ثبت دائمی می‌شود."
+                    data-confirm-title="تایید تسویه">
+              <svg class="icon"><use href="#i-check"/></svg>تایید و پرداخت
+            </button>
           </form>
-          <form method="post" action="/staff/payouts/{{ p.id }}/reject/" class="row row-wrap" style="gap:6px">
+          <form method="post" action="{% url 'staff_reject_payout' p.id %}" class="cluster cluster--gap-2">
             {% csrf_token %}
-            <input type="text" name="reason" placeholder="دلیل رد" style="min-width:160px">
-            <button class="btn" type="submit" style="color:#ff6b6b">رد درخواست</button>
+            <label class="sr-only" for="payout-reason-{{ p.id }}">دلیل رد</label>
+            <input class="review-row__reason" type="text" id="payout-reason-{{ p.id }}" name="reason"
+                   placeholder="دلیل رد (به کاربر نشان داده می‌شود)" maxlength="240">
+            <button class="btn btn--danger btn--sm" type="submit"
+                    data-confirm="این درخواست رد می‌شود و امتیازی کسر نمی‌گردد."
+                    data-confirm-title="رد درخواست تسویه">رد</button>
           </form>
         </div>
-      </div>
-    {% empty %}
-      <div class="item"><span class="muted">درخواست در انتظار بررسی وجود ندارد.</span></div>
+      </article>
     {% endfor %}
   </div>
   {% include "staff/_pagination.html" %}
-
-  <h2 style="margin:20px 0 8px">تاریخچه‌ی اخیر</h2>
-  <div class="list">
-    {% for p in history %}
-      <div class="item">
-        <div>
-          <div style="font-weight:900">@{{ p.user.username }} — {{ p.amount }}</div>
-          <div class="muted small">{{ p.points }} امتیاز • {{ p.created_at|date:"Y-m-d" }}</div>
-        </div>
-        <span class="muted small" style="{% if p.status == 'paid' %}color:var(--good){% else %}color:var(--bad){% endif %}">
-          {{ p.get_status_display }}
-        </span>
-      </div>
-    {% empty %}
-      <div class="item"><span class="muted">هنوز تصمیمی ثبت نشده.</span></div>
-    {% endfor %}
+{% else %}
+  <div class="empty">
+    <div class="empty__icon"><svg class="icon"><use href="#i-check-circle"/></svg></div>
+    <div class="empty__title">درخواستی در انتظار نیست</div>
+    <p class="empty__text">همه‌ی درخواست‌های تسویه بررسی شده‌اند.</p>
   </div>
-</div>
+{% endif %}
+
+<div class="section-head"><h2>تصمیم‌های اخیر</h2></div>
+{% if history %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>کاربر</th><th>مبلغ</th><th>امتیاز</th><th>تاریخ</th><th>نتیجه</th></tr></thead>
+      <tbody>
+        {% for p in history %}
+          <tr>
+            <td><a href="{{ p.user.profile.profile_url }}">{{ p.user.profile.public_name }}</a></td>
+            <td class="num">{{ p.amount }}</td>
+            <td class="num">{{ p.points }}</td>
+            <td class="muted t-xs num">{{ p.created_at|date:"Y/m/d" }}</td>
+            <td>
+              {% if p.status == "paid" or p.status == "approved" %}
+                <span class="status status--good">{{ p.get_status_display }}</span>
+              {% else %}
+                <span class="status status--bad">{{ p.get_status_display }}</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted t-sm">هنوز تصمیمی ثبت نشده.</p>
+{% endif %}
 {% endblock %}

@@ -1,44 +1,100 @@
 {% extends "base.html" %}
-{% block title %}Moderation • Tracks{% endblock %}
+{% load thumbnails %}
+{% block title %}صف بررسی آثار | کست{% endblock %}
+
 {% block content %}
-<div class="card">
-  <h1>صف بررسی محتوا</h1>
-  <p class="muted small">فقط برای ادمین/استاف</p>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>صف بررسی آثار</h1>
+    <p>آثاری که سازنده‌ها برای انتشار فرستاده‌اند.</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost btn--sm" href="{% url 'moderation_report_queue' %}">صف گزارش‌ها</a>
+    <a class="btn btn--ghost btn--sm" href="{% url 'staff:platform_dashboard' %}">داشبورد</a>
+  </div>
+</div>
 
-  {% if platform.auto_approve_tracks %}
-    <div class="alert" style="margin-bottom:10px">
-      ⚡ تایید خودکار فعال است — محتوای جدید بدون رسیدن به این صف مستقیماً منتشر می‌شود.
-      این صف فقط محتوای قدیمی‌تر یا ثبت‌شده قبل از فعال‌سازی این تنظیم را نشان می‌دهد.
-      برای خاموش کردن: Admin → Core → Platform setting.
+{% if platform.auto_approve_tracks %}
+  <div class="notice notice--warn mb-4">
+    <svg class="icon"><use href="#i-alert"/></svg>
+    <div>
+      <b>تایید خودکار روشن است.</b>
+      محتوای جدید بدون رسیدن به این صف منتشر می‌شود؛ این فهرست فقط آثاری را
+      نشان می‌دهد که پیش از فعال‌شدن این تنظیم ثبت شده‌اند.
+      خاموش‌کردن: پنل ادمین ← Core ← Platform setting.
     </div>
-  {% endif %}
+  </div>
+{% endif %}
 
-  <div class="list">
+{% if tracks %}
+  <div class="card">
     {% for t in tracks %}
-      <div class="item" style="flex-direction:column;align-items:stretch">
-        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
-          <div>
-            <div style="font-weight:900">{{ t.title }}</div>
-            <div class="muted small">Creator: {{ t.creator.username }} • {{ t.content_type }} • {{ t.status }}</div>
+      <article class="review-row">
+        <span class="row-cover"
+              {% if t.cover %}style="background-image:url('{{ t.cover|thumbnail_url:'160x160' }}')"{% endif %}
+              aria-hidden="true"></span>
+
+        <div class="review-row__meta">
+          <div class="cluster cluster--gap-3">
+            <b class="t-sm">{{ t.title }}</b>
+            <span class="status status--info">{{ t.get_content_type_display }}</span>
+            <span class="status status--warn">{{ t.get_status_display }}</span>
           </div>
-          <div class="row row-wrap">
-            <form method="post" action="/moderation/tracks/{{ t.id }}/approve/">
-              {% csrf_token %}
-              <button class="btn btn--primary" type="submit">Approve</button>
-            </form>
-            <form method="post" action="/moderation/tracks/{{ t.id }}/reject/" class="row row-wrap" style="gap:6px">
-              {% csrf_token %}
-              <input type="text" name="reason" placeholder="دلیل رد" style="min-width:180px">
-              <button class="btn" type="submit">Reject</button>
-            </form>
+          <div class="muted t-xs mt-1">
+            <a href="{{ t.creator.profile.profile_url }}">{{ t.creator.profile.public_name }}</a>
+            · <span dir="ltr">{{ t.creator.username }}</span>
+            · <span class="num">{{ t.duration_display }}</span>
+            {% if t.submitted_at %}· ارسال: {{ t.submitted_at|date:"Y/m/d H:i" }}{% endif %}
           </div>
+          {% if t.description %}
+            <p class="muted t-xs lh-body mt-2 clamp-2">{{ t.description }}</p>
+          {% endif %}
         </div>
-        <div class="muted small" style="margin-top:8px">{{ t.description|default:"" }}</div>
-      </div>
-    {% empty %}
-      <div class="item"><span class="muted">هیچ محتوای در صفی وجود ندارد.</span></div>
+
+        <div class="review-row__actions">
+          {% if t.audio %}
+            {% comment %}
+              A reviewer has to hear the audio before deciding. Playing it
+              here rather than opening the track page keeps the queue in
+              front of them.
+            {% endcomment %}
+            <button class="iconbtn" type="button" aria-label="پیش‌گوش"
+                    data-play="1"
+                    data-src="{{ t.audio.url }}"
+                    data-title="{{ t.title }}"
+                    data-by="{{ t.creator.profile.public_name }}"
+                    data-track="{{ t.id }}"
+                    data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">
+              <svg class="icon"><use href="#i-play"/></svg>
+            </button>
+          {% endif %}
+
+          <form method="post" action="{% url 'moderation_approve_track' t.id %}">
+            {% csrf_token %}
+            <button class="btn btn--primary btn--sm" type="submit">
+              <svg class="icon"><use href="#i-check"/></svg>تایید
+            </button>
+          </form>
+
+          <form method="post" action="{% url 'moderation_reject_track' t.id %}" class="cluster cluster--gap-2">
+            {% csrf_token %}
+            <label class="sr-only" for="reason-{{ t.id }}">دلیل رد</label>
+            <input class="review-row__reason" type="text" id="reason-{{ t.id }}" name="reason"
+                   placeholder="دلیل رد (به سازنده نشان داده می‌شود)" maxlength="240">
+            <button class="btn btn--danger btn--sm" type="submit"
+                    data-confirm="این اثر رد می‌شود و دلیل برای سازنده ارسال می‌گردد."
+                    data-confirm-title="رد اثر">رد</button>
+          </form>
+        </div>
+      </article>
     {% endfor %}
   </div>
   {% include "staff/_pagination.html" %}
-</div>
+{% else %}
+  <div class="empty">
+    <div class="empty__icon"><svg class="icon"><use href="#i-check-circle"/></svg></div>
+    <div class="empty__title">صف خالی است</div>
+    <p class="empty__text">هیچ اثری منتظر بررسی نیست.</p>
+  </div>
+{% endif %}
 {% endblock %}

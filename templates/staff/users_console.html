@@ -1,46 +1,88 @@
 {% extends "base.html" %}
+{% block title %}پنل کاربران | کست{% endblock %}
+
 {% block content %}
-<div class="container" style="max-width:1100px;">
-  <h1 style="margin:16px 0;">پنل کاربران</h1>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>کاربران</h1>
+    <p>جستجو و بررسی حساب‌ها.</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost btn--sm" href="{% url 'staff:platform_dashboard' %}">داشبورد</a>
+    <a class="btn btn--ghost btn--sm" href="{% url 'staff:creators_console' %}">سازنده‌ها</a>
+  </div>
+</div>
 
-  <form method="get" style="display:flex; gap:8px; margin-bottom:16px;">
-    <input type="text" name="q" value="{{ q }}" placeholder="جستجو: یوزرنیم، نام، ایمیل، هندل..." style="flex:1; padding:10px; border-radius:10px; border:1px solid #ddd;">
-    <button class="btn btn-primary" type="submit">جستجو</button>
-  </form>
+<form class="card cluster cluster--gap-3 mb-4" method="get">
+  <label class="sr-only" for="userSearch">جستجوی کاربر</label>
+  <input class="flex-1" type="search" id="userSearch" name="q" value="{{ q }}"
+         placeholder="یوزرنیم، نام، ایمیل یا یوزرنیم عمومی…">
+  <button class="btn btn--primary" type="submit">
+    <svg class="icon"><use href="#i-search"/></svg>جستجو
+  </button>
+</form>
 
-  <div style="overflow:auto; border:1px solid #eee; border-radius:12px;">
-    <table style="width:100%; border-collapse:collapse;">
+{% if profiles %}
+  <div class="table-wrap">
+    <table class="table">
       <thead>
-        <tr style="background:#fafafa;">
-          <th style="padding:10px; text-align:right;">کاربر</th>
-          <th style="padding:10px; text-align:right;">ایمیل</th>
-          <th style="padding:10px; text-align:right;">تلفن</th>
-          <th style="padding:10px; text-align:right;">Creator</th>
-          <th style="padding:10px; text-align:right;">هندل</th>
-          <th style="padding:10px; text-align:right;">تعداد محتوا</th>
-          <th style="padding:10px; text-align:right;">پخش معتبر</th>
+        <tr>
+          <th>کاربر</th>
+          <th>ایمیل</th>
+          <th>تلفن</th>
+          <th>وضعیت انتشار</th>
+          <th>یوزرنیم عمومی</th>
+          <th>آثار</th>
+          <th>پخش معتبر</th>
         </tr>
       </thead>
       <tbody>
         {% for p in profiles %}
-          <tr style="border-top:1px solid #eee;">
-            <td style="padding:10px;">
-              <div><strong>{{ p.public_name }}</strong></div>
-              <div style="opacity:.7; font-size:12px;">{{ p.user.username }}</div>
+          <tr>
+            <td>
+              <b>{{ p.public_name }}</b>
+              <div class="muted t-xs" dir="ltr">{{ p.user.username }}</div>
+              {% if not p.user.is_active %}<span class="status status--bad mt-1">تعلیق‌شده</span>{% endif %}
             </td>
-            <td style="padding:10px;">{{ p.user.email }}</td>
-            <td style="padding:10px;">{% if p.phone_number %}{{ p.phone_number|slice:":4" }}***{% else %}-{% endif %}</td>
-            <td style="padding:10px;">{{ p.creator_status }}</td>
-            <td style="padding:10px;">{% if p.public_handle %}<a href="/{{ p.public_handle }}/" target="_blank">/{{ p.public_handle }}/</a>{% else %}-{% endif %}</td>
-            <td style="padding:10px;">{{ p.tracks_count }}</td>
-            <td style="padding:10px;">{{ p.valid_plays|default:0 }}</td>
+            <td class="muted t-xs" dir="ltr">{{ p.user.email|default:"—" }}</td>
+            {% comment %}
+              Phone numbers are masked here on purpose. Staff need to
+              recognise an account, not read back a personal identifier —
+              the full number is one click away on the detail page when
+              there is an actual reason to see it.
+            {% endcomment %}
+            <td class="muted t-xs num" dir="ltr">
+              {% if p.phone_number %}{{ p.phone_number|slice:":4" }}•••{{ p.phone_number|slice:"-2:" }}{% else %}—{% endif %}
+            </td>
+            <td>
+              {% if p.creator_status == "approved" %}
+                <span class="status status--good">فعال</span>
+              {% elif p.creator_status == "pending" %}
+                <span class="status status--warn">در انتظار</span>
+              {% elif p.creator_status == "rejected" %}
+                <span class="status status--bad">رد شده</span>
+              {% else %}
+                <span class="status status--muted">شنونده</span>
+              {% endif %}
+            </td>
+            <td dir="ltr">
+              {% if p.public_handle %}
+                <a href="/{{ p.public_handle }}/" target="_blank" rel="noopener">/{{ p.public_handle }}/</a>
+              {% else %}—{% endif %}
+            </td>
+            <td class="num">{{ p.tracks_count }}</td>
+            <td class="num">{{ p.valid_plays|default:0 }}</td>
           </tr>
-        {% empty %}
-          <tr><td colspan="7" style="padding:14px;">کاربری یافت نشد.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% include "staff/_pagination.html" %}
-</div>
+{% else %}
+  <div class="empty">
+    <div class="empty__icon"><svg class="icon"><use href="#i-search"/></svg></div>
+    <div class="empty__title">کاربری یافت نشد</div>
+    <p class="empty__text">عبارت جستجو را تغییر بده یا فیلترها را بردار.</p>
+  </div>
+{% endif %}
 {% endblock %}

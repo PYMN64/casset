@@ -1,17 +1,47 @@
 {% extends "admin/base_site.html" %}
 {% load static %}
+
+{% comment %}
+  Light-touch skin over Django admin.
+
+  Deliberately not a rewrite: the admin is a staff tool, and every hour
+  spent restyling it is an hour not spent on the product. This only brings
+  the colours in line with the site so switching between the two is not
+  jarring, using the same tokens rather than a second set of hardcoded
+  hexes (which is what this file used to carry).
+{% endcomment %}
+
 {% block extrastyle %}
   {{ block.super }}
+  <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
   <link rel="stylesheet" href="{% static 'app.css' %}">
   <style>
-    body{ background: #0b0a10 !important; color:#fff !important; }
-    #header{ background: rgba(20,18,29,.92) !important; border-bottom:1px solid rgba(255,147,56,.35); }
-    #header a:link, #header a:visited{ color:#fff !important; }
-    .module h2, .module caption, .inline-group h2{ background: rgba(255,147,56,.14) !important; }
-    .button, input[type=submit], input[type=button], .submit-row input{
-      background: linear-gradient(135deg, #ff9338, #ffb978) !important;
-      border: 0 !important; color:#090812 !important; font-weight:900 !important;
+    html { --casset-admin-ink: var(--on-accent); }
+    body {
+      background: var(--bg) !important;
+      color: var(--text) !important;
+      font-family: "Vazirmatn", system-ui, sans-serif;
+    }
+    #header {
+      background: var(--panel) !important;
+      border-bottom: 1px solid rgb(var(--accent-rgb) / .35);
+    }
+    #header a:link, #header a:visited, #branding h1, #branding h1 a { color: var(--text) !important; }
+    .module h2, .module caption, .inline-group h2 {
+      background: var(--tint-accent) !important;
+      color: var(--text) !important;
+    }
+    .button, input[type=submit], input[type=button], .submit-row input {
+      background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
+      border: 0 !important;
+      color: var(--casset-admin-ink) !important;
+      font-weight: 800 !important;
       border-radius: 12px !important;
     }
+    .button.default:hover, input[type=submit]:hover { filter: brightness(1.06); }
+    .deletelink, .submit-row .deletelink {
+      background: var(--bad) !important; color: #fff !important; border-radius: 12px !important;
+    }
+    a:link, a:visited { color: var(--accent2); }
   </style>
 {% endblock %}

@@ -1,46 +1,81 @@
 {% extends "base.html" %}
-{% block title %}آلبوم‌های من • Casset{% endblock %}
+{% load thumbnails %}
+{% block title %}آلبوم‌ها و شوهای من | کست{% endblock %}
+
 {% block content %}
-<div class="grid" style="grid-template-columns: 1.3fr 1fr;">
-  <section class="card">
-    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
-      <div>
-        <h1>آلبوم‌های من</h1>
-        <p class="muted small">برای موزیک یا پادکست آلبوم بساز و موقع آپلود انتخاب کن.</p>
-      </div>
-      <a class="btn btn--primary" href="{% url 'album_create' %}">آلبوم جدید</a>
-    </div>
-
-    <div class="list" style="margin-top:12px">
-      {% for a in albums %}
-        <div class="row">
-          <div style="min-width:0">
-            <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.title }}</div>
-            <div class="muted small">{{ a.get_content_type_display }} • {{ a.track_count }} ترک{% if not a.is_public %} • خصوصی{% endif %}</div>
-          </div>
-          <div class="row row-wrap">
-            <a class="btn btn--ghost" href="{% url 'show_detail' a.id %}">مشاهده</a>
-            {% if a.content_type == "podcast" %}
-              <a class="btn btn--ghost" href="{% url 'show_rss' a.id %}">RSS</a>
-            {% endif %}
-            <a class="btn btn--ghost" href="{% url 'album_edit' a.id %}">ویرایش</a>
-            <form method="post" action="{% url 'album_delete' a.id %}"
-                  onsubmit="return confirm('آلبوم «{{ a.title }}» حذف شود؟ ترک‌ها دست‌نخورده باقی می‌مانند.')">
-              {% csrf_token %}
-              <button class="btn btn--ghost" type="submit" style="color:#e53">حذف</button>
-            </form>
-          </div>
-        </div>
-      {% empty %}
-        <div class="row"><span class="muted">هنوز آلبومی نساختی.</span></div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <aside class="card">
-    <h2>نکته</h2>
-    <p class="muted small">در MVP، آلبوم فقط برای محتوای صوتی (موزیک/پادکست) فعال است.</p>
-    <p class="muted small">حذف آلبوم ترک‌های داخل آن را حذف نمی‌کند — فقط آلبوم را از ترک جدا می‌کند.</p>
-  </aside>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>آلبوم‌ها و شوها</h1>
+    <p>مجموعه بساز و موقع آپلود، اثرت را داخلش قرار بده.</p>
+  </div>
+  <a class="btn btn--primary btn--sm" href="{% url 'album_create' %}">
+    <svg class="icon"><use href="#i-plus"/></svg>مجموعه جدید
+  </a>
 </div>
+
+{% if albums %}
+  <div class="card-grid">
+    {% for a in albums %}
+      <article class="album-card">
+        <a class="mini-card__cover" href="{% url 'show_detail' a.id %}"
+           {% if a.cover %}style="background-image:url('{{ a.cover|thumbnail_url:'400x400' }}')"{% endif %}
+           aria-hidden="true">
+          {% if not a.cover %}
+            <svg class="icon"><use href="{% if a.content_type == 'podcast' %}#i-mic{% else %}#i-disc{% endif %}"/></svg>
+          {% endif %}
+        </a>
+
+        <a class="mini-card__title truncate" href="{% url 'show_detail' a.id %}">{{ a.title }}</a>
+        <div class="muted t-xs mb-2">
+          {{ a.get_content_type_display }} · <span class="num">{{ a.track_count }}</span> اثر
+        </div>
+
+        <div class="cluster">
+          {% if a.is_public %}
+            <span class="status status--good">عمومی</span>
+          {% else %}
+            <span class="status status--muted"><svg class="icon icon--xs"><use href="#i-lock"/></svg>خصوصی</span>
+          {% endif %}
+
+          <span class="mis-auto cluster">
+            {% if a.content_type == "podcast" %}
+              <a class="iconbtn btn--sm" href="{% url 'show_rss' a.id %}" aria-label="فید RSS" title="فید RSS">
+                <svg class="icon"><use href="#i-external"/></svg>
+              </a>
+            {% endif %}
+            <a class="iconbtn btn--sm" href="{% url 'album_edit' a.id %}" aria-label="ویرایش">
+              <svg class="icon"><use href="#i-edit"/></svg>
+            </a>
+            <form method="post" action="{% url 'album_delete' a.id %}">
+              {% csrf_token %}
+              <button class="iconbtn btn--sm iconbtn--danger" type="submit" aria-label="حذف مجموعه"
+                      data-confirm="مجموعه «{{ a.title }}» حذف می‌شود. آثار داخل آن حذف نمی‌شوند — فقط از این مجموعه جدا می‌شوند."
+                      data-confirm-title="حذف مجموعه">
+                <svg class="icon"><use href="#i-trash"/></svg>
+              </button>
+            </form>
+          </span>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+
+  <div class="notice mt-5">
+    <svg class="icon"><use href="#i-mic"/></svg>
+    <div>
+      یک مجموعه از نوع <b>پادکست</b> یک فید <b>RSS</b> استاندارد می‌گیرد — همان چیزی
+      که برای انتشار در اپل پادکست، گوگل پادکست و بقیه‌ی اپ‌ها لازم است.
+    </div>
+  </div>
+{% else %}
+  <div class="empty">
+    <div class="empty__icon"><svg class="icon"><use href="#i-disc"/></svg></div>
+    <div class="empty__title">هنوز مجموعه‌ای نساخته‌ای</div>
+    <p class="empty__text">
+      آلبوم برای موزیک و «شو» برای پادکست. مجموعه‌ی پادکست فید RSS هم می‌گیرد تا
+      در اپل و گوگل پادکست منتشر شود.
+    </p>
+    <a class="btn btn--primary" href="{% url 'album_create' %}">ساخت اولین مجموعه</a>
+  </div>
+{% endif %}
 {% endblock %}
