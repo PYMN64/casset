@@ -2,7 +2,15 @@
 
 from django.contrib import admin
 
-from .models import Comment, CommentLike, CreatorBlock, CreatorFollow, TrackFavorite, TrackLike
+from .models import (
+    Comment,
+    CommentLike,
+    CreatorBlock,
+    CreatorFollow,
+    Repost,
+    TrackFavorite,
+    TrackLike,
+)
 
 
 @admin.register(Comment)
@@ -52,6 +60,16 @@ class CreatorFollowAdmin(admin.ModelAdmin):
 
 @admin.register(TrackFavorite)
 class TrackFavoriteAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "track", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("user__username", "track__title")
+    autocomplete_fields = ("user", "track")
+    readonly_fields = ("created_at",)
+    ordering = ("-created_at",)
+
+
+@admin.register(Repost)
+class RepostAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "track", "created_at")
     list_filter = ("created_at",)
     search_fields = ("user__username", "track__title")

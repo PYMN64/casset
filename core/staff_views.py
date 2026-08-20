@@ -1,12 +1,17 @@
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth import get_user_model
 from django.db.models import Count, Q, Sum
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from accounts.models import UserProfile
 from billing.models import Invoice, PayoutRequest
+from moderation import services as moderation_services
 from moderation.models import Report
 from plays.models import PlayEvent, PointLedger
 from tracks.models import Track
+
+User = get_user_model()
 
 
 @staff_member_required
@@ -81,6 +86,16 @@ def creator_detail(request, user_id: int):
         "staff/creator_detail.html",
         {"profile": profile, "tracks": tracks, "totals": totals},
     )
+
+
+@staff_member_required
+@require_POST
+def toggle_verified(request, user_id: int):
+    user = get_object_or_404(User, id=user_id)
+    moderation_services.set_verified(
+        user=user, actor=request.user, verified=not user.profile.is_verified,
+    )
+    return redirect("staff:creator_detail", user_id=user_id)
 
 
 @staff_member_required

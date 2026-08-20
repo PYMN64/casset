@@ -17,7 +17,7 @@ from django.db import IntegrityError, transaction
 
 from tracks.models import Track
 
-from .models import Comment, CommentLike, CreatorBlock, TrackFavorite
+from .models import Comment, CommentLike, CreatorBlock, Repost, TrackFavorite
 
 logger = logging.getLogger("casset.interactions")
 
@@ -121,6 +121,29 @@ def toggle_favorite(*, user, track: Track) -> ToggleResult:
         active = False
 
     count = TrackFavorite.objects.filter(track=track).count()
+    return ToggleResult(ok=True, active=active, count=count)
+
+
+# ---------------------------------------------------------------------------
+# Repost
+# ---------------------------------------------------------------------------
+
+def toggle_repost(*, user, track: Track) -> ToggleResult:
+    if not _track_visible_to(track, user):
+        return ToggleResult(ok=False, reason="not_found")
+    if track.creator_id == user.id:
+        return ToggleResult(ok=False, reason="cannot_repost_own_track")
+
+    try:
+        with transaction.atomic():
+            Repost.objects.create(user=user, track=track)
+        active = True
+    except IntegrityError:
+        with transaction.atomic():
+            Repost.objects.filter(user=user, track=track).delete()
+        active = False
+
+    count = Repost.objects.filter(track=track).count()
     return ToggleResult(ok=True, active=active, count=count)
 
 

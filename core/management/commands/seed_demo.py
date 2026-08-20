@@ -17,9 +17,14 @@ Usage
     python manage.py seed_demo --flush-demo   # remove previously seeded data first
 """
 
+import io
+import math
 import random
+import struct
+import wave
 
 from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
@@ -62,6 +67,24 @@ COMMENTS = [
 ]
 
 GENRES = ["پاپ", "سنتی", "راک", "الکترونیک", "کلاسیک", "رپ", "جز", "فولک"]
+
+
+def _make_tone_wav_bytes(seconds=3, freq=440, samplerate=8000):
+    """A short, genuinely decodable sine-wave WAV — attached to every
+    seeded track so play/download/embed/waveform can actually be exercised
+    in a browser instead of hiding behind {% if track.audio %}, and so
+    tracks.tasks.generate_waveform_task has something real to decode."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(samplerate)
+        n = seconds * samplerate
+        w.writeframes(b"".join(
+            struct.pack("<h", int(32767 * 0.6 * math.sin(2 * math.pi * freq * i / samplerate)))
+            for i in range(n)
+        ))
+    return buf.getvalue()
 
 
 class Command(BaseCommand):
@@ -143,6 +166,9 @@ class Command(BaseCommand):
     # -- tracks -----------------------------------------------------------
 
     def _create_tracks(self, creators, genres, rng):
+        from tracks.audio_processing import extract_waveform_peaks
+
+        tone_bytes = _make_tone_wav_bytes()
         tracks = []
         for creator in creators:
             for _ in range(rng.randint(1, 5)):
@@ -158,6 +184,9 @@ class Command(BaseCommand):
                     visibility=Track.Visibility.PUBLIC,
                     published_at=timezone.now() - timezone.timedelta(days=rng.randint(0, 60)),
                 )
+                track.audio.save("demo-tone.wav", ContentFile(tone_bytes), save=False)
+                track.waveform_peaks = extract_waveform_peaks(io.BytesIO(tone_bytes))
+                track.save(update_fields=["audio", "waveform_peaks"])
                 track.genres.add(rng.choice(genres))
                 tracks.append(track)
 

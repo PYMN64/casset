@@ -27,7 +27,10 @@
       </div>
 
       <div class="profile-meta">
-        <h1 class="profile-name">{{ profile.public_name }}</h1>
+        <h1 class="profile-name">
+          {{ profile.public_name }}
+          {% if profile.is_verified %}<span class="verified-badge" title="Creator تاییدشده">✔</span>{% endif %}
+        </h1>
         <div class="profile-handle">@{{ user_obj.username }}</div>
         {% if profile.bio %}<div class="profile-bio">{{ profile.bio }}</div>{% endif %}
       </div>
@@ -36,6 +39,12 @@
         <button class="btn btn--primary" data-follow="1" data-creator="{{ user_obj.username }}">
           دنبال کردن <span class="muted" id="followCount">{{ stats.followers }}</span>
         </button>
+      {% endif %}
+
+      {% if tracks %}
+        <a class="btn btn--ghost" href="#" data-station="1" data-station-user="{{ user_obj.username }}">
+          📻 رادیو
+        </a>
       {% endif %}
 
       {% if request.user.is_authenticated and request.user.id != user_obj.id %}
@@ -77,7 +86,7 @@
     <div class="track-list">
       {% for t in tracks %}
         <div class="track-row">
-          <button class="play-btn" data-play="{{ t.id }}" data-src="{{ t.audio_src }}" data-title="{{ t.title }}" data-cover="{{ t.cover_src }}" title="پخش">▶</button>
+          <button class="play-btn" data-play="1" data-track="{{ t.id }}" data-src="{{ t.audio_src }}" data-title="{{ t.title }}" data-by="@{{ user_obj.username }}" data-peaks="{{ t.waveform_peaks|jsonify }}" data-cover="{% if t.cover %}<img src='{{ t.cover.url }}' />{% endif %}" title="پخش">▶</button>
           <div class="track-info">
             <a class="track-title" href="{% url 'track_detail' slug=t.slug %}">{{ t.title }}</a>
             <div class="muted small">{{ t.created_at|date:"Y-m-d" }} • {{ t.play_count }} پخش • {{ t.like_count }} لایک</div>

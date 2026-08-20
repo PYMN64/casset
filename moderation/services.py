@@ -180,6 +180,27 @@ def suspend_user(*, user, actor, reason: str = "") -> bool:
     return True
 
 
+def set_verified(*, user, actor, verified: bool) -> bool:
+    """Grant/revoke the verified badge. Idempotent — setting the same value
+    twice is a no-op returning False, same convention as the rest of this
+    module (approve_track, suspend_user, ...)."""
+    profile = user.profile
+    if profile.is_verified == verified:
+        return False
+
+    profile.is_verified = verified
+    profile.save(update_fields=["is_verified"])
+
+    AuditLog.objects.create(
+        actor=actor,
+        target_type=AuditLog.TargetType.PROFILE,
+        target_user=user,
+        action="set_verified" if verified else "unset_verified",
+    )
+    logger.info("set_verified: user=%s verified=%s actor=%s", user.pk, verified, getattr(actor, "pk", None))
+    return True
+
+
 def unsuspend_user(*, user, actor) -> bool:
     if user.is_active:
         return False

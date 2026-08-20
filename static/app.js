@@ -138,12 +138,12 @@ function attachCountAfterSeconds(audioEl, getTrackId, seconds) {
   audioEl.addEventListener("ended", clearTimer);
 }
 
-// Decorative waveform bars in the playerbar (#pbWave, see base.html). Not
-// real peaks from the audio file — that needs server-side decoding (ffmpeg/
-// pydub), a real system dependency this project doesn't carry yet. This is
-// a CSS-animated bar row that just reflects play/pause state, styled to
-// read as a waveform at a glance. Swappable for real peaks later without
-// touching this call site.
+// Waveform in the playerbar (#pbWave, see base.html). Renders real decoded
+// peaks (tracks/audio_processing.py, generated async on upload) when a
+// track has them; falls back to the CSS-pulse placeholder bars otherwise
+// (older tracks, or a track whose waveform job hasn't finished yet).
+const WAVE_BAR_COUNT = 16; // matches the placeholder markup in base.html
+
 function hookWaveformAnimation(audioEl) {
   const wave = document.getElementById("pbWave");
   if (!wave) return;
@@ -151,6 +151,49 @@ function hookWaveformAnimation(audioEl) {
   audioEl.addEventListener("play", () => setPlaying(true));
   audioEl.addEventListener("pause", () => setPlaying(false));
   audioEl.addEventListener("ended", () => setPlaying(false));
+
+  audioEl.addEventListener("timeupdate", () => {
+    if (!wave.classList.contains("wave-real") || !audioEl.duration) return;
+    updateWaveformProgress(wave, audioEl.currentTime / audioEl.duration);
+  });
+
+  wave.addEventListener("click", (e) => {
+    if (!wave.classList.contains("wave-real") || !audioEl.duration) return;
+    const rect = wave.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    audioEl.currentTime = ratio * audioEl.duration;
+    updateWaveformProgress(wave, ratio);
+  });
+}
+
+function renderDecorativeWave(wave) {
+  wave.classList.remove("wave-real");
+  wave.innerHTML = Array.from({ length: WAVE_BAR_COUNT }).map(() => "<span></span>").join("");
+}
+
+function renderWaveform(wave, peaks) {
+  if (!Array.isArray(peaks) || peaks.length === 0) {
+    renderDecorativeWave(wave);
+    return;
+  }
+  wave.classList.remove("is-playing");
+  wave.classList.add("wave-real");
+
+  const barsHtml = peaks
+    .map((p) => `<span style="height:${Math.max(10, Math.round(p * 100))}%"></span>`)
+    .join("");
+
+  wave.innerHTML = `
+    <div class="wave-row wave-row--base">${barsHtml}</div>
+    <div class="wave-row--progress" style="width:0%">
+      <div class="wave-row wave-row--progress-inner" style="width:${wave.clientWidth}px">${barsHtml}</div>
+    </div>
+  `;
+}
+
+function updateWaveformProgress(wave, ratio) {
+  const progress = wave.querySelector(".wave-row--progress");
+  if (progress) progress.style.width = `${Math.min(100, Math.max(0, ratio * 100))}%`;
 }
 
 // ---------- Global player + Queue state ----------
@@ -230,7 +273,7 @@ function setQueue(items, index) {
   saveQueueState();
 }
 
-function openPlayerBar({ src, title, by, coverHtml, trackId }) {
+function openPlayerBar({ src, title, by, coverHtml, trackId, peaks }) {
   const bar = document.getElementById("playerbar");
   const audio = getAudioEl();
   if (!audio || !bar) return;
@@ -238,10 +281,12 @@ function openPlayerBar({ src, title, by, coverHtml, trackId }) {
   const pbTitle = document.getElementById("pbTitle");
   const pbBy = document.getElementById("pbBy");
   const pbCover = document.getElementById("pbCover");
+  const pbWave = document.getElementById("pbWave");
 
   if (pbTitle) pbTitle.textContent = title || "—";
   if (pbBy) pbBy.textContent = by || "—";
   if (pbCover) pbCover.innerHTML = coverHtml || "";
+  if (pbWave) renderWaveform(pbWave, peaks);
 
   window.__nowTrackId = trackId || null;
 
@@ -377,13 +422,20 @@ function buildQueueFromContext(clickedBtn) {
   const buttons = Array.from(container.querySelectorAll("[data-play]")).filter(b => b.dataset && b.dataset.src);
   const finalButtons = buttons.length > 1 ? buttons : Array.from(document.querySelectorAll("[data-play]")).filter(b => b.dataset && b.dataset.src);
 
-  const items = finalButtons.map(b => ({
-    src: b.dataset.src,
-    title: b.dataset.title || "—",
-    by: b.dataset.by || "—",
-    coverHtml: b.dataset.cover || "",
-    trackId: b.dataset.track || null,
-  }));
+  const items = finalButtons.map(b => {
+    let peaks = [];
+    if (b.dataset.peaks) {
+      try { peaks = JSON.parse(b.dataset.peaks); } catch (_) { peaks = []; }
+    }
+    return {
+      src: b.dataset.src,
+      title: b.dataset.title || "—",
+      by: b.dataset.by || "—",
+      coverHtml: b.dataset.cover || "",
+      trackId: b.dataset.track || null,
+      peaks,
+    };
+  });
   const idx = finalButtons.indexOf(clickedBtn);
   return { items, index: idx >= 0 ? idx : 0 };
 }
@@ -424,6 +476,24 @@ async function handleFavorite(btn) {
   btn.classList.toggle("primary", !!data.favorited);
   btn.setAttribute("aria-pressed", data.favorited ? "true" : "false");
   showToast(data.favorited ? "به علاقه‌مندی‌ها اضافه شد ★" : "از علاقه‌مندی‌ها حذف شد", true);
+}
+
+async function handleRepost(btn) {
+  const trackId = btn.dataset.track;
+  if (!trackId) return;
+
+  const data = await postForm("/api/v1/repost/", { track_id: trackId });
+  if (!data || !data.ok) {
+    if (data && data.reason === "cannot_repost_own_track") showToast("ترک خودت رو نمی‌تونی بازنشر کنی", false);
+    return;
+  }
+
+  const countEl = document.getElementById("repostCount");
+  if (countEl) countEl.textContent = data.repost_count;
+
+  btn.classList.toggle("primary", !!data.reposted);
+  btn.setAttribute("aria-pressed", data.reposted ? "true" : "false");
+  showToast(data.reposted ? "بازنشر شد 🔁" : "بازنشر برداشته شد", true);
 }
 
 async function handleBlockToggle(btn) {
@@ -582,7 +652,7 @@ async function loadMyPlaylistsIntoModal() {
   }
   const pls = data.playlists || [];
   if (!pls.length) {
-    list.innerHTML = `<div class="item"><span class="muted">پلی‌لیستی نداری. از Library بساز.</span></div>`;
+    list.innerHTML = `<div class="item"><span class="muted">پلی‌لیستی نداری. از کتابخانه بساز.</span></div>`;
     return;
   }
   list.innerHTML = pls.map(p => `
@@ -591,7 +661,7 @@ async function loadMyPlaylistsIntoModal() {
         <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
         <div class="muted" style="font-size:12px">${p.item_count} tracks</div>
       </div>
-      <a class="btn" href="#" data-pl-toggle="1" data-playlist="${p.id}">Add/Remove</a>
+      <a class="btn" href="#" data-pl-toggle="1" data-playlist="${p.id}">افزودن/حذف</a>
     </div>
   `).join("");
 }
@@ -599,6 +669,80 @@ async function toggleTrackInPlaylist(playlistId, trackId) {
   const data = await postForm("/api/v1/playlist/toggle-track/", { playlist_id: playlistId, track_id: trackId });
   if (!data || !data.ok) { showToast("انجام نشد ❌", false); return; }
   showToast(data.added ? "به پلی‌لیست اضافه شد ✅" : "از پلی‌لیست حذف شد ✅", true);
+}
+
+// ---------- Library page: create / delete playlist, remove item ----------
+async function handlePlaylistCreate(form) {
+  const input = form.querySelector('[name="name"]');
+  const name = (input && input.value || "").trim();
+  if (!name) return;
+  const data = await postForm("/api/v1/playlist/create/", { name });
+  if (!data || !data.ok) { showToast("ساخت پلی‌لیست انجام نشد ❌", false); return; }
+  showToast("پلی‌لیست ساخته شد ✅", true);
+  window.location.reload();
+}
+
+async function handlePlaylistDelete(form) {
+  const pid = form.dataset.playlist;
+  if (!pid) return;
+  const data = await postForm("/api/v1/playlist/delete/", { playlist_id: pid });
+  if (!data || !data.ok) { showToast("حذف انجام نشد ❌", false); return; }
+  showToast("پلی‌لیست حذف شد ✅", true);
+  const row = document.querySelector(`[data-pl-row="${pid}"]`);
+  if (row) { row.remove(); } else { window.location.href = "/library/"; }
+}
+
+async function handlePlaylistRemoveItem(btn) {
+  const pid = btn.dataset.playlist;
+  const tid = btn.dataset.track;
+  const rowId = btn.dataset.row;
+  if (!pid || !tid) return;
+  const data = await postForm("/api/v1/playlist/toggle-track/", { playlist_id: pid, track_id: tid });
+  if (!data || !data.ok) { showToast("حذف انجام نشد ❌", false); return; }
+  showToast("از پلی‌لیست حذف شد ✅", true);
+  const row = document.querySelector(`[data-pl-item-row="${rowId}"]`);
+  if (row) row.remove();
+}
+
+// ---------- Embed snippet modal ----------
+function embedModalOpen(trackSlug) {
+  const modal = document.getElementById("embedModal");
+  const code = document.getElementById("embedCode");
+  if (!modal || !code || !trackSlug) return;
+  const src = `${window.location.origin}/embed/t/${encodeURIComponent(trackSlug)}/`;
+  code.value = `<iframe src="${src}" width="100%" height="120" frameborder="0" loading="lazy"></iframe>`;
+  modal.style.display = "flex";
+}
+function embedModalClose() {
+  const modal = document.getElementById("embedModal");
+  if (modal) modal.style.display = "none";
+}
+function embedCopyCode() {
+  const code = document.getElementById("embedCode");
+  if (!code) return;
+  code.select();
+  navigator.clipboard?.writeText(code.value).then(
+    () => showToast("کد کپی شد ✅", true),
+    () => showToast("کپی نشد — دستی کپی کن", false)
+  );
+}
+
+// ---------- Station (continuous play from one artist) ----------
+async function handleStationPlay(btn) {
+  const username = btn.dataset.stationUser;
+  if (!username) return;
+  const excludeId = btn.dataset.stationExclude || "";
+
+  showToast("در حال ساخت رادیو…", true);
+  const url = `/api/v1/station/${encodeURIComponent(username)}/` + (excludeId ? `?exclude=${excludeId}` : "");
+  const data = await getJSON(url);
+  if (!data || !data.ok || !data.items.length) {
+    showToast("ترک قابل‌پخشی برای رادیو پیدا نشد", false);
+    return;
+  }
+  setQueue(data.items, 0);
+  playAt(0);
+  showToast(`رادیوی @${username} شروع شد 📻`, true);
 }
 
 // ---------- Search ----------
@@ -620,19 +764,19 @@ function renderSearchResults(data) {
 
   let html = "";
   if (tracks.length) {
-    html += `<div class="item"><b>Tracks</b></div>`;
-    tracks.forEach(t => html += `<div class="item"><a href="/t/${t.slug}/" style="font-weight:900">${t.title}</a><span class="muted" style="font-size:12px">@${t["creator__username"]} • ${t.play_count} plays</span></div>`);
+    html += `<div class="item"><b>ترک‌ها</b></div>`;
+    tracks.forEach(t => html += `<div class="item"><a href="/t/${t.slug}/" style="font-weight:900">${t.title}</a><span class="muted" style="font-size:12px">@${t["creator__username"]} • ${t.play_count} پخش</span></div>`);
   }
   if (creators.length) {
-    html += `<div class="item"><b>Creators</b></div>`;
+    html += `<div class="item"><b>سازنده‌ها</b></div>`;
     creators.forEach(u => {
       const fc = u["profile__follower_count"] ?? 0;
-      html += `<div class="item"><a href="/artist/${u.username}/" style="font-weight:900">@${u.username}</a><span class="muted" style="font-size:12px">${fc} followers</span></div>`;
+      html += `<div class="item"><a href="/artist/${u.username}/" style="font-weight:900">@${u.username}</a><span class="muted" style="font-size:12px">${fc} دنبال‌کننده</span></div>`;
     });
   }
   if (genres.length) {
-    html += `<div class="item"><b>Genres</b></div>`;
-    genres.forEach(g => html += `<div class="item"><a href="/tracks/?genre=${g.slug}" style="font-weight:900">${g.name}</a><span class="muted" style="font-size:12px">open</span></div>`);
+    html += `<div class="item"><b>ژانرها</b></div>`;
+    genres.forEach(g => html += `<div class="item"><a href="/tracks/?genre=${g.slug}" style="font-weight:900">${g.name}</a><span class="muted" style="font-size:12px">مشاهده</span></div>`);
   }
   box.innerHTML = html;
 }
@@ -678,10 +822,11 @@ function renderQueuePanel() {
   if (!list) return;
 
   const q = window.__queue || [];
-  if (meta) meta.textContent = `Shuffle: ${window.__shuffle ? "ON" : "OFF"} • Repeat: ${window.__repeat.toUpperCase()} • ${q.length} tracks`;
+  const repeatFa = { off: "خاموش", all: "همه", one: "یکی" }[window.__repeat] || "خاموش";
+  if (meta) meta.textContent = `شافل: ${window.__shuffle ? "روشن" : "خاموش"} • تکرار: ${repeatFa} • ${q.length} ترک`;
 
   if (!q.length) {
-    list.innerHTML = `<div class="item"><span class="muted">Queue خالیه.</span></div>`;
+    list.innerHTML = `<div class="item"><span class="muted">صف پخش خالی است.</span></div>`;
     return;
   }
 
@@ -693,7 +838,7 @@ function renderQueuePanel() {
           <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.title || "—"}</div>
           <div class="muted" style="font-size:12px">${it.by || ""}</div>
         </div>
-        <a class="btn ${active ? "primary" : ""}" href="#" data-q-play="1" data-q-index="${i}">${active ? "Playing" : "Play"}</a>
+        <a class="btn ${active ? "primary" : ""}" href="#" data-q-play="1" data-q-index="${i}">${active ? "در حال پخش" : "پخش"}</a>
       </div>
     `;
   }).join("");
@@ -856,6 +1001,20 @@ document.addEventListener("click", (e) => {
   const favoriteBtn = e.target.closest("[data-favorite]");
   if (favoriteBtn) { e.preventDefault(); handleFavorite(favoriteBtn); return; }
 
+  const repostBtn = e.target.closest("[data-repost]");
+  if (repostBtn) { e.preventDefault(); handleRepost(repostBtn); return; }
+
+  const stationBtn = e.target.closest("[data-station]");
+  if (stationBtn) { e.preventDefault(); handleStationPlay(stationBtn); return; }
+
+  const embedOpenBtn = e.target.closest("[data-embed-open]");
+  if (embedOpenBtn) { e.preventDefault(); embedModalOpen(embedOpenBtn.dataset.slug); return; }
+
+  if (e.target && e.target.id === "embedClose") { e.preventDefault(); embedModalClose(); return; }
+  if (e.target && e.target.id === "embedCopyBtn") { e.preventDefault(); embedCopyCode(); return; }
+  const embedModal = document.getElementById("embedModal");
+  if (embedModal && e.target === embedModal) { e.preventDefault(); embedModalClose(); return; }
+
   const blockBtn = e.target.closest("[data-block]");
   if (blockBtn) { e.preventDefault(); handleBlockToggle(blockBtn); return; }
 
@@ -894,11 +1053,20 @@ document.addEventListener("click", (e) => {
   if (e.target && e.target.id === "plClose") { e.preventDefault(); plModalClose(); return; }
   const plModal = document.getElementById("plModal");
   if (plModal && e.target === plModal) { e.preventDefault(); plModalClose(); return; }
+
+  const plRemoveBtn = e.target.closest("[data-pl-remove]");
+  if (plRemoveBtn) { e.preventDefault(); handlePlaylistRemoveItem(plRemoveBtn); return; }
 });
 
 document.addEventListener("submit", (e) => {
   const commentForm = e.target.closest("[data-comment-form]");
   if (commentForm) { e.preventDefault(); handleCommentSubmit(commentForm); return; }
+
+  const plCreateForm = e.target.closest("[data-pl-create-form]");
+  if (plCreateForm) { e.preventDefault(); handlePlaylistCreate(plCreateForm); return; }
+
+  const plDeleteForm = e.target.closest("[data-pl-delete-form]");
+  if (plDeleteForm) { e.preventDefault(); handlePlaylistDelete(plDeleteForm); return; }
 });
 
 // ---------- Boot ----------

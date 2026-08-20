@@ -325,3 +325,266 @@ class PersianSlugRoutingTests(TestCase):
         )
         resp = self.client.get(reverse("track_detail", args=[ascii_track.slug]))
         self.assertEqual(resp.status_code, 200)
+
+
+# ---------------------------------------------------------------------------
+# Waveform peak extraction (tracks/audio_processing.py)
+# ---------------------------------------------------------------------------
+
+def _make_real_wav_file(name="tone.wav", seconds=1, freq=440, samplerate=8000):
+    """A genuinely decodable WAV — a sine wave written with the stdlib
+    `wave` module. Unlike the ID3-header-only fixtures elsewhere in this
+    file (fine for MIME-sniffing tests), waveform extraction needs audio
+    soundfile can actually decode."""
+    import math
+    import struct
+    import wave as wave_module
+
+    buf = io.BytesIO()
+    with wave_module.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(samplerate)
+        n_samples = seconds * samplerate
+        frames = b"".join(
+            struct.pack("<h", int(32767 * math.sin(2 * math.pi * freq * i / samplerate)))
+            for i in range(n_samples)
+        )
+        w.writeframes(frames)
+    buf.seek(0)
+    return SimpleUploadedFile(name, buf.read(), content_type="audio/wav")
+
+
+class ExtractWaveformPeaksTests(TestCase):
+    def test_real_audio_returns_normalized_peaks(self):
+        from .audio_processing import extract_waveform_peaks
+
+        wav = _make_real_wav_file()
+        peaks = extract_waveform_peaks(wav, num_points=50)
+        self.assertEqual(len(peaks), 50)
+        self.assertAlmostEqual(max(peaks), 1.0, places=2)
+        self.assertTrue(all(0.0 <= p <= 1.0 for p in peaks))
+
+    def test_garbage_input_returns_empty_list(self):
+        from .audio_processing import extract_waveform_peaks
+
+        garbage = io.BytesIO(b"not audio data at all")
+        self.assertEqual(extract_waveform_peaks(garbage), [])
+
+    def test_silence_does_not_divide_by_zero(self):
+        from .audio_processing import extract_waveform_peaks
+
+        buf = io.BytesIO()
+        import wave as wave_module
+        with wave_module.open(buf, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(8000)
+            w.writeframes(b"\x00\x00" * 8000)
+        buf.seek(0)
+        peaks = extract_waveform_peaks(buf, num_points=20)
+        self.assertEqual(peaks, [0.0] * 20)
+
+
+class GenerateWaveformTaskTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("waveform_creator")
+
+    def test_task_populates_peaks_for_real_audio(self):
+        from .tasks import generate_waveform_task
+
+        track = Track.objects.create(
+            creator=self.creator, title="Tone", content_type="music",
+            audio=_make_real_wav_file(),
+        )
+        self.assertEqual(track.waveform_peaks, [])
+        generate_waveform_task(track_id=track.id)
+        track.refresh_from_db()
+        self.assertGreater(len(track.waveform_peaks), 0)
+
+    def test_task_is_a_noop_for_track_without_audio(self):
+        from .tasks import generate_waveform_task
+
+        track = Track.objects.create(creator=self.creator, title="No audio", content_type="music")
+        generate_waveform_task(track_id=track.id)  # must not raise
+        track.refresh_from_db()
+        self.assertEqual(track.waveform_peaks, [])
+
+    def test_task_handles_missing_track_silently(self):
+        from .tasks import generate_waveform_task
+
+        generate_waveform_task(track_id=999999)  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# Embed widget
+# ---------------------------------------------------------------------------
+
+class TrackEmbedViewTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("embed_creator")
+        self.track = Track.objects.create(
+            creator=self.creator, title="Embed Me", content_type="music",
+            status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
+            audio=_make_real_wav_file(),
+        )
+
+    def test_embed_page_loads(self):
+        resp = self.client.get(reverse("track_embed", args=[self.track.slug]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Embed Me")
+
+    def test_embed_has_no_xframe_options_header(self):
+        resp = self.client.get(reverse("track_embed", args=[self.track.slug]))
+        self.assertNotIn("X-Frame-Options", resp)
+
+    def test_regular_track_page_still_blocks_framing(self):
+        resp = self.client.get(reverse("track_detail", args=[self.track.slug]))
+        self.assertIn("X-Frame-Options", resp)
+
+    def test_private_track_embed_404s(self):
+        private = Track.objects.create(
+            creator=self.creator, title="Secret", content_type="music",
+            status=Track.Status.APPROVED, visibility=Track.Visibility.PRIVATE,
+        )
+        resp = self.client.get(reverse("track_embed", args=[private.slug]))
+        self.assertEqual(resp.status_code, 404)
+
+
+# ---------------------------------------------------------------------------
+# can_download regression (tracks/views.py::track_detail)
+#
+# The template gated the download button on {% if can_download %}, but the
+# view never put that key in the context — so the download button never
+# rendered for anyone, VIP or not, even though uploads.views.download_track
+# itself worked fine if a user found the URL some other way.
+# ---------------------------------------------------------------------------
+
+class CanDownloadRegressionTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("dl_creator")
+        self.track = Track.objects.create(
+            creator=self.creator, title="Downloadable", content_type="music",
+            status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
+            audio=_make_real_wav_file(),
+        )
+
+    def test_non_vip_user_sees_no_download_button(self):
+        make_user("dl_listener_free")
+        self.client.login(username="dl_listener_free", password="pass12345")
+        resp = self.client.get(reverse("track_detail", args=[self.track.slug]))
+        self.assertFalse(resp.context["can_download"])
+        self.assertNotContains(resp, "دانلود")
+
+    def test_vip_user_sees_download_button(self):
+        from billing.models import Invoice, Plan
+
+        listener = make_user("dl_listener_vip")
+        plan = Plan.objects.create(code="vip", title="VIP", price=0, duration_days=30)
+        inv = Invoice.objects.create(user=listener, plan=plan, amount=0)
+        inv.mark_paid()
+
+        self.client.login(username="dl_listener_vip", password="pass12345")
+        resp = self.client.get(reverse("track_detail", args=[self.track.slug]))
+        self.assertTrue(resp.context["can_download"])
+        self.assertContains(resp, "دانلود")
+
+
+# ---------------------------------------------------------------------------
+# Show detail + podcast RSS feed (tracks/feeds.py)
+# ---------------------------------------------------------------------------
+
+class ShowDetailViewTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("show_creator")
+        self.album = Album.objects.create(
+            creator=self.creator, title="My Podcast", content_type=Album.ContentType.PODCAST,
+            is_public=True,
+        )
+        self.episode = Track.objects.create(
+            creator=self.creator, title="Episode 1", content_type="podcast", album=self.album,
+            status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
+            audio=_make_real_wav_file(), duration_seconds=125,
+        )
+
+    def test_public_show_page_loads_with_episode(self):
+        resp = self.client.get(reverse("show_detail", args=[self.album.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "My Podcast")
+        self.assertContains(resp, "Episode 1")
+
+    def test_rss_link_shown_for_podcast(self):
+        resp = self.client.get(reverse("show_detail", args=[self.album.id]))
+        self.assertContains(resp, reverse("show_rss", args=[self.album.id]))
+
+    def test_private_show_404s_for_stranger(self):
+        self.album.is_public = False
+        self.album.save(update_fields=["is_public"])
+        resp = self.client.get(reverse("show_detail", args=[self.album.id]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_private_show_visible_to_owner(self):
+        self.album.is_public = False
+        self.album.save(update_fields=["is_public"])
+        self.client.login(username="show_creator", password="pass12345")
+        resp = self.client.get(reverse("show_detail", args=[self.album.id]))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_draft_episode_not_listed(self):
+        Track.objects.create(
+            creator=self.creator, title="Unpublished", content_type="podcast", album=self.album,
+            status=Track.Status.DRAFT,
+        )
+        resp = self.client.get(reverse("show_detail", args=[self.album.id]))
+        self.assertNotContains(resp, "Unpublished")
+
+
+class ShowRSSFeedTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("rss_creator")
+        self.album = Album.objects.create(
+            creator=self.creator, title="RSS Show", content_type=Album.ContentType.PODCAST,
+            is_public=True, description="A show about testing.",
+        )
+        self.episode = Track.objects.create(
+            creator=self.creator, title="RSS Episode", content_type="podcast", album=self.album,
+            status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
+            audio=_make_real_wav_file(), duration_seconds=90, explicit=False,
+        )
+
+    def test_feed_is_valid_rss_with_itunes_namespace(self):
+        resp = self.client.get(reverse("show_rss", args=[self.album.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/rss+xml; charset=utf-8")
+        body = resp.content.decode()
+        self.assertIn("xmlns:itunes=", body)
+        self.assertIn("<title>RSS Show</title>", body)
+
+    def test_feed_includes_episode_with_enclosure(self):
+        resp = self.client.get(reverse("show_rss", args=[self.album.id]))
+        body = resp.content.decode()
+        self.assertIn("RSS Episode", body)
+        self.assertIn("<enclosure", body)
+        self.assertIn("audio/mpeg", body)
+
+    def test_feed_excludes_non_podcast_album(self):
+        music_album = Album.objects.create(
+            creator=self.creator, title="Music Album", content_type=Album.ContentType.MUSIC,
+            is_public=True,
+        )
+        resp = self.client.get(reverse("show_rss", args=[music_album.id]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_feed_404s_for_private_show(self):
+        self.album.is_public = False
+        self.album.save(update_fields=["is_public"])
+        resp = self.client.get(reverse("show_rss", args=[self.album.id]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_feed_excludes_unapproved_episodes(self):
+        Track.objects.create(
+            creator=self.creator, title="Still In Review", content_type="podcast", album=self.album,
+            status=Track.Status.SUBMITTED,
+        )
+        resp = self.client.get(reverse("show_rss", args=[self.album.id]))
+        self.assertNotContains(resp, "Still In Review")

@@ -93,6 +93,12 @@ class UserProfile(models.Model):
         max_length=16, choices=CreatorStatus.choices, default=CreatorStatus.NONE
     )
 
+    # Staff-only trust signal shown as a badge next to the creator's name —
+    # deliberately independent of creator_status (approved just means "may
+    # publish"; verified means "staff has confirmed this is who they claim
+    # to be", e.g. a known artist). Toggled from core/staff_views.py.
+    is_verified = models.BooleanField(default=False)
+
     # --- Moderation: account suspension ---
     # Enforcement is via the standard `User.is_active` flag (blocks password
     # login automatically; phone-OTP login checks it explicitly — see

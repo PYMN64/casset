@@ -276,6 +276,48 @@
     <div id="toastInner" class="toast__inner"></div>
   </div>
 
+  <!-- Queue panel (opened by #pbQueue — see app.js qPanelOpen/renderQueuePanel) -->
+  <div id="qPanel" class="overlay-panel" style="display:none">
+    <div class="overlay-panel__inner card">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h2 style="margin:0">صف پخش</h2>
+        <button id="qClose" class="iconbtn" type="button" aria-label="بستن">✕</button>
+      </div>
+      <div id="qMeta" class="muted small" style="margin:6px 0 10px"></div>
+      <div id="qList" class="list"></div>
+    </div>
+  </div>
+
+  <!-- Add-to-playlist modal (opened by [data-pl-open] — see app.js plModalOpen) -->
+  <div id="plModal" class="overlay-panel" style="display:none">
+    <div class="overlay-panel__inner card">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h2 style="margin:0">افزودن به پلی‌لیست</h2>
+        <button id="plClose" class="iconbtn" type="button" aria-label="بستن">✕</button>
+      </div>
+      <div id="plModalTrack" class="muted small" style="margin:6px 0 10px"></div>
+      <div id="plModalList" class="list"></div>
+      <div class="row" style="justify-content:flex-start;margin-top:10px">
+        <a class="btn btn--ghost" href="{% url 'library' %}">ساخت پلی‌لیست جدید</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Embed-snippet modal (opened by [data-embed-open] — see app.js embedModalOpen) -->
+  <div id="embedModal" class="overlay-panel" style="display:none">
+    <div class="overlay-panel__inner card">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h2 style="margin:0">جاسازی (Embed)</h2>
+        <button id="embedClose" class="iconbtn" type="button" aria-label="بستن">✕</button>
+      </div>
+      <p class="muted small" style="margin:6px 0 10px">این کد را در سایت یا وبلاگ خودت کپی کن.</p>
+      <textarea id="embedCode" class="input" rows="3" readonly style="width:100%;font-family:monospace;direction:ltr;text-align:left"></textarea>
+      <div class="row" style="justify-content:flex-start;margin-top:10px">
+        <button id="embedCopyBtn" class="btn btn--primary" type="button">کپی کد</button>
+      </div>
+    </div>
+  </div>
+
   <script src="{% static 'app.js' %}"></script>
   <script>
     // Theme toggle (dark/light)

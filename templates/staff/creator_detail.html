@@ -5,11 +5,22 @@
 
   <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
     <div style="flex:1; min-width:260px; border:1px solid #eee; border-radius:12px; padding:14px;">
-      <div style="font-size:18px; font-weight:700;">{{ profile.public_name }}</div>
+      <div style="font-size:18px; font-weight:700;">
+        {{ profile.public_name }}
+        {% if profile.is_verified %}<span class="verified-badge" title="Creator تاییدشده">✔</span>{% endif %}
+      </div>
       <div style="opacity:.7;">{{ profile.user.username }}</div>
       <div style="margin-top:8px;">ایمیل: {{ profile.user.email }}</div>
       <div>وضعیت: {{ profile.creator_status }}</div>
       <div>هندل: {% if profile.public_handle %}/{{ profile.public_handle }}/{% else %}-{% endif %}</div>
+      <form method="post" action="{% url 'staff:toggle_verified' user_id=profile.user_id %}" style="margin-top:10px">
+        {% csrf_token %}
+        {% if profile.is_verified %}
+          <button class="btn" type="submit">حذف نشان تایید</button>
+        {% else %}
+          <button class="btn btn--primary" type="submit">اعطای نشان تایید ✔</button>
+        {% endif %}
+      </form>
     </div>
 
     <div style="flex:1; min-width:260px; border:1px solid #eee; border-radius:12px; padding:14px;">

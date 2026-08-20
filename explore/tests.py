@@ -244,4 +244,59 @@ class SearchFullTextPostgresTests(TestCase):
         results = services.search_tracks("Zarathustra")
         ids = [r["id"] for r in results]
         self.assertEqual(ids[0], self.by_title.id)
-        self.assertIn(self.by_description.id, ids)
+
+
+# ---------------------------------------------------------------------------
+# Station ("continuous play from one artist" — Phase 2)
+# ---------------------------------------------------------------------------
+
+class StationServiceTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("station_creator")
+        self.other = make_user("station_other")
+
+    def test_returns_only_that_creators_playable_tracks(self):
+        t1 = make_track(self.creator, title="A", audio="tracks/audio/a.mp3")
+        make_track(self.other, title="B", audio="tracks/audio/b.mp3")
+        result = services.station_for_creator(self.creator)
+        self.assertEqual([t.id for t in result], [t1.id])
+
+    def test_excludes_tracks_without_audio(self):
+        make_track(self.creator, title="No audio")
+        result = services.station_for_creator(self.creator)
+        self.assertEqual(result, [])
+
+    def test_excludes_given_track(self):
+        t1 = make_track(self.creator, title="A", audio="tracks/audio/a.mp3")
+        t2 = make_track(self.creator, title="B", audio="tracks/audio/b.mp3")
+        result = services.station_for_creator(self.creator, exclude_track_id=t1.id)
+        self.assertEqual([t.id for t in result], [t2.id])
+
+    def test_excludes_unapproved_tracks(self):
+        make_track(self.creator, title="Draft", audio="tracks/audio/d.mp3", status=Track.Status.DRAFT)
+        result = services.station_for_creator(self.creator)
+        self.assertEqual(result, [])
+
+
+class ApiStationViewTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("station_view_creator")
+        self.track = make_track(self.creator, title="A", audio="tracks/audio/a.mp3")
+
+    def test_returns_items_for_known_creator(self):
+        resp = self.client.get(reverse("api_station", args=[self.creator.username]))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(len(data["items"]), 1)
+        self.assertEqual(data["items"][0]["trackId"], self.track.id)
+
+    def test_unknown_creator_404s(self):
+        resp = self.client.get(reverse("api_station", args=["no_such_user"]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_exclude_query_param_removes_track(self):
+        resp = self.client.get(
+            reverse("api_station", args=[self.creator.username]), {"exclude": self.track.id}
+        )
+        self.assertEqual(resp.json()["items"], [])

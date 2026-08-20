@@ -58,6 +58,13 @@ dependencies = [
     # --- Async task queue ---
     "celery>=5.4,<6.0",
 
+    # --- Waveform peak extraction ---
+    # soundfile bundles libsndfile (a real compiled library, but shipped
+    # inside the wheel) which decodes MP3/WAV/FLAC/OGG directly — no system
+    # ffmpeg/avconv install required, unlike pydub.
+    "soundfile>=0.13,<1.0",
+    "numpy>=1.26,<3.0",
+
     # --- Error tracking (prod-only, only initialized if SENTRY_DSN is set) ---
     "sentry-sdk[django]>=2.20,<3.0",
 ]

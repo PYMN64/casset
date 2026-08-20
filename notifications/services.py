@@ -56,6 +56,20 @@ def notify_track_liked(*, liker, track) -> None:
     )
 
 
+def notify_track_reposted(*, reposter, track) -> None:
+    """Notify track creator that someone reposted their track."""
+    creator = track.creator
+    if reposter.pk == creator.pk:
+        return
+    _upsert(
+        recipient=creator,
+        verb="track_reposted",
+        actor=reposter,
+        track=track,
+        group_key=_gkey("track_reposted", "track", track.pk),
+    )
+
+
 def notify_track_comment(*, commenter, track, comment) -> None:
     """Notify track creator that someone commented."""
     creator = track.creator

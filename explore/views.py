@@ -213,6 +213,30 @@ def api_search(request):
         "genres": services.search_genres(q2),
     })
 
+@require_GET
+def api_station(request, username):
+    creator = User.objects.filter(username=username).first()
+    if not creator:
+        return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
+
+    exclude_id = request.GET.get("exclude")
+    exclude_id = int(exclude_id) if exclude_id and exclude_id.isdigit() else None
+
+    tracks = services.station_for_creator(creator, exclude_track_id=exclude_id)
+    items = [
+        {
+            "src": t.audio.url,
+            "title": t.title,
+            "by": f"@{t.creator.username}",
+            "coverHtml": f"<img src='{t.cover.url}' />" if t.cover else "",
+            "trackId": t.id,
+            "peaks": t.waveform_peaks or [],
+        }
+        for t in tracks
+    ]
+    return JsonResponse({"ok": True, "items": items})
+
+
 def trending_view(request):
     since = (date.today() - timedelta(days=7)).isoformat()
 

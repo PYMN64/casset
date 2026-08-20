@@ -2,12 +2,32 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_POST
 
 from accounts.models import UserProfile
 
 from .forms import AlbumForm
 from .models import Album, Genre, Track
+
+
+@xframe_options_exempt
+def track_embed(request, slug):
+    """Minimal standalone player page for <iframe> embedding on external
+    sites — see templates/tracks/embed.html (does not extend base.html:
+    no nav/sidebar/playerbar, just the one track's player). Same visibility
+    rule as track_detail; an embed of a private track must 404 too.
+
+    @xframe_options_exempt tells django.middleware.clickjacking's
+    XFrameOptionsMiddleware to skip adding X-Frame-Options: DENY on this
+    response — that project-wide default would otherwise block the exact
+    use case this view exists for (being framed by someone else's site).
+    """
+    qs = Track.objects.select_related("creator").prefetch_related("genres")
+    track = get_object_or_404(qs, slug=slug)
+    if track.status != Track.Status.APPROVED or track.visibility == Track.Visibility.PRIVATE:
+        raise Http404
+    return render(request, "tracks/embed.html", {"track": track})
 
 
 def track_list(request):
@@ -54,8 +74,15 @@ def track_detail(request, slug):
     )
 
     is_favorited = False
+    is_reposted = False
+    can_download = False
     if request.user.is_authenticated:
         is_favorited = track.favorited_by.filter(user=request.user).exists()
+        is_reposted = track.reposts.filter(user=request.user).exists()
+        # Regression fix: this context key was referenced by the template's
+        # {% if can_download %} but never set, so the download button (and
+        # the whole point of the VIP download_track view) never rendered.
+        can_download = bool(track.audio) and request.user.profile.has_vip()
 
     return render(request, "tracks/track_detail.html", {
         "track": track,
@@ -63,6 +90,9 @@ def track_detail(request, slug):
         "comment_count": track.comments.filter(is_public=True).count(),
         "favorite_count": track.favorited_by.count(),
         "is_favorited": is_favorited,
+        "repost_count": track.reposts.count(),
+        "is_reposted": is_reposted,
+        "can_download": can_download,
     })
 
 
@@ -87,6 +117,25 @@ def download_track(request, track_id: int):
 
     # فایل لوکال: FileResponse
     return FileResponse(track.audio.open("rb"), as_attachment=True, filename=f"{track.slug}.mp3")
+
+
+def show_detail(request, album_id: int):
+    """Public page for an Album acting as a podcast/music "show" — episode
+    list + (for podcasts) the RSS subscribe link real podcast apps need.
+    Owner can always see it (to grab the RSS link before going fully
+    public); everyone else needs is_public=True."""
+    album = get_object_or_404(Album.objects.select_related("creator"), id=album_id)
+    if not album.is_public and album.creator_id != getattr(request.user, "id", None):
+        raise Http404
+
+    episodes = (
+        Track.objects.filter(
+            album=album, status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
+        )
+        .select_related("creator")
+        .order_by("-published_at")
+    )
+    return render(request, "tracks/show_detail.html", {"album": album, "episodes": episodes})
 
 
 @login_required

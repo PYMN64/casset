@@ -3,6 +3,22 @@
 {% block title %}Discover • Casset{% endblock %}
 
 {% block content %}
+{% if not request.user.is_authenticated %}
+<section class="hero-anon">
+  <div class="hero-anon__inner">
+    <h1>موزیک و پادکست فارسی، منتشرشده توسط خودشون</h1>
+    <p class="muted">
+      کاست جایی است که خواننده‌ها و پادکسترهای ایرانی مستقیم برای شنونده‌های واقعی منتشر می‌کنند —
+      با آمار پخش قابل‌اعتماد، نه عددهای ساختگی.
+    </p>
+    <div class="row row-wrap" style="justify-content:flex-start;gap:10px">
+      <a class="btn btn--primary" href="{% url 'register' %}">ساخت اکانت رایگان</a>
+      <a class="btn btn--ghost" href="{% url 'creator_apply' %}">می‌خوام منتشر کنم</a>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 <section class="card">
   <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div>

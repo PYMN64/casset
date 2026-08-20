@@ -72,6 +72,9 @@ def upload_track(request):
 
             track.save()
             form.save_m2m()
+            if track.audio:
+                from tracks.tasks import generate_waveform_task
+                generate_waveform_task.delay(track_id=track.id)
             messages.success(request, "محتوا به‌صورت پیش‌نویس ذخیره شد. برای بررسی و انتشار، آن را ارسال کنید.")
             return redirect("my_tracks")
         # invalid: fall-through to re-render with errors
@@ -91,10 +94,14 @@ def edit_track(request, track_id: int):
     setting = PlatformSetting.get_solo()
     form = TrackUploadForm(request.POST or None, request.FILES or None, instance=track, user=request.user)
     if request.method == "POST" and form.is_valid():
+        audio_changed = "audio" in form.changed_data
         obj = form.save(commit=False)
         obj.creator = request.user
         obj.save()
         form.save_m2m()
+        if audio_changed and obj.audio:
+            from tracks.tasks import generate_waveform_task
+            generate_waveform_task.delay(track_id=obj.id)
         messages.success(request, "تغییرات ذخیره شد.")
         return redirect("my_tracks")
     return render(request, "uploads/edit.html", {"form": form, "track": track, "setting": setting})

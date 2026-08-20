@@ -301,6 +301,45 @@ html[data-theme="light"] .search__input::placeholder{ color: rgba(27,19,48,.45);
   .sidebar{ display:block; }
 }
 
+/* Verified creator badge — staff-granted trust signal, see
+   moderation/services.py::set_verified. */
+.verified-badge{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-inline-start: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* Anonymous-visitor hero on Discover — the one thing a logged-out visitor
+   sees before anything else, so it's the one place worth a deliberate
+   gradient treatment instead of the flat .card look used everywhere else. */
+.hero-anon{
+  border-radius: var(--radius-3);
+  padding: 40px 28px;
+  margin-bottom: 16px;
+  background:
+    radial-gradient(120% 160% at 100% 0%, rgba(154,92,255,.35), transparent 60%),
+    linear-gradient(135deg, var(--panel2), var(--panel));
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-2);
+}
+.hero-anon__inner{ max-width: 640px; }
+.hero-anon h1{
+  font-size: clamp(24px, 4vw, 34px);
+  font-weight: 900;
+  margin: 0 0 12px;
+  line-height: 1.35;
+}
+.hero-anon p{ font-size: 15.5px; margin: 0 0 18px; }
+
 /* Cards & content */
 .card{
   border:1px solid var(--line);
@@ -396,6 +435,26 @@ label{ font-weight: 800; }
   text-align:center;
   font-weight: 900;
 }
+
+/* Overlay panels: queue / add-to-playlist / embed-snippet — see base.html
+   #qPanel, #plModal, #embedModal and their app.js open/close handlers. */
+.overlay-panel{
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(10,8,6,.55);
+  backdrop-filter: blur(2px);
+}
+.overlay-panel__inner{
+  width: 100%;
+  max-width: 440px;
+  max-height: min(80vh, 640px);
+  overflow-y: auto;
+}
 .toast__inner.primary{
   border-color: rgba(255,147,56,.45);
 }
@@ -465,15 +524,20 @@ label{ font-weight: 800; }
   .playerbar__tools{ display:none; }
 }
 
-/* Decorative waveform — not real audio peaks (see hookWaveformAnimation in
-   app.js), just a bar row that pulses while playing so the player doesn't
-   read as static. Hidden on narrow screens like .playerbar__tools. */
+/* Waveform: real decoded peaks when available (tracks/audio_processing.py),
+   falling back to the CSS-pulse placeholder below when they aren't (older
+   tracks, or a track whose async waveform job hasn't finished yet). A
+   timeline reads left-to-right even on an RTL page — the same convention
+   every media player uses regardless of UI language — so this whole block
+   is pinned to `direction: ltr`. */
 .playerbar__wave{
   display:flex;
   align-items:center;
   gap: 2px;
   height: 28px;
-  flex: 0 1 120px;
+  flex: 0 1 160px;
+  position: relative;
+  direction: ltr;
 }
 .playerbar__wave span{
   flex: 1 1 auto;
@@ -481,6 +545,7 @@ label{ font-weight: 800; }
   border-radius: 2px;
   background: rgba(255,147,56,.35);
   height: 30%;
+  align-self: flex-end;
   transition: height .2s ease;
 }
 .playerbar__wave.is-playing span{
@@ -497,6 +562,38 @@ label{ font-weight: 800; }
 }
 @media (max-width: 720px){
   .playerbar__wave{ display:none; }
+}
+
+/* Real waveform mode: two stacked bar rows (dim "base" + bright "progress"),
+   the progress row clipped to the playback ratio's width — the standard
+   scrubber trick, cheap to update every timeupdate tick (one width write). */
+.playerbar__wave.wave-real{ cursor: pointer; }
+.playerbar__wave .wave-row{
+  display:flex;
+  align-items:flex-end;
+  gap: 2px;
+  height: 100%;
+  width: 100%;
+}
+.playerbar__wave .wave-row--base span{
+  background: rgba(255,147,56,.3);
+  animation: none;
+}
+.playerbar__wave .wave-row--progress{
+  position: absolute;
+  inset: 0;
+  width: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.playerbar__wave .wave-row--progress-inner{
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+.playerbar__wave .wave-row--progress-inner span{
+  background: rgba(255,147,56,.95);
+  animation: none;
 }
 
 /* Bottom nav */

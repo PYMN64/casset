@@ -117,6 +117,12 @@ class Track(models.Model):
     duration_seconds = models.PositiveIntegerField(default=0)
     allow_comments = models.BooleanField(default=True)
 
+    # Normalized (0-1) amplitude samples for the real waveform player —
+    # see tracks/audio_processing.py. Generated async (notifications-style
+    # Celery task) after upload; empty until that finishes, in which case
+    # the player falls back to a decorative placeholder bar.
+    waveform_peaks = models.JSONField(default=list, blank=True)
+
     def cover_src(self):
         return self.cover.url if self.cover else ""
 

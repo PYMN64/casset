@@ -551,3 +551,85 @@ class SignalIntegrationTests(TestCase):
                 verb=Notification.Verb.TRACK_LIKED,
             ).exists()
         )
+
+
+# ---------------------------------------------------------------------------
+# Weekly creator digest email (notifications/tasks.py)
+# ---------------------------------------------------------------------------
+
+class WeeklyDigestTaskTests(TestCase):
+    def setUp(self):
+        from accounts.models import UserProfile
+
+        self.creator = _user("digest_creator")
+        self.creator.email = "creator@example.com"
+        self.creator.save(update_fields=["email"])
+        self.creator.profile.creator_status = UserProfile.CreatorStatus.APPROVED
+        self.creator.profile.save(update_fields=["creator_status"])
+        self.track = _track(self.creator, status=Track.Status.APPROVED)
+
+    def _play(self, days_ago=1):
+        from plays.models import PlayEvent
+
+        pe = PlayEvent.objects.create(
+            track=self.track, ip_hash=f"ip{days_ago}", ua_hash="ua",
+            day_key=(timezone.now() - timedelta(days=days_ago)).date().isoformat(),
+        )
+        PlayEvent.objects.filter(pk=pe.pk).update(
+            created_at=timezone.now() - timedelta(days=days_ago)
+        )
+        return pe
+
+    def test_sends_email_when_there_is_activity(self):
+        from django.core import mail
+
+        from .tasks import send_creator_weekly_digest
+
+        self._play(days_ago=2)
+        sent = send_creator_weekly_digest()
+        self.assertEqual(sent, 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["creator@example.com"])
+        self.assertIn("1 پخش", mail.outbox[0].body)
+
+    def test_skips_creator_with_no_activity(self):
+        from django.core import mail
+
+        from .tasks import send_creator_weekly_digest
+
+        sent = send_creator_weekly_digest()
+        self.assertEqual(sent, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_ignores_plays_older_than_a_week(self):
+        from django.core import mail
+
+        from .tasks import send_creator_weekly_digest
+
+        self._play(days_ago=10)
+        sent = send_creator_weekly_digest()
+        self.assertEqual(sent, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_skips_creator_without_email(self):
+        from django.core import mail
+
+        from .tasks import send_creator_weekly_digest
+
+        self.creator.email = ""
+        self.creator.save(update_fields=["email"])
+        self._play(days_ago=1)
+        sent = send_creator_weekly_digest()
+        self.assertEqual(sent, 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_counts_new_followers(self):
+        from django.core import mail
+
+        from .tasks import send_creator_weekly_digest
+
+        follower = _user("digest_follower")
+        CreatorFollow.objects.create(user=follower, creator=self.creator)
+        sent = send_creator_weekly_digest()
+        self.assertEqual(sent, 1)
+        self.assertIn("1 دنبال‌کننده", mail.outbox[0].body)

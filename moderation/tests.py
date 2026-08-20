@@ -14,6 +14,7 @@ from .services import (
     check_and_auto_hide_comment,
     reject_track,
     restore_comment,
+    set_verified,
     suspend_user,
     update_report_status,
 )
@@ -556,3 +557,48 @@ class SuspendUnsuspendProfileTests(TestCase):
         suspend_user(user=self.target, actor=self.staff)
         second = suspend_user(user=self.target, actor=self.staff)
         self.assertFalse(second)
+
+
+class SetVerifiedTests(TestCase):
+    def setUp(self):
+        self.staff = make_superuser("vf_staff")
+        self.regular = make_user("vf_regular")
+        self.creator = make_user("vf_creator")
+
+    def test_grants_badge(self):
+        ok = set_verified(user=self.creator, actor=self.staff, verified=True)
+        self.assertTrue(ok)
+        self.creator.profile.refresh_from_db()
+        self.assertTrue(self.creator.profile.is_verified)
+        self.assertTrue(
+            AuditLog.objects.filter(target_user=self.creator, action="set_verified").exists()
+        )
+
+    def test_revokes_badge(self):
+        set_verified(user=self.creator, actor=self.staff, verified=True)
+        ok = set_verified(user=self.creator, actor=self.staff, verified=False)
+        self.assertTrue(ok)
+        self.creator.profile.refresh_from_db()
+        self.assertFalse(self.creator.profile.is_verified)
+
+    def test_setting_same_value_is_noop(self):
+        second = set_verified(user=self.creator, actor=self.staff, verified=False)
+        self.assertFalse(second)
+
+    def test_toggle_view_requires_staff(self):
+        self.client.login(username="vf_regular", password="pass12345")
+        resp = self.client.post(reverse("staff:toggle_verified", args=[self.creator.id]))
+        self.assertNotEqual(resp.status_code, 200)
+        self.creator.profile.refresh_from_db()
+        self.assertFalse(self.creator.profile.is_verified)
+
+    def test_toggle_view_flips_state(self):
+        self.client.login(username="vf_staff", password="pass12345")
+        resp = self.client.post(reverse("staff:toggle_verified", args=[self.creator.id]))
+        self.assertEqual(resp.status_code, 302)
+        self.creator.profile.refresh_from_db()
+        self.assertTrue(self.creator.profile.is_verified)
+
+        self.client.post(reverse("staff:toggle_verified", args=[self.creator.id]))
+        self.creator.profile.refresh_from_db()
+        self.assertFalse(self.creator.profile.is_verified)

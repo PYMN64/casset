@@ -8,6 +8,7 @@ from .views import (
     toggle_favorite,
     toggle_follow,
     toggle_like,
+    toggle_repost,
 )
 
 urlpatterns = [
@@ -17,5 +18,6 @@ urlpatterns = [
     path("api/v1/comment/<int:comment_id>/delete/", comment_delete, name="api_comment_delete"),
     path("api/v1/comment/<int:comment_id>/like/", comment_like, name="api_comment_like"),
     path("api/v1/favorite/", toggle_favorite, name="api_favorite"),
+    path("api/v1/repost/", toggle_repost, name="api_repost"),
     path("api/v1/block/", toggle_block, name="api_block"),
 ]

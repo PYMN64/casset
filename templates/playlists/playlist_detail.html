@@ -1,43 +1,57 @@
 {% extends "base.html" %}
-{% block title %}{{ playlist.name }} • Playlist • Casset{% endblock %}
+{% block title %}{{ pl.name }} • پلی‌لیست • Casset{% endblock %}
 {% block content %}
 <div class="grid">
   <section class="card">
-    <h1>{{ playlist.name }}</h1>
-    <p class="muted small">{{ items|length }} tracks</p>
+    <h1>{{ pl.name }}</h1>
+    <p class="muted small">{{ items|length }} ترک{% if pl.description %} • {{ pl.description }}{% endif %}</p>
 
-    <div class="list">
-      {% for t in items %}
-        <div class="row">
+    <div class="list" id="plItemList">
+      {% for it in items %}
+        <div class="row" data-pl-item-row="{{ it.id }}">
           <div style="min-width:0">
-            <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              {{ t.title }}
+            <a href="{% url 'track_detail' slug=it.track.slug %}" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              {{ it.track.title }}
             </a>
-            <div class="muted small">@{{ t.creator.username }} • {{ t.play_count }} plays</div>
+            <div class="muted small">@{{ it.track.creator.username }} • {{ it.track.play_count }} پخش</div>
           </div>
 
-          {% if t.audio %}
-            <a class="btn btn--primary" href="#"
-               data-play="1"
-               data-src="{{ t.audio.url }}"
-               data-title="{{ t.title }}"
-               data-by="@{{ t.creator.username }}"
-               data-track="{{ t.id }}"
-               data-cover="{% if t.cover %}<img src='{{ t.cover.url }}' />{% endif %}">
-               Play
+          <div class="row row-wrap" style="justify-content:flex-start;gap:8px;width:auto">
+            {% if it.track.audio %}
+              <a class="btn btn--primary" href="#"
+                 data-play="1"
+                 data-src="{{ it.track.audio.url }}"
+                 data-title="{{ it.track.title }}"
+                 data-by="@{{ it.track.creator.username }}"
+                 data-track="{{ it.track.id }}"
+                 data-cover="{% if it.track.cover %}<img src='{{ it.track.cover.url }}' />{% endif %}">
+                 پخش
+              </a>
+            {% endif %}
+            <a class="btn btn--ghost" href="#" data-pl-remove="1" data-playlist="{{ pl.id }}" data-track="{{ it.track.id }}" data-row="{{ it.id }}">
+              حذف
             </a>
-          {% endif %}
+          </div>
         </div>
       {% empty %}
-        <div class="row"><span class="muted">این پلی‌لیست خالیه.</span></div>
+        <div class="row" style="display:block">
+          <p class="muted">این پلی‌لیست هنوز خالی است.</p>
+          <p class="muted small">از صفحه‌ی هر ترک، روی «＋ پلی‌لیست» بزن تا اینجا اضافه بشه.</p>
+          <a class="btn btn--primary" href="{% url 'discover' %}" style="margin-top:8px">رفتن به کشف موزیک و پادکست</a>
+        </div>
       {% endfor %}
     </div>
   </section>
 
   <aside class="card">
-    <h2>Actions</h2>
+    <h2>عملیات</h2>
     <div class="list">
-      <div class="row"><a class="btn btn--ghost" href="/library/">Back to Library</a></div>
+      <div class="row"><a class="btn btn--ghost" href="{% url 'library' %}">بازگشت به کتابخانه</a></div>
+      <form class="row" method="post" action="/api/v1/playlist/delete/" data-pl-delete-form="1" data-playlist="{{ pl.id }}">
+        {% csrf_token %}
+        <input type="hidden" name="playlist_id" value="{{ pl.id }}">
+        <button class="btn" type="submit" style="color:#ff6b6b">حذف کل پلی‌لیست</button>
+      </form>
     </div>
   </aside>
 </div>

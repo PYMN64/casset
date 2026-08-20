@@ -161,6 +161,30 @@ def toggle_favorite(request):
 
 
 # ---------------------------------------------------------------------------
+# Repost
+# ---------------------------------------------------------------------------
+
+@require_POST
+def toggle_repost(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "reason": "auth_required"}, status=401)
+
+    track_id = request.POST.get("track_id")
+    if not track_id or not str(track_id).isdigit():
+        return JsonResponse({"ok": False, "reason": "invalid_track_id"}, status=400)
+
+    track = Track.objects.filter(id=int(track_id)).first()
+    if not track:
+        return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
+
+    result = services.toggle_repost(user=request.user, track=track)
+    if not result.ok:
+        status = 404 if result.reason == "not_found" else 400
+        return JsonResponse({"ok": False, "reason": result.reason}, status=status)
+    return JsonResponse({"ok": True, "reposted": result.active, "repost_count": result.count})
+
+
+# ---------------------------------------------------------------------------
 # Creator block (mute a commenter from your own tracks)
 # ---------------------------------------------------------------------------
 

@@ -13,7 +13,11 @@ from .models import Playlist, PlaylistItem
 
 @login_required
 def library_view(request):
-    playlists = Playlist.objects.filter(owner=request.user).order_by("-created_at")
+    playlists = (
+        Playlist.objects.filter(owner=request.user)
+        .annotate(item_count=Count("items"))
+        .order_by("-created_at")
+    )
 
     liked_track_ids = (
         TrackLike.objects.filter(user=request.user)

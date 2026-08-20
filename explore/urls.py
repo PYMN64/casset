@@ -8,4 +8,5 @@ urlpatterns = [
     path("search/", views.search_view, name="search"),
     path("trending/", views.trending_view, name="trending"),
     path("api/v1/search/", views.api_search, name="api_search"),
+    path("api/v1/station/<str:username>/", views.api_station, name="api_station"),
 ]

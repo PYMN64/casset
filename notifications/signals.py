@@ -12,7 +12,7 @@ import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from interactions.models import Comment, CommentLike, CreatorFollow, TrackLike
+from interactions.models import Comment, CommentLike, CreatorFollow, Repost, TrackLike
 from tracks.models import Track
 
 logger = logging.getLogger("casset.notifications")
@@ -46,6 +46,21 @@ def on_track_liked(sender, instance, created, **kwargs):
         notify_track_liked(liker=instance.user, track=instance.track)
     except Exception as exc:
         logger.exception("on_track_liked signal error: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# Repost
+# ---------------------------------------------------------------------------
+
+@receiver(post_save, sender=Repost)
+def on_track_reposted(sender, instance, created, **kwargs):
+    if not created:
+        return
+    try:
+        from notifications.services import notify_track_reposted
+        notify_track_reposted(reposter=instance.user, track=instance.track)
+    except Exception as exc:
+        logger.exception("on_track_reposted signal error: %s", exc)
 
 
 # ---------------------------------------------------------------------------

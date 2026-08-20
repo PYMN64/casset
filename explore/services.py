@@ -72,3 +72,21 @@ def search_genres(query: str):
         .order_by("name")[:_MAX_RESULTS]
         .values("name", "slug")
     )
+
+
+_STATION_SIZE = 25
+
+
+def station_for_creator(creator, *, exclude_track_id=None):
+    """'Radio' queue for continuous play: a creator's other public tracks,
+    randomly ordered so replaying the station doesn't always start the same
+    way. Keeps the query scoped to one creator rather than mixing in
+    similar-genre tracks from others — a simpler, correctly-scoped v1 that
+    a genre-aware version can later extend without changing the call site.
+    """
+    qs = Track.objects.filter(
+        creator=creator, status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
+    ).exclude(audio="").select_related("creator")
+    if exclude_track_id:
+        qs = qs.exclude(id=exclude_track_id)
+    return list(qs.order_by("?")[:_STATION_SIZE])

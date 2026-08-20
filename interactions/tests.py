@@ -5,7 +5,15 @@ from core.test_utils import make_superuser, make_user
 from notifications.models import Notification
 from tracks.models import Track
 
-from .models import Comment, CommentLike, CreatorBlock, CreatorFollow, TrackFavorite, TrackLike
+from .models import (
+    Comment,
+    CommentLike,
+    CreatorBlock,
+    CreatorFollow,
+    Repost,
+    TrackFavorite,
+    TrackLike,
+)
 
 
 def make_public_track(creator, **extra):
@@ -323,6 +331,64 @@ class ToggleFavoriteViewTests(TestCase):
         resp = self.client.post(reverse("api_favorite"), {"track_id": self.track.id})
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["favorited"])
+
+
+class ToggleRepostViewTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("repost_creator")
+        self.user = make_user("repost_user")
+        self.track = make_public_track(self.creator, slug="repost-t")
+
+    def test_requires_login(self):
+        resp = self.client.post(reverse("api_repost"), {"track_id": self.track.id})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_invalid_track_id(self):
+        self.client.login(username="repost_user", password="pass12345")
+        resp = self.client.post(reverse("api_repost"), {"track_id": "abc"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_unknown_track_404s(self):
+        self.client.login(username="repost_user", password="pass12345")
+        resp = self.client.post(reverse("api_repost"), {"track_id": 999999})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_private_track_not_owner_404s(self):
+        private = Track.objects.create(
+            creator=self.creator, title="P", slug="repost-priv",
+            status=Track.Status.APPROVED, visibility=Track.Visibility.PRIVATE,
+        )
+        self.client.login(username="repost_user", password="pass12345")
+        resp = self.client.post(reverse("api_repost"), {"track_id": private.id})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_toggle_on_then_off(self):
+        self.client.login(username="repost_user", password="pass12345")
+        r1 = self.client.post(reverse("api_repost"), {"track_id": self.track.id})
+        data1 = r1.json()
+        self.assertTrue(data1["reposted"])
+        self.assertEqual(data1["repost_count"], 1)
+
+        r2 = self.client.post(reverse("api_repost"), {"track_id": self.track.id})
+        data2 = r2.json()
+        self.assertFalse(data2["reposted"])
+        self.assertEqual(data2["repost_count"], 0)
+        self.assertEqual(Repost.objects.count(), 0)
+
+    def test_cannot_repost_own_track(self):
+        self.client.login(username="repost_creator", password="pass12345")
+        resp = self.client.post(reverse("api_repost"), {"track_id": self.track.id})
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.json()["reason"], "cannot_repost_own_track")
+
+    def test_repost_notifies_creator(self):
+        self.client.login(username="repost_user", password="pass12345")
+        self.client.post(reverse("api_repost"), {"track_id": self.track.id})
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.creator, verb="track_reposted", track=self.track
+            ).exists()
+        )
 
 
 class ToggleBlockViewTests(TestCase):

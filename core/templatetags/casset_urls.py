@@ -1,8 +1,23 @@
-"""URL helpers for templates."""
+"""URL and small data helpers for templates."""
+
+import json
 
 from django import template
 
 register = template.Library()
+
+
+@register.filter(name="jsonify")
+def jsonify(value):
+    """Compact JSON for embedding in an HTML attribute, e.g.
+    data-peaks="{{ track.waveform_peaks|jsonify }}". Safe without extra
+    escaping for numeric arrays (the actual use case here — waveform peaks
+    are floats, so the output never contains a `"` or `<` to worry about).
+    """
+    try:
+        return json.dumps(value, separators=(",", ":"))
+    except (TypeError, ValueError):
+        return "[]"
 
 
 @register.simple_tag(takes_context=True)

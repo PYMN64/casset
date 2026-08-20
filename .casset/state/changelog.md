@@ -129,6 +129,49 @@ env. **یافته حین بررسی:** `phone_start_view` تا امروز در p
 
 ---
 
+## [2026-08-20] فاز دوم — پادکست (Show/RSS)، waveform واقعی، Repost، Station، Embed، نشان تایید
+
+**نوع:** Feature + Bugfix + Tests
+**انجام‌دهنده:** Claude (session با صاحب پروژه)
+
+**تصمیم:** کاربر خواست تمام پیشنهادهای «فاز دوم» (مقایسه با ساندکلاد/کست‌باکس در یک artifact جداگانه) به‌صورت کامل پیاده‌سازی بشه — هم امکانات باطنی هم ظاهری — و در پایان فول تست بشه، بدون نیاز به تایید قبل از commit.
+
+### دسته MUST — زیرساخت‌های واقعاً وجودی
+
+**۱. پادکست: Show + RSS (بدون مدل جدید)** — `tracks.Album` که از قبل `content_type=podcast` داشت، به‌عنوان «Show» بازاستفاده شد (طبق قانون «بازنویسی ممنوع»، نه مدل جدید). `tracks/feeds.py::ShowRSSFeed` با `django.contrib.syndication` + یک `ITunesFeedGenerator` سفارشی (namespace `itunes:`) — این تنها راهیه که یک پادکست منتشرشده در کاست بتونه توی اپل پادکست/گوگل پادکست هم دیده بشه. `tracks/views.py::show_detail` صفحه‌ی عمومی هر Show با لیست قسمت‌ها + لینک RSS. مسیرها در `tracks/urls.py`: `show/<id>/` و `show/<id>/rss.xml`.
+
+**۲. Waveform واقعی (نه تزئینی)** — تصمیم قبلی («نیاز به ffmpeg، توجیه نداره») این بار عوض شد: پکیج `soundfile` (بایندینگ Python برای `libsndfile` نسخه ≥۱.۱، MP3/WAV/FLAC/OGG رو مستقیم decode می‌کنه، **بدون نیاز به ffmpeg سیستمی** — تایید عملی شد قبل از هر کدنویسی). `tracks/audio_processing.py::extract_waveform_peaks` — peak-envelope با `numpy`، ۱۲۰ نمونه نرمال‌شده. `Track.waveform_peaks` (JSONField, migration جدید) پر می‌شه از طریق `tracks/tasks.py::generate_waveform_task` (Celery، حین آپلود/ویرایش). پلیربار (`#pbWave` در `base.html`) الان دو لایه bar-row داره (base خاموش + progress روشن، clip شده به درصد پخش) با کلیک-برای-seek؛ فالبک به همون انیمیشن تزئینی قبلی وقتی peak وجود نداره.
+
+**۳. UI کامل پلی‌لیست + رفع کد مرده واقعی** — حین بررسی، مشخص شد `#plModal` (افزودن به پلی‌لیست) و `#qPanel` (صف پخش) **کاملاً در JS پیاده‌سازی شده بودن ولی هیچ‌جای HTML وجود نداشتن** — یعنی این دو دکمه در سایت واقعی هیچ کاری نمی‌کردن (item #۲۶ بخش ۳ CLAUDE.md). هر دو + یک `#embedModal` جدید به `base.html` اضافه شدن. همچنین ۲ باگ واقعی دیگه رفع شد: `library_view` بدون `annotate(item_count=...)` (همیشه «۰ ترک» نشون می‌داد) و `playlist_detail.html` که `{{ playlist.name }}` رو رندر می‌کرد در حالی که context key واقعی `pl` بود (نام پلی‌لیست هیچ‌وقت نشون داده نمی‌شد). `playlists/tests.py` از خالی به تست کامل رسید.
+
+### دسته SHOULD
+
+- **Repost** (`interactions.Repost`، جدا از Like/Favorite) — مدل + `toggle_repost` در services.py + endpoint + notification verb جدید `track_reposted` + دکمه در `track_detail.html`.
+- **Station (رادیوی پیوسته)** — `explore/services.py::station_for_creator` + `api_station` endpoint؛ دکمه‌ی «📻 رادیوی این سازنده» یک صف پخش تصادفی از بقیه‌ی ترک‌های همون Creator می‌سازه و پخش خودکار شروع می‌کنه.
+- **نشان تایید‌شده (Verified badge)** — `UserProfile.is_verified` + `moderation/services.py::set_verified` (idempotent، AuditLog می‌نویسه) + دکمه در `staff:creator_detail` + نمایش در پروفایل/صفحه‌ی ترک.
+- **Embed widget** — `tracks/views.py::track_embed` (صفحه‌ی مینیمال، `@xframe_options_exempt` تا بشه توی iframe بیرونی جاسازی بشه) + مودال کپی کد در سایت.
+- **ایمیل خلاصه‌ی هفتگی Creator** — `notifications/tasks.py::send_creator_weekly_digest`، زمان‌بندی‌شده با `CELERY_BEAT_SCHEDULE` (نیاز به پروسه‌ی جدا `celery -A config beat` در prod). فقط وقتی خبری هست ایمیل می‌ره (صفر پخش/فالوور = بی‌صدا) — ایمیل خالی، Creator رو عادت به نادیده‌گرفتن دایجست می‌ده. `EMAIL_*` جدید در `config/settings/base.py`، فالبک به console backend وقتی `EMAIL_HOST` خالیه (مثل Sentry، بدون fail-fast چون نیاز حیاتی نیست).
+
+### ظاهر
+Hero برای بازدیدکننده‌ی ناشناس در `/discover/` (پیشنهاد ارزش + CTA ثبت‌نام/انتشار)، بازنویسی کامل پروفایل به فارسی (فاز قبل)، و پاک‌سازی چند رشته‌ی انگلیسی باقی‌مونده (`search.html`, `renderSearchResults`, `renderQueuePanel`, مودال پلی‌لیست).
+
+### باگ واقعی دیگه (کشف‌شده حین کار، نه فرض)
+`tracks/views.py::track_detail` هیچ‌وقت `can_download` رو در context نمی‌ذاشت — یعنی دکمه‌ی دانلود VIP (که از فاز قبل با `download_track` view آماده بود) **هیچ‌وقت، برای هیچ کاربری** نشون داده نمی‌شد. رفع شد + تست رگرسیون.
+
+### seed_demo تکمیل شد
+تراک‌های seed هیچ فایل صوتی واقعی نداشتن (`track.audio` خالی) — یعنی کل ردیف اکشن (پخش/لایک/بازنشر/پلی‌لیست/اشتراک/embed) به‌خاطر `{% if track.audio %}` در تمپلیت مخفی می‌موند و قابل تست دستی نبود. یک تون سینوسی واقعی (WAV، قابل‌decode) به هر ترک seed اضافه شد + waveform واقعی‌اش هم از قبل محاسبه می‌شه.
+
+**تایید:**
+- `ruff check .` → **All checks passed**
+- `python manage.py test` (SQLite) → **۴۷۶ تست، OK** (۱ skip = تست full-text مخصوص Postgres)
+- `python scripts/local_postgres.py test` (PostgreSQL واقعی) → **۴۷۶ تست، OK، بدون skip**
+- `makemigrations --check` / `manage.py check` → تمیز
+- **تایید end-to-end کامل در مرورگر واقعی** با `seed_demo --users 33`: پخش با waveform واقعی (رندر لایه‌ی progress، کلیک-seek)، بازنشر (شمارنده ۰→۱ + Notification در DB تایید شد)، افزودن به پلی‌لیست از مودال (PlaylistItem واقعاً در DB ساخته شد)، صف پخش، مودال Embed (کد iframe درست + خود صفحه‌ی embed لود شد)، اعطای نشان تایید از پنل staff (بج واقعاً در پروفایل عمومی ظاهر شد).
+
+**وضعیت CLAUDE.md:** موارد #۲۶ تا #۲۸ اضافه و بسته شدند. دامنه‌های `tracks`, `interactions`, `accounts` به‌روز شدند.
+
+---
+
 ## [2026-08-20] تثبیت نسخه ۱ (MVP قابل بهره‌برداری) — Postgres دائمی، ۵ باگ جدید، پاک‌سازی کد مرده
 
 **نوع:** Bugfix + Infrastructure + Architecture + Tests

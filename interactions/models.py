@@ -21,6 +21,34 @@ class TrackLike(models.Model):
         ]
 
 
+class Repost(models.Model):
+    """A user re-sharing someone else's track into their own followers'
+    feed — distinct from Like (a private signal) and Favorite (a personal
+    save list). Reposts are the organic-discovery engine on platforms like
+    SoundCloud: they're what explore/services.py's feed logic should surface
+    to a reposter's followers, same as new_track_from_follow does today."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reposts"
+    )
+    track = models.ForeignKey(
+        "tracks.Track", on_delete=models.CASCADE, related_name="reposts"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "track"], name="uniq_repost_user_track")
+        ]
+        indexes = [
+            models.Index(fields=["user", "created_at"], name="repost_user_created"),
+        ]
+
+    def __str__(self) -> str:
+        return f"Repost(user={self.user_id}, track={self.track_id})"
+
+
 class CreatorFollow(models.Model):
     """Follow relation between users."""
 

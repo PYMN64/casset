@@ -18,6 +18,7 @@ import os
 import secrets
 from pathlib import Path
 
+from celery.schedules import crontab
 from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -307,6 +308,36 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+
+# Periodic tasks (needs a separate `celery -A config beat` process in prod;
+# CELERY_TASK_ALWAYS_EAGER dev/test doesn't run these on a schedule at all —
+# call the task function directly in a shell/test instead).
+CELERY_BEAT_SCHEDULE = {
+    "creator-weekly-digest": {
+        "task": "notifications.send_creator_weekly_digest",
+        "schedule": crontab(day_of_week="monday", hour=6, minute=0),  # 09:30 Asia/Tehran-ish
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Email — used only for the creator weekly digest so far (notifications/
+# tasks.py). Falls back to the console backend (logs, no real send) when
+# EMAIL_HOST is empty, same non-blocking posture as Sentry: this is a
+# retention nice-to-have, not correctness-critical infra like SMS/payment,
+# so it doesn't get a prod fail-fast guard.
+# ---------------------------------------------------------------------------
+
+EMAIL_HOST = os.getenv("EMAIL_HOST", "").strip()
+if EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+    EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "").strip()
+    EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "").strip()
+    EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "1") in ("1", "true", "yes", "on")
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Casset <no-reply@casset.ir>")
 
 # ---------------------------------------------------------------------------
 # Logging

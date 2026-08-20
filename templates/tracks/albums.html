@@ -19,12 +19,15 @@
             <div class="muted small">{{ a.get_content_type_display }} • {{ a.track_count }} ترک{% if not a.is_public %} • خصوصی{% endif %}</div>
           </div>
           <div class="row row-wrap">
-            <a class="btn btn--ghost" href="{% url 'track_list' %}?album={{ a.id }}">مشاهده</a>
+            <a class="btn btn--ghost" href="{% url 'show_detail' a.id %}">مشاهده</a>
+            {% if a.content_type == "podcast" %}
+              <a class="btn btn--ghost" href="{% url 'show_rss' a.id %}">RSS</a>
+            {% endif %}
             <a class="btn btn--ghost" href="{% url 'album_edit' a.id %}">ویرایش</a>
             <form method="post" action="{% url 'album_delete' a.id %}"
                   onsubmit="return confirm('آلبوم «{{ a.title }}» حذف شود؟ ترک‌ها دست‌نخورده باقی می‌مانند.')">
               {% csrf_token %}
-              <button class="btn btn--ghost" type="submit" style="color:var(--red, #e53)؛">حذف</button>
+              <button class="btn btn--ghost" type="submit" style="color:#e53">حذف</button>
             </form>
           </div>
         </div>

@@ -33,6 +33,7 @@ class Notification(models.Model):
     track_rejected        — staff rejected your track
     new_track_from_follow — a creator you follow published a track
     milestone_plays       — your track hit 100/1000/… plays
+    track_reposted        — someone reposted your track
     """
 
     class Verb(models.TextChoices):
@@ -44,6 +45,7 @@ class Notification(models.Model):
         TRACK_REJECTED        = "track_rejected",        "ترک رد شد"
         NEW_TRACK_FROM_FOLLOW = "new_track_from_follow", "ترک جدید از کسی که دنبال می‌کنی"
         MILESTONE_PLAYS       = "milestone_plays",       "مایل‌ستون پخش"
+        TRACK_REPOSTED        = "track_reposted",        "بازنشر ترک"
 
     # --- core fields ---
     recipient = models.ForeignKey(
@@ -194,6 +196,9 @@ class Notification(models.Model):
             Notification.Verb.MILESTONE_PLAYS: (
                 f"ترک «{track_title}» به "
                 f"{self.extra.get('milestone', '')} پخش رسید!"
+            ),
+            Notification.Verb.TRACK_REPOSTED: (
+                f"{actor_name} {others} «{track_title}» را بازنشر کردند."
             ),
         }
         return texts.get(self.verb, self.get_verb_display())
