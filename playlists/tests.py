@@ -9,6 +9,8 @@ zero coverage. Two real bugs were found and fixed while writing these:
    context key is `pl` — the playlist name never rendered on its own page.
 """
 
+import json
+
 from django.test import TestCase
 from django.urls import reverse
 
@@ -260,3 +262,107 @@ class ApiPlaylistReorderTests(TestCase):
         )
         self.assertEqual(resp.status_code, 404)
         self.assertEqual(self._order(), [self.i1.id, self.i2.id, self.i3.id])
+
+
+class PlaylistDragReorderTests(TestCase):
+    """Drag-to-reorder posts the whole order as JSON; the arrow buttons
+    post a single step. Both must land on the same re-sequenced result,
+    and neither may touch rows the caller does not own."""
+
+    def setUp(self):
+        self.user = make_user("drag_owner")
+        self.other = make_user("drag_other")
+        self.client.login(username="drag_owner", password="pass12345")
+        self.pl = Playlist.objects.create(owner=self.user, name="Mix")
+        creator = make_user("drag_creator")
+        self.items = [
+            PlaylistItem.objects.create(
+                playlist=self.pl,
+                track=make_public_track(creator, title=f"Song {i}"),
+                order=i,
+            )
+            for i in range(1, 4)
+        ]
+
+    def _order(self):
+        return list(
+            PlaylistItem.objects.filter(playlist=self.pl)
+            .order_by("order")
+            .values_list("id", flat=True)
+        )
+
+    def test_full_order_is_applied(self):
+        reversed_ids = list(reversed([i.id for i in self.items]))
+        resp = self.client.post(
+            reverse("api_playlist_reorder"),
+            data=json.dumps({"order": reversed_ids}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        self.assertEqual(self._order(), reversed_ids)
+
+    def test_orders_are_resequenced_from_one(self):
+        """Ties in `order` are what made the old data sort unpredictably;
+        every write must leave a clean 1..N sequence."""
+        ids = [i.id for i in self.items]
+        self.client.post(
+            reverse("api_playlist_reorder"),
+            data=json.dumps({"order": list(reversed(ids))}),
+            content_type="application/json",
+        )
+        orders = sorted(
+            PlaylistItem.objects.filter(playlist=self.pl).values_list("order", flat=True)
+        )
+        self.assertEqual(orders, [1, 2, 3])
+
+    def test_cannot_reorder_someone_elses_playlist(self):
+        theirs = Playlist.objects.create(owner=self.other, name="Theirs")
+        creator = make_user("drag_creator2")
+        item = PlaylistItem.objects.create(
+            playlist=theirs, track=make_public_track(creator, title="Not Yours"), order=1
+        )
+        resp = self.client.post(
+            reverse("api_playlist_reorder"),
+            data=json.dumps({"order": [item.id]}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 404)
+        item.refresh_from_db()
+        self.assertEqual(item.order, 1)
+
+    def test_mixing_in_a_foreign_id_is_rejected_wholesale(self):
+        """A partially-valid list must not be partially applied."""
+        theirs = Playlist.objects.create(owner=self.other, name="Theirs")
+        creator = make_user("drag_creator3")
+        foreign = PlaylistItem.objects.create(
+            playlist=theirs, track=make_public_track(creator, title="Foreign"), order=1
+        )
+        before = self._order()
+        resp = self.client.post(
+            reverse("api_playlist_reorder"),
+            data=json.dumps({"order": [self.items[0].id, foreign.id]}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(self._order(), before)
+
+    def test_malformed_body_is_rejected(self):
+        for body in ("not json", json.dumps({"order": "nope"}), json.dumps({})):
+            with self.subTest(body=body):
+                resp = self.client.post(
+                    reverse("api_playlist_reorder"),
+                    data=body,
+                    content_type="application/json",
+                )
+                self.assertEqual(resp.status_code, 400)
+
+    def test_arrow_buttons_still_work(self):
+        """The single-step path is what touch and keyboard users get; it
+        must keep working alongside drag-and-drop."""
+        ids = [i.id for i in self.items]
+        resp = self.client.post(reverse("api_playlist_reorder"), {
+            "playlist_id": self.pl.id, "item_id": ids[2], "direction": "up",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self._order(), [ids[0], ids[2], ids[1]])

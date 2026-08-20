@@ -7,14 +7,31 @@ MusicRecording is worse than no markup, because Google will distrust the
 rest of the page's markup too.
 
 Everything here returns a JSON string ready to drop inside a
-<script type="application/ld+json"> block. `json.dumps` handles the
-escaping, so the template can use |safe without opening an injection path
-for user-supplied titles and descriptions.
+<script type="application/ld+json"> block, escaped by `_dump` so the
+template's |safe is not an injection path for user-supplied titles,
+descriptions or display names.
 """
 
 from __future__ import annotations
 
 import json
+
+#: `json.dumps` does NOT escape `<`, `>` or `&`. A track titled
+#: `</script><img src=x onerror=...>` would therefore close the surrounding
+#: <script type="application/ld+json"> element and execute — stored XSS on
+#: every page rendering that track. These are the same three escapes
+#: django.utils.html.json_script applies; they are valid JSON string
+#: escapes, and every schema.org consumer decodes them normally.
+_SCRIPT_SAFE = {
+    ord(">"): "\\u003E",
+    ord("<"): "\\u003C",
+    ord("&"): "\\u0026",
+}
+
+
+def _dump(data: dict) -> str:
+    """JSON that is safe to inline inside a <script> element."""
+    return json.dumps(data, ensure_ascii=False).translate(_SCRIPT_SAFE)
 
 
 def _absolute(request, url: str) -> str:
@@ -112,7 +129,7 @@ def build_track_jsonld(request, track) -> str:
     if track.audio and track.visibility == Track.Visibility.PUBLIC and track.status == Track.Status.APPROVED:
         data["contentUrl"] = _absolute(request, track.audio.url)
 
-    return json.dumps(data, ensure_ascii=False)
+    return _dump(data)
 
 
 def build_profile_jsonld(request, user_obj, profile, stats) -> str:
@@ -148,4 +165,4 @@ def build_profile_jsonld(request, user_obj, profile, stats) -> str:
         "mainEntity": person,
         "url": request.build_absolute_uri(),
     }
-    return json.dumps(data, ensure_ascii=False)
+    return _dump(data)

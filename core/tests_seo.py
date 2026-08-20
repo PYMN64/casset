@@ -137,6 +137,30 @@ class StructuredDataTests(TestCase):
         self.assertEqual(data["@type"], "ProfilePage")
         self.assertEqual(data["mainEntity"]["@type"], "Person")
 
+    def test_script_breaking_title_cannot_escape_the_jsonld_block(self):
+        """Stored XSS regression.
+
+        json.dumps does not escape `<`, so a track titled
+        `</script><img onerror=...>` used to close the ld+json element and
+        execute on every page that rendered it. The JSON must round-trip
+        intact while carrying no literal angle brackets.
+        """
+        track = _track(self.creator, title='</script><img src=x onerror=alert(1)>')
+        resp = self.client.get(reverse("track_detail", args=[track.slug]))
+        html = resp.content.decode()
+
+        start = html.index('<script type="application/ld+json">') + len('<script type="application/ld+json">')
+        end = html.index("</script>", start)
+        block = html[start:end]
+
+        # No literal angle bracket may survive into the script element —
+        # one is all it takes to close it early.
+        self.assertNotIn("<", block)
+        self.assertNotIn(">", block)
+        # ...and the title still decodes intact, so we escaped rather than
+        # stripped: the markup is safe *and* the data is still correct.
+        self.assertEqual(json.loads(block)["name"], track.title)
+
     def test_profile_lists_social_links_as_same_as(self):
         profile = self.creator.profile
         profile.instagram_url = "https://instagram.com/example"

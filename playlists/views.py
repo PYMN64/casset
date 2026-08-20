@@ -167,12 +167,66 @@ def api_playlist_rename(request):
     return JsonResponse({"ok": True, "name": pl.name})
 
 
+def _reorder_from_full_order(request):
+    """Apply a complete drag-and-drop ordering.
+
+    Only ids that genuinely belong to the caller's playlist are honoured —
+    the id list arrives from the browser, so a crafted request must not be
+    able to touch another user's rows or smuggle in foreign ids.
+    """
+    import json
+
+    try:
+        payload = json.loads(request.body or b"{}")
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "reason": "invalid_json"}, status=400)
+
+    raw_ids = payload.get("order")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return JsonResponse({"ok": False, "reason": "invalid_params"}, status=400)
+
+    try:
+        ordered_ids = [int(value) for value in raw_ids]
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "reason": "invalid_params"}, status=400)
+
+    owned = {
+        item.id: item
+        for item in PlaylistItem.objects.filter(
+            id__in=ordered_ids, playlist__owner=request.user
+        ).select_related("playlist")
+    }
+    if not owned:
+        return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
+
+    # Every id must belong to the same playlist; a mixed list is either a
+    # bug or an attempt to reshuffle something else at the same time.
+    playlist_ids = {item.playlist_id for item in owned.values()}
+    if len(playlist_ids) != 1 or len(owned) != len(set(ordered_ids)):
+        return JsonResponse({"ok": False, "reason": "invalid_params"}, status=400)
+
+    with transaction.atomic():
+        for position, item_id in enumerate(ordered_ids, start=1):
+            PlaylistItem.objects.filter(pk=item_id).update(order=position)
+
+    return JsonResponse({"ok": True, "moved": True, "count": len(ordered_ids)})
+
+
 @require_POST
 @login_required
 def api_playlist_reorder(request):
-    """Swap one item's position with its immediate neighbour — simple,
-    touch-friendly up/down reordering (same pattern as the queue-panel
-    reorder in app.js) rather than drag-and-drop."""
+    """Reorder a playlist, in either of the two shapes the UI produces.
+
+    1. Whole order (drag-and-drop): a JSON body {"order": [item_id, ...]}.
+    2. One step (the up/down arrows, which are what touch and keyboard
+       users get): form fields playlist_id + item_id + direction.
+
+    Both end in the same place — orders re-sequenced 1..N — so the two
+    input paths cannot drift into different results.
+    """
+    if request.content_type == "application/json":
+        return _reorder_from_full_order(request)
+
     pid = request.POST.get("playlist_id")
     item_id = request.POST.get("item_id")
     direction = request.POST.get("direction")
