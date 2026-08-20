@@ -434,3 +434,98 @@ class PhoneVerifyViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         otp = PhoneOTP.objects.get(phone_number=self.phone)
         self.assertFalse(otp.is_used)
+
+
+# ---------------------------------------------------------------------------
+# Creator Studio — analytics (Phase 4/5)
+# ---------------------------------------------------------------------------
+
+class CreatorStudioViewTests(TestCase):
+    def setUp(self):
+        from core.test_utils import make_user as make_onboarded_user
+        from tracks.models import Track
+
+        # OnboardingRequiredMiddleware gates /creator/studio/ (unlike
+        # /creator/apply/, which is explicitly allow-listed) — the file's
+        # local _make_user() doesn't set onboarding_complete, so this view
+        # needs the onboarded helper or every request 302s before ever
+        # reaching the view.
+        self.creator = make_onboarded_user("cs_creator")
+        self.track_a = Track.objects.create(creator=self.creator, title="A", content_type="music")
+        self.track_b = Track.objects.create(creator=self.creator, title="B", content_type="music")
+        self.client.login(username="cs_creator", password="pass12345")
+
+    def _play(self, track, *, user, ip_hash, point_awarded=False, days_ago=0):
+        from plays.models import PlayEvent
+
+        created = timezone.now() - timedelta(days=days_ago)
+        pe = PlayEvent.objects.create(
+            track=track, user=user, ip_hash=ip_hash, ua_hash="ua",
+            day_key=created.date().isoformat(), point_awarded=point_awarded,
+        )
+        if days_ago:
+            PlayEvent.objects.filter(pk=pe.pk).update(created_at=created)
+        return pe
+
+    def test_requires_login(self):
+        self.client.logout()
+        resp = self.client.get(reverse("creator_studio"))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_my_tracks_only_shows_own_tracks_newest_first(self):
+        from tracks.models import Track
+
+        other = _make_user("cs_other")
+        Track.objects.create(creator=other, title="Not mine", content_type="music")
+
+        resp = self.client.get(reverse("creator_studio"))
+        titles = [t.title for t in resp.context["tracks"]]
+        self.assertEqual(set(titles), {"A", "B"})
+
+    def test_returning_listener_played_before_and_during_window(self):
+        listener = _make_user("cs_returning")
+        self._play(self.track_a, user=listener, ip_hash="ip1", days_ago=40)  # before window
+        self._play(self.track_a, user=listener, ip_hash="ip2", days_ago=5)   # inside window
+
+        resp = self.client.get(reverse("creator_studio"))
+        self.assertEqual(resp.context["returning_listeners"], 1)
+        self.assertEqual(resp.context["first_time_listeners"], 0)
+
+    def test_first_time_listener_only_played_inside_window(self):
+        listener = _make_user("cs_firsttime")
+        self._play(self.track_a, user=listener, ip_hash="ip1", days_ago=2)
+
+        resp = self.client.get(reverse("creator_studio"))
+        self.assertEqual(resp.context["first_time_listeners"], 1)
+        self.assertEqual(resp.context["returning_listeners"], 0)
+
+    def test_track_performance_reports_plays_and_points_per_track(self):
+        from plays.models import PointLedger
+
+        self._play(self.track_a, user=_make_user("cs_l1"), ip_hash="ip1", days_ago=1)
+        self._play(self.track_a, user=_make_user("cs_l2"), ip_hash="ip2", days_ago=1)
+        PointLedger.objects.create(
+            user=self.creator, delta=1, reason=PointLedger.Reason.PLAY_REWARD,
+            track_id_snapshot=self.track_a.id, ip_hash_snapshot="ip1",
+        )
+
+        resp = self.client.get(reverse("creator_studio"))
+        by_track = {row["track"].id: row for row in resp.context["track_performance"]}
+        self.assertEqual(by_track[self.track_a.id]["plays"], 2)
+        self.assertEqual(by_track[self.track_a.id]["points"], 1)
+        self.assertEqual(by_track[self.track_b.id]["plays"], 0)
+
+    def test_daily_points_counts_qualified_plays_not_boolean_sum(self):
+        """Regression: the original code did Sum("point_awarded") on a
+        BooleanField, which errors on PostgreSQL (SUM(boolean) doesn't
+        exist there) even though SQLite silently tolerates it. Count with
+        a filter is portable and this test locks in the correct value."""
+        self._play(self.track_a, user=_make_user("cs_q1"), ip_hash="ip1", point_awarded=True, days_ago=1)
+        self._play(self.track_a, user=_make_user("cs_q2"), ip_hash="ip2", point_awarded=True, days_ago=1)
+        self._play(self.track_a, user=_make_user("cs_q3"), ip_hash="ip3", point_awarded=False, days_ago=1)
+
+        resp = self.client.get(reverse("creator_studio"))
+        daily = list(resp.context["daily"])
+        self.assertEqual(len(daily), 1)
+        self.assertEqual(daily[0]["plays"], 3)
+        self.assertEqual(daily[0]["points"], 2)

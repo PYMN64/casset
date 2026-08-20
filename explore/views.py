@@ -7,6 +7,7 @@ from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
 from core.models import PlatformSetting
+from interactions.models import CreatorFollow
 from plays.models import PlayEvent
 from tracks.models import Genre, Track
 
@@ -51,11 +52,15 @@ def discover_view(request):
             return qs.filter(content_type__in=["book", "audiobook"])
         return qs.filter(content_type=selected_type)
 
-    # trending by play_events in last 7 days
+    # Trending = qualified plays only (PlayEvent.point_awarded=True), not raw
+    # PlayEvent rows. Raw events include everything a listener's browser
+    # registered, whether or not it passed the fraud/time gates in
+    # plays/services.py — trending should reflect real engagement, the same
+    # bar creators are actually paid against.
     since = (date.today() - timedelta(days=7)).isoformat()
 
     trending_ids = (
-        PlayEvent.objects.filter(day_key__gte=since)
+        PlayEvent.objects.filter(day_key__gte=since, point_awarded=True)
         .values("track_id")
         .annotate(c=Count("id"))
         .order_by("-c")[:20]
@@ -95,51 +100,78 @@ def discover_view(request):
                     continue
             pinned.append(pin)
 
-
-    # Lightweight recommendations: last played genres or fallback to trending
-        recommended = []
-        if request.user.is_authenticated:
-            recent_genres = (
-                Genre.objects.filter(tracks__play_events__user=request.user)
-                .distinct()
-                .annotate(c=Count("id"))
-                .order_by("-c")[:3]
-            )
-            if recent_genres:
-                recommended = (
-                    apply_type(
-                        Track.objects.filter(
-                            status=Track.Status.APPROVED,
-                            visibility=Track.Visibility.PUBLIC,
-                            genres__in=list(recent_genres),
-                        )
+    # Personalized feed: latest tracks from creators the user follows. This
+    # is the "reason to come back" the product strategy calls for — shown
+    # above trending/pinned in the template when non-empty. Empty for
+    # anonymous users and users who don't follow anyone yet (falls back to
+    # the general sections below, nothing else to show them here).
+    followed_feed = []
+    if request.user.is_authenticated:
+        followed_ids = CreatorFollow.objects.filter(user=request.user).values_list("creator_id", flat=True)
+        if followed_ids:
+            followed_feed = list(
+                apply_type(
+                    Track.objects.filter(
+                        creator_id__in=list(followed_ids),
+                        status=Track.Status.APPROVED,
+                        visibility=Track.Visibility.PUBLIC,
                     )
-                    .select_related("creator")
-                    .prefetch_related("genres")
-                    .distinct()
-                    .order_by("-play_count")[:6]
                 )
+                .select_related("creator")
+                .prefetch_related("genres")
+                .order_by("-published_at", "-created_at")[:20]
+            )
 
-
-    # # Lightweight recommendations: last played genres or fallback to trending
-    # recommended = []
-    # if request.user.is_authenticated:
-    #     recent_genres = (
-    #         Genre.objects.filter(track__playevent__user=request.user)
-    #         .annotate(c=Count("id"))
-    #         .order_by("-c")[:3]
-    #     )
-    #     if recent_genres:
-    #         recommended = (
-    #             apply_type(Track.objects.filter(status=Track.Status.APPROVED, genres__in=list(recent_genres)))
-    #             .select_related("creator")
-    #             .prefetch_related("genres")
-    #             .distinct()
-    #             .order_by("-play_count")[:6]
-    #         )
+    # Lightweight recommendations: last played genres or fallback to trending.
+    # (Regression fix: this block used to sit accidentally nested inside the
+    # `for pin in pins_qs` loop above, so it only ran when there was at least
+    # one active FeaturedPin — completely unrelated to why it should run.)
+    recommended = []
+    if request.user.is_authenticated:
+        recent_genres = (
+            Genre.objects.filter(tracks__play_events__user=request.user)
+            .distinct()
+            .annotate(c=Count("id"))
+            .order_by("-c")[:3]
+        )
+        if recent_genres:
+            recommended = (
+                apply_type(
+                    Track.objects.filter(
+                        status=Track.Status.APPROVED,
+                        visibility=Track.Visibility.PUBLIC,
+                        genres__in=list(recent_genres),
+                    )
+                )
+                .select_related("creator")
+                .prefetch_related("genres")
+                .distinct()
+                .order_by("-play_count")[:6]
+            )
 
     if not recommended:
         recommended = trending_tracks[:6]
+
+    # Suggested creators — the other half of the "reason to come back" loop:
+    # followed_feed only has content once you follow someone, so new/quiet
+    # users need a low-friction way to find their first few follows. Ranked
+    # by follower_count as a simple, no-ML popularity signal (same rationale
+    # as `recommended` above), restricted to accounts that have actually
+    # published something public — no point suggesting an empty profile.
+    suggested_creators_qs = (
+        User.objects.filter(
+            tracks__status=Track.Status.APPROVED,
+            tracks__visibility=Track.Visibility.PUBLIC,
+        )
+        .exclude(id=getattr(request.user, "id", None))
+        .select_related("profile")
+        .distinct()
+        .order_by("-profile__follower_count")
+    )
+    if request.user.is_authenticated:
+        already_followed = CreatorFollow.objects.filter(user=request.user).values_list("creator_id", flat=True)
+        suggested_creators_qs = suggested_creators_qs.exclude(id__in=list(already_followed))
+    suggested_creators = list(suggested_creators_qs[:6])
 
     genres = Genre.objects.all().order_by("name")[:60]
 
@@ -147,10 +179,12 @@ def discover_view(request):
         "enabled_types": enabled_types,
         "selected_type": selected_type,
         "pinned": pinned,
+        "followed_feed": followed_feed,
         "trending_tracks": trending_tracks,
         "new_tracks": new_tracks,
         "most_viewed": most_viewed,
         "recommended": recommended,
+        "suggested_creators": suggested_creators,
         "genres": genres,
     })
 
@@ -201,8 +235,9 @@ def api_search(request):
 def trending_view(request):
     since = (date.today() - timedelta(days=7)).isoformat()
 
+    # Same qualified-plays basis as discover_view — see the comment there.
     trending_ids = (
-        PlayEvent.objects.filter(day_key__gte=since)
+        PlayEvent.objects.filter(day_key__gte=since, point_awarded=True)
         .values("track_id")
         .annotate(c=Count("id"))
         .order_by("-c")[:50]

@@ -274,27 +274,82 @@ def creator_apply_view(request):
 def creator_studio_view(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
-    # Content management
-    my_tracks = (
+    # Content management — LIMIT at the DB, not in Python: list(qs)[:50] would
+    # pull every track this creator has ever uploaded into memory before
+    # slicing, which is a real cost for a prolific creator. qs[:50] is SQL
+    # LIMIT 50, then list() just materializes that.
+    my_tracks = list(
         Track.objects.filter(creator=request.user)
         .order_by("-created_at")
-        .prefetch_related("genres")
-    )[:50]
+        .prefetch_related("genres")[:50]
+    )
 
     # Analytics (last 30 days)
-    from django.db.models import Count, Sum
+    from django.db.models import Count, Q, Sum
     from django.db.models.functions import TruncDate
 
-    from plays.models import PlayEvent
+    from plays.models import PlayEvent, PointLedger
 
     since = timezone.now() - timedelta(days=30)
     daily = (
         PlayEvent.objects.filter(track__creator=request.user, created_at__gte=since)
         .annotate(day=TruncDate("created_at"))
         .values("day")
-        .annotate(plays=Count("id"), points=Sum("point_awarded"))
+        # Count(..., filter=...), not Sum("point_awarded"): point_awarded is
+        # a BooleanField, and SUM(boolean) is SQLite-only — it errors on
+        # PostgreSQL ("function sum(boolean) does not exist"), which is what
+        # production actually runs. Count with a filter is portable and
+        # means the same thing here: "how many of today's plays qualified".
+        .annotate(plays=Count("id"), points=Count("id", filter=Q(point_awarded=True)))
         .order_by("day")
     )
+
+    # First-time vs. returning listeners in the window (Phase 4 — the same
+    # split Spotify for Creators surfaces). Per-listener, not per-play:
+    # a listener counts as "returning" if they played anything by this
+    # creator before the window started, "first-time" otherwise.
+    window_listener_ids = set(
+        PlayEvent.objects.filter(
+            track__creator=request.user, created_at__gte=since, user__isnull=False,
+        ).values_list("user_id", flat=True).distinct()
+    )
+    prior_listener_ids = set(
+        PlayEvent.objects.filter(
+            track__creator=request.user, created_at__lt=since, user__isnull=False,
+        ).values_list("user_id", flat=True).distinct()
+    )
+    returning_listeners = len(window_listener_ids & prior_listener_ids)
+    first_time_listeners = len(window_listener_ids) - returning_listeners
+
+    # Per-track breakdown for the same window — lets a creator see which
+    # track is actually driving plays/points, not just a platform-wide total.
+    plays_by_track = {
+        row["track_id"]: row["plays"]
+        for row in (
+            PlayEvent.objects.filter(track__creator=request.user, created_at__gte=since)
+            .values("track_id")
+            .annotate(plays=Count("id"))
+        )
+    }
+    points_by_track = {
+        row["track_id_snapshot"]: row["points"]
+        for row in (
+            PointLedger.objects.filter(
+                user=request.user, reason=PointLedger.Reason.PLAY_REWARD, created_at__gte=since,
+            )
+            .values("track_id_snapshot")
+            .annotate(points=Sum("delta"))
+        )
+    }
+    track_performance = [
+        {
+            "track": t,
+            "plays": plays_by_track.get(t.id, 0),
+            "points": points_by_track.get(t.id, 0),
+        }
+        for t in my_tracks
+    ]
+    track_performance.sort(key=lambda row: row["plays"], reverse=True)
 
     return render(
         request,
@@ -303,6 +358,9 @@ def creator_studio_view(request):
             "profile": profile,
             "tracks": my_tracks,
             "daily": list(daily),
+            "first_time_listeners": first_time_listeners,
+            "returning_listeners": returning_listeners,
+            "track_performance": track_performance,
         },
     )
 

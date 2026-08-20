@@ -17,6 +17,96 @@
 > **قانون:** هر Claude که تغییری روی پروژه می‌ده، باید یک entry جدید بالای خط
 > `## [2026-08-17] اسکن کامل پروژه — باگ‌های کریتیکال، Security، تست و نقص‌ها
 
+## [2026-08-20] مورد #۴ کاملاً بسته شد — تایید زنده روی PostgreSQL واقعی + رفع مستندات کهنه
+
+**نوع:** Verification + Docs
+**انجام‌دهنده:** Claude (session با صاحب پروژه)
+
+**تصمیم:** کاربر صریحاً خواست «حتی Postgres رو به طور کامل اجرا کن» — یعنی بستن قطعی آخرین یادداشت باز مورد #۴ («اتصال زنده به Postgres واقعی هنوز تست نشده») که از فاز ۱ (۲۰۲۶-۰۸-۱۹) باز مونده بود و در گزارش اجرای خودکار همین روز هم دوباره تایید شد که هنوز کامیت نشده.
+
+**راه‌حل:** به‌جای Docker یا نصب سیستمی PostgreSQL (که هیچ‌کدوم روی این ماشین موجود نبودن)، از پکیج پایتون `pgserver` استفاده شد — یک باینری کامل و مستقل PostgreSQL که بدون دسترسی ادمین/Docker/نصب سیستمی بالا میاد. یک سرور PostgreSQL ۱۶.۲ واقعی و زنده راه‌اندازی شد، پروژه واقعاً در برابرش اجرا شد، و بعد کامل پاک‌سازی شد (این پکیج dependency پروژه نیست، فقط ابزار موقت تایید بود).
+
+**نتایج تایید:**
+1. `python manage.py migrate` زیر **هر دو** `config.settings.dev` و `config.settings.prod` — هر ۱۴ اپ، هر migration، روی یک دیتابیس تازه، بدون خطا.
+2. **کل ۳۴۲+۱ = ۳۴۳ تست پروژه** (بدون هیچ تغییری، همون تست‌سوییت SQLite) روی همون Postgres واقعی اجرا شد — **همه pass**. همین دقیقاً همون فرآیندیه که باگ #۱۳ (`Sum(boolean)`) رو لو داد — یعنی این تایید صرفاً تشریفاتی نیست، واقعاً مشکل واقعی پیدا می‌کنه.
+3. `python manage.py check --deploy` زیر `config.settings.prod` با secret/`ALLOWED_HOSTS` واقعی — تمیز، فقط همون هشدار قدیمی و بی‌خطر `W004` (HSTS).
+
+**یافته جانبی (نه باگ Casset):** باینری `pgserver` دیتابیس timezone (IANA tzdata) رو اصلاً نداشت، پس `SET TIME ZONE 'UTC'` اجباری جنگو fail می‌شد. با کپی‌کردن فایل‌های واقعی tzfile از نصب MinGW64 گیت‌بش (`/mingw64/share/zoneinfo`) رفع شد. این محدودیت مخصوص این ابزار تست موقته — هیچ نصب واقعی PostgreSQL (Docker، apt، سرویس مدیریت‌شده) این مشکل رو نداره.
+
+**رفع مستندات کهنه (کشف‌شده توسط اجرای خودکار همون روز):** بخش ۸ CLAUDE.md هنوز می‌گفت `config/settings.py` «با `raise ImportError` مسدوده» — این دیگه درست نبود، فایل کاملاً حذف شده (commit `ea1d08b`). اصلاح شد.
+
+**فایل‌های تغییرکرده:** فقط مستندات — `CLAUDE.md` (مورد #۴ نهایی شد، بخش ۸ اصلاح شد)، `.casset/state/current.md` (بخش Postgres readiness کاملاً بازنویسی شد). هیچ کد اپلیکیشن تغییر نکرد؛ `config/settings/base.py`/`prod.py`/`.env.example` (سخت‌سازی خودِ Postgres، از قبل نوشته شده در یک session قبلی) در همین commit، جدا از فاز ۴+۵، commit شدن.
+
+**وضعیت CLAUDE.md:** مورد #۴ از «✅ حل‌شده (بدون تست زنده)» به «✅ کاملاً حل‌شده و تست‌شده» ارتقا یافت. بخش ۸ (Architecture Map) اصلاح شد.
+
+---
+
+## [2026-08-20] فاز ۴+۵ ادغام‌شده تحویل شد — موارد #۱۳/#۱۴ بسته شدند + تکمیل کار موازی کامیت‌نشده
+
+**نوع:** Feature + Bugfix + Tests
+**انجام‌دهنده:** Claude (session با صاحب پروژه)
+
+**تصمیم:** طبق پیشنهاد ادغام فاز ۴ (پخش معتبر) و فاز ۵ (فید/آنالیتیکس/کشف)، این جلسه شروع به ساخت فید شخصی، آنالیتیکس Creator، و Trending هوشمند کرد.
+
+**یافته مهم قبل از کدنویسی:** ممیزی working tree نشون داد یک session موازی دیگه (شبیه Postgres/OTP در فازهای قبل، این‌بار مستند در `## [2026-08-20] اجرای خودکار...` — همین entry، پایین‌تر) از قبل، **بدون commit**، دقیقاً همون فیچرها رو ساخته بود: `explore/views.py::discover_view` فید Follow-based و Trending وزن‌دار به Qualified Play داشت؛ `accounts/views.py::creator_studio_view` شنونده اول‌بار/برگشتی + عملکرد هر ترک داشت. **صفر تست** روی هیچ‌کدوم.
+
+طبق قانون بخش ۲ (بازنویسی ممنوع)، این کد بازنویسی نشد — بازبینی و تکمیل شد:
+
+**۲ باگ واقعی کشف و رفع‌شده (مورد #۱۳/#۱۴ بخش ۳ CLAUDE.md):**
+1. `creator_studio_view`: `Sum("point_awarded")` روی یک `BooleanField` — روی SQLite بی‌صدا کار می‌کنه، روی PostgreSQL (محیط production طبق Constitution) با خطای `function sum(boolean) does not exist` fail می‌کنه. با `Count("id", filter=Q(point_awarded=True))` رفع شد.
+2. همون view: `my_tracks = list(qs)[:50]` — کل ترک‌های Creator رو بدون `LIMIT` در SQL به حافظه می‌کشید. با جابه‌جایی `[:50]` به داخل کوئری رفع شد.
+
+**اضافه‌شده (بخش واقعاً باقی‌مونده از پیشنهاد):**
+- `explore/views.py::discover_view` — بخش «افراد پیشنهادی برای دنبال کردن» (Suggested Creators): کاربرانی با حداقل یک ترک عمومی، به‌ترتیب محبوبیت، به‌استثنای خود کاربر و افراد از‌قبل‌دنبال‌شده — نیمه دوم حلقه Follow (بدون این، کاربر تازه‌وارد هیچ مسیر کم‌اصطکاکی برای اولین Follow نداره)
+- `templates/explore/discover.html` — رندر بخش بالا
+
+**تصمیم معماری صریح:** `plays.DailyTrackStat`/`aggregate_stats` عمداً به داشبورد وصل نشد — ابزار عملیاتی معتبره ولی زمان‌بندی نشده؛ وصل‌کردن اجباری بدون نیاز مقیاس واقعی، بهینه‌سازی زودهنگام بود. یک تست پایه براش اضافه شد (۰٪ → پوشش پایه) بدون وصل‌کردنش به هیچ view.
+
+**فایل‌های تغییرکرده/جدید:**
+- `accounts/views.py::creator_studio_view` — ۲ باگ بالا رفع شد
+- `explore/views.py::discover_view` — `suggested_creators`
+- `templates/explore/discover.html` — رندر پیشنهاد Creator
+- `explore/tests.py` — از خالی (۰ تست) به ۱۶ تست
+- `accounts/tests.py` — ۶ تست جدید برای `creator_studio_view`
+- `plays/tests.py` — ۳ تست جدید برای `aggregate_stats`
+
+**تایید:**
+- `python manage.py test` → **۳۴۳ تست** (از ۳۱۸)، همه pass
+- `test core.tests_smoke`، `makemigrations --check`، `ruff check .`، `manage.py check` — تمیز
+- تایید دستی کامل در مرورگر واقعی: فید Follow-based، Trending وزن‌دار، Suggested Creators (به‌درستی کاربر از‌قبل‌دنبال‌شده رو حذف کرد)، و داشبورد Creator بدون خطا
+
+**نکته درباره Branch:** این جلسه روی `auto/2026-08-20-verify-settings-cleanup` شروع شد (branch یک اجرای خودکار قبلی، که دقیقاً به همون commit `stabilization/v1-baseline` اشاره می‌کرد — هیچ commit جدایی نداشت). قبل از commit این فاز، به `stabilization/v1-baseline` سوییچ شد تا با روال فازهای قبلی هماهنگ بمونه.
+
+**نکته باز باقی‌مانده (خارج از scope این commit، طبق همون قانون «فقط چیزی که مال خودته رو دست بزن»):** `config/settings/base.py`/`prod.py` و `.env.example` هنوز شامل سخت‌سازی Postgres کامیت‌نشده‌ای هستن که مستندات (CLAUDE.md مورد #۴) از قبل «✅ حل‌شده» توصیفش می‌کنه — یعنی یک واگرایی واقعی بین مستندات و git history. این سومین باره که این فایل‌ها در طول این گفتگو (فاز ۲، فاز ۳، الان) شناسایی و عمداً دست‌نخورده باقی می‌مونن. توصیه صریح: PYMN باید تصمیم بگیره این commit بشه یا نه — دیگه لازم نیست دوباره کشفش کنیم.
+
+**وضعیت CLAUDE.md:** موارد #۱۳ و #۱۴ بسته شدند ✅. جدول دامنه‌ها: `explore`، `accounts`، `plays` به‌روز شدند. بخش ۶: فاز ۴+۵ ادغام‌شده ✅ بسته شد.
+
+---
+
+## [2026-08-20] اجرای خودکار — تایید حذف `config/settings.py` (از قبل انجام‌شده) + کشف تغییرات کامیت‌نشده
+
+**نوع:** Docs (verification only، بدون تغییر کد)
+**انجام‌دهنده:** Claude (scheduled task «casset-autonomous-cycle»، بدون نظارت)
+**Branch:** `auto/2026-08-20-verify-settings-cleanup`
+
+**تصمیم:** اولین آیتم `⬜ pending` صف (`.casset/state/task-queue.md`) بررسی/حذف `config/settings.py` بود.
+
+**یافته ۱ (آیتم صف از قبل انجام‌شده):** `config/settings.py` در فایل‌سیستم وجود نداشت. با `git log --diff-filter=D` تایید شد که در commit `ea1d08b` (بدون تاریخ در این اجرا، قبلاً روی `stabilization/v1-baseline` کامیت شده) حذف شده — و آن commit `ancestor` مستقیم `HEAD` فعلی است، یعنی این حذف از قبل روی baseline قرار دارد. گشتم و هیچ `import config.settings` برهنه (غیر از `config.settings.dev`/`.prod`) در `manage.py`، `wsgi.py`، `asgi.py`، `pyproject.toml` یا هیچ اپی پیدا نشد. صف فقط به‌روزرسانی نشده بود؛ در همین اجرا به `🔄 in-review` تغییر کرد.
+
+**یافته ۲ (مهم‌تر، خارج از scope این آیتم، فقط گزارش‌شده نه دست‌زده):** working tree روی `stabilization/v1-baseline` هنگام شروع این اجرا **حاوی تغییرات واقعی کامیت‌نشده** بود (جدا از نویز تفاوت CRLF/LF که تقریباً همه‌ی فایل‌های ردیابی‌شده را پوشانده بود) — با `git diff --ignore-all-space --stat`: ۱۰ فایل، ۵۵۷ خط افزوده/کم‌شده:
+`.env.example`, `accounts/tests.py`, `accounts/views.py`, `config/settings/base.py`, `config/settings/prod.py`, `explore/tests.py`, `explore/views.py`, `plays/tests.py`, `templates/accounts/creator_studio.html`, `templates/explore/discover.html`.
+نمونه بررسی‌شده: `config/settings/base.py`/`prod.py` دقیقاً همان سخت‌سازی Postgres (`CONN_HEALTH_CHECKS`, `OPTIONS.sslmode`, fail-fast `DB_ENGINE`/`DB_PASSWORD`) است که `CLAUDE.md` مورد #۴ و `current.md` بخش «Postgres readiness» آن را **«✅ حل‌شده»** توصیف می‌کنند — یعنی مستندات ادعای تکمیل و کامیت‌شدن این کار را دارند، ولی کد واقعی هرگز کامیت نشده و فقط در working tree نشسته است. `accounts/views.py` هم شامل فیچر تحلیلی جدید و کامل (اولین‌بار/بازگشتی listener، breakdown هر ترک، فیکس `SUM(boolean)` که روی Postgres واقعی fail می‌کند) است که در هیچ‌جای changelog مستند نشده. **این اجرا این فایل‌ها را دست نزد** (نه commit، نه stash، نه discard) چون خارج از scope آیتم صف بود و تصمیم‌گیری درباره‌ی نگه‌داشتن/دورانداختنشان نیاز به تایید PYMN دارد.
+
+**فایل‌های تغییرکرده در این اجرا:** فقط `.casset/state/task-queue.md` (وضعیت آیتم ۱) + همین entry در `changelog.md`. هیچ کد اپلیکیشن دست نخورد.
+
+**تست:** غیرقابل‌اجرا در این sandbox — پروژه `requires-python = ">=3.12,<3.15"` (`pyproject.toml`) و `Django>=6.0` که خودش `>=3.12` می‌خواهد؛ sandbox فقط Python 3.10.12 دارد و دسترسی root/sudo برای نصب 3.12 وجود ندارد (`apt-get`/`sudo` هر دو رد شدند). این محدودیت شدیدتر از محدودیت‌های قبلی (فقدان Postgres) است — کل تست‌سوییت اصلاً قابل اجرا نبود، نه فقط بخش‌های وابسته به Postgres. تنها تایید انجام‌شده: بررسی استاتیک با `grep` برای رفرنس‌های باقیمانده به ماژول حذف‌شده.
+
+**اثر:** آیتم ۱ صف عملاً بسته است (منتظر تایید ✅ نهایی PYMN). یافته دوم مهم‌تر است: مقداری کار واقعی و به‌ظاهر باکیفیت (سخت‌سازی Postgres که مستندات آن را تمام‌شده می‌دانند + آنالیتیکس creator studio) در خطر از‌دست‌رفتن است چون هرگز کامیت نشده.
+
+**وضعیت CLAUDE.md:** بدون تغییر (طبق قانون اجرای خودکار، این فایل در این مسیر ویرایش نمی‌شود). توجه: بخش ۸ (Architecture Map) هنوز می‌گوید `config/settings.py` «با `raise ImportError` مسدوده» — این دیگر درست نیست (فایل کاملاً حذف شده)؛ نیاز به اصلاح دستی توسط PYMN یا از طریق Skill `casset-sync-docs`.
+
+---
+
 ## [2026-08-19] فاز ۳ (اعتماد و امنیت) تحویل شد — موارد #۱۱/#۱۲ بسته شدند + auto-approve
 
 **نوع:** Feature + Architecture + Security + Tests

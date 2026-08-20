@@ -43,7 +43,7 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 | 1 | ~~`AlbumForm` به فیلدهای `kind`/`is_public` ارجاع می‌ده که در مدل `Album` وجود ندارن (کرش فعال)~~ | — | ✅ حل‌شده — باگ `kind` رفع، cover validation (Pillow)، album_delete، N+1 fix، content_type guard، تست‌های کامل |
 | 2 | ~~دو مدل `Plan` موازی و ناسازگار در `billing` و `subscriptions`~~ | — | ✅ حل‌شده — `subscriptions` به `_deprecated/` منتقل و از INSTALLED_APPS حذف شد؛ `billing` تنها منبع حقیقت است |
 | 3 | ~~امتیاز مستقیم روی `UserProfile.points` نوشته می‌شه، نه از طریق Ledger~~ | — | ✅ حل‌شده — `PointLedger` ساخته شد، `services.py` تنها منبع تصمیم award، چهار دروازه دفاعی |
-| 4 | ~~دیتابیس فعلی SQLite است؛ `prod.py` تنظیمات Postgres نداره با اینکه `psycopg` نصبه~~ | — | ✅ حل‌شده — `DB_ENGINE=postgresql` در `base.py` هاردن شد (`CONN_HEALTH_CHECKS`, `OPTIONS.sslmode`, `connect_timeout`)؛ `prod.py` اکنون با `ImproperlyConfigured` فیل می‌کند اگر `DB_ENGINE≠postgresql` یا `DB_PASSWORD` خالی باشد، و پیش‌فرض `sslmode` را به `require` ارتقا می‌دهد. **اتصال زنده به یک Postgres واقعی هنوز تست نشده** (نه Docker نه نصب محلی روی این ماشین موجود بود) — قبل از اولین deploy واقعی حتماً `migrate` روی یک Postgres واقعی smoke-test شود.
+| 4 | ~~دیتابیس فعلی SQLite است؛ `prod.py` تنظیمات Postgres نداره با اینکه `psycopg` نصبه~~ | — | ✅ کاملاً حل‌شده (۲۰۲۶-۰۸-۲۰) — `DB_ENGINE=postgresql` در `base.py` هاردن شد (`CONN_HEALTH_CHECKS`, `OPTIONS.sslmode`, `connect_timeout`)؛ `prod.py` با `ImproperlyConfigured` فیل می‌کند اگر `DB_ENGINE≠postgresql` یا `DB_PASSWORD` خالی باشد. **اتصال زنده به یک PostgreSQL واقعی (نسخه ۱۶.۲) حالا واقعاً تست شد**: کل `migrate` (هر ۱۴ اپ) هم زیر `config.settings.dev` هم `config.settings.prod` روی یک دیتابیس تازه بدون خطا اجرا شد، و **کل ۳۴۳ تست پروژه روی همون Postgres واقعی (نه SQLite) pass شدن** — همون فرآیندی که موارد #۱۳ (`Sum(boolean)`) رو لو داد. جزئیات کامل در changelog. |
 | 5 | ~~`pyproject.toml` با پکیج‌های واقعاً استفاده‌شده (`allauth`, `pillow`, `django-filter`, DRF) هماهنگ نیست~~ | — | ✅ حل‌شده — بازنویسی کامل با بخش‌بندی دقیق، ruff و pytest-cov اضافه شد |
 | 6 | ~~تست خودکار عملاً صفر است~~ | — | ✅ حل‌شده — تست‌های accounts، plays، tracks، billing اضافه شد |
 | 7 | ~~هیچ سیستم Notification / Activity Feed وجود نداره~~ | — | ✅ حل‌شده — اپ `notifications` با ۸ verb، grouping، signals، API و ۴۲ تست |
@@ -52,6 +52,8 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 | 10 | ~~پلیر فعلی سرعت پخش/Resume/Sleep Timer نداشت~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۱۹) — `static/app.js`: کنترل سرعت (۰.۵x–۲x، ذخیره در localStorage)، Resume Position به‌ازای هر ترک، Sleep Timer با پله‌های ۱۵/۳۰/۴۵/۶۰ دقیقه. دکمه‌های `#pbSpeed`/`#pbSleep` در playerbar (`templates/base.html`). دستی در مرورگر تایید شد. |
 | 11 | ~~staff هیچ اکشنی روی Report نداشت (فقط لیست می‌دید، نمی‌تونست reviewed/actioned بزنه) و هیچ مکانیزم تعلیق حساب کاربری وجود نداشت~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۱۹، فاز ۳) — `moderation/services.py::update_report_status/suspend_user/unsuspend_user` + دکمه‌های اکشن در `report_queue.html`. تعلیق از طریق `User.is_active` استاندارد جنگو اعمال می‌شود؛ **مهم:** ورود با OTP از این چک صرف‌نظر می‌کرد (`django.contrib.auth.login()` خودش `is_active` را چک نمی‌کند) — در `phone_verify_view` صریحاً اضافه شد. |
 | 12 | ~~`check_and_notify_milestone` (اعلان ۱۰۰/۵۰۰/... پخش) نوشته شده بود ولی هیچ‌جا صدا زده نمی‌شد — کد مرده~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۱۹، فاز ۳) — در `plays/views.py::register_play` بعد از هر افزایش واقعی `play_count` صدا زده می‌شود. |
+| 13 | ~~`accounts/views.py::creator_studio_view` با `Sum("point_awarded")` روی یک `BooleanField` جمع می‌زد — روی SQLite بی‌صدا کار می‌کنه ولی روی PostgreSQL خطای `function sum(boolean) does not exist` می‌ده~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۲۰، فاز ۴+۵) — با `Count("id", filter=Q(point_awarded=True))` جایگزین شد؛ قابل‌حمل بین دیتابیس‌ها. کشف‌شده حین ممیزی کد قبل از ساخت روی همین view. |
+| 14 | ~~همون view: `my_tracks = list(qs)[:50]` — کل ترک‌های Creator رو (بدون LIMIT در SQL) به لیست پایتون تبدیل می‌کرد، بعد ۵۰ تای اول رو می‌گرفت~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۲۰، فاز ۴+۵) — به `list(qs[:50])` تغییر کرد؛ `LIMIT 50` حالا در سطح SQL اجرا می‌شود. |
 
 > وقتی هرکدوم از این موارد رفع شد، این جدول باید در همین فایل آپدیت بشه (ردیف حذف یا وضعیت به ✅ تغییر کنه).
 
@@ -61,12 +63,12 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 
 | اپ | نقش | بلوغ فعلی |
 |---|---|---|
-| `accounts` | کاربر، پروفایل، OTP، آنبوردینگ Creator، تعلیق حساب | متوسط — منطق VIP در مدل پخش شده، باید جمع بشه. تعلیق حساب (`is_active` + `UserProfile.suspended_at/reason`) روی هر دو مسیر ورود (OTP + رمز عبور) اعمال می‌شود |
+| `accounts` | کاربر، پروفایل، OTP، آنبوردینگ Creator، تعلیق حساب، آنالیتیکس Creator | متوسط — منطق VIP در مدل پخش شده، باید جمع بشه. تعلیق حساب (`is_active` + `UserProfile.suspended_at/reason`) روی هر دو مسیر ورود اعمال می‌شود. `creator_studio_view` حالا شنونده اول‌بار/برگشتی + عملکرد هر ترک را نشان می‌دهد (فاز ۴+۵) |
 | `tracks` | آلبوم/ترک، ژانر، تگ، چرخه انتشار | ✅ خوب — AlbumForm حرفه‌ای شد، cover validation، CRUD کامل، تست دارد |
 | `uploads` | آپلود فایل، ارسال برای بررسی | نیاز به Service مجزا برای اعتبارسنجی فایل؛ `submit_track` حالا `PlatformSetting.auto_approve_tracks` را چک می‌کند (فاز ۳) |
-| `plays` | ثبت پخش، آمار روزانه، Fraud signal، اعلان نقطه‌عطف | ✅ خوب — PointLedger، ۴ دروازه امنیتی، services.py، recalculate_points، `check_and_notify_milestone` حالا واقعاً صدا زده می‌شود |
+| `plays` | ثبت پخش، آمار روزانه، Fraud signal، اعلان نقطه‌عطف | ✅ خوب — PointLedger، ۴ دروازه امنیتی، services.py، recalculate_points، `check_and_notify_milestone` حالا واقعاً صدا زده می‌شود. `aggregate_stats`/`DailyTrackStat` آماده‌اند ولی عمداً به هیچ داشبوردی وصل نشدند (بخش ۹ روadmap) |
 | `interactions` | لایک، فالو، علاقه‌مندی، کامنت، بلاک کامنت‌گذار | ✅ کامل — مدل + endpoint هر شش نوع تعامل (like/follow/comment/comment-like/favorite/block) با `services.py`، همه به Notification وصل، ۴۲ تست |
-| `explore` | پین محتوای ویژه در صفحه کشف | حداقلی |
+| `explore` | کشف، فید شخصی‌سازی‌شده، Trending، پیشنهاد Creator | ✅ کامل شد (۲۰۲۶-۰۸-۲۰، فاز ۴+۵) — `discover_view` حالا فید بر اساس Follow، Trending وزن‌دار به Qualified Play، و پیشنهاد Creator داره؛ ۱۶ تست جدید (قبلاً صفر) |
 | `moderation` | گزارش، AuditLog، صف بررسی ترک، اکشن staff | ✅ کامل‌تر شد — تایید/رد ترک (`approve_track`/`reject_track` حالا در `services.py`، به‌اشتراک با auto-approve)، گزارش کامنت + مخفی‌سازی خودکار، **و حالا** staff می‌تواند وضعیت Report را عوض کند، کامنت مخفی‌شده را برگرداند، و حساب تعلیق/رفع‌تعلیق کند |
 | `billing` | پلن، فاکتور، تراکنش، درخواست تسویه | تنها منبع حقیقت برای VIP/پلن — تمیز و دارای تست |
 | ~~`subscriptions`~~ | ~~پلن و اشتراک (نسخه قدیمی‌تر)~~ | ✅ حذف‌شده — در `_deprecated/` آرشیو شده، هیچ referenceای در کد زنده وجود ندارد |
@@ -104,8 +106,9 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 فاز ۳  (روز ۳۹-۴۹)  اعتماد و امنیت (Trust & Safety) — ✅ بسته شد (۲۰۲۶-۰۸-۱۹): موارد #۱۱/#۱۲ رفع شدند
                     (اکشن staff روی Report، تعلیق حساب، بلاک کامنت‌گذار، auto-approve، اعلان نقطه‌عطف).
                     جزئیات کامل: `.casset/execution/90-day-roadmap.md` بخش ۸
-فاز ۴  (روز ۵۰-۷۰)  پخش معتبر + PointLedger واقعی — بخش عمده‌اش (مورد #۳) از فاز ۱ زودتر انجام شده
-فاز ۵  (روز ۷۱-۸۴)  لایه اجتماعی/اعلان (Notification+Feed) + آنالیتیکس + کشف محتوا
+فاز ۴+۵ (ادغام‌شده) فید شخصی + آنالیتیکس + کشف هوشمند — ✅ بسته شد (۲۰۲۶-۰۸-۲۰): موارد #۱۳/#۱۴ رفع
+                    شدند. Follow-feed/Trending وزن‌دار/پیشنهاد Creator/آنالیتیکس Creator تکمیل و تست شد.
+                    جزئیات کامل: `.casset/execution/90-day-roadmap.md` بخش ۹
 فاز ۶  (روز ۸۵-۹۰)  سخت‌سازی Production و استقرار نهایی
 ```
 
@@ -156,7 +159,7 @@ python manage.py migrate
 ## ۸. معماری کد (Architecture Map)
 
 - **Modular monolith با یک اپ Django به‌ازای هر دامنه.** لیست واقعی و فعال اپ‌ها همیشه از `config/settings/base.py::INSTALLED_APPS` بخون، نه از مستندات — این فایل منبع حقیقت است: `accounts`, `tracks`, `uploads`, `plays`, `interactions`, `playlists`, `explore`, `moderation`, `billing`, `notifications`, `core`.
-- **Settings سه‌لایه:** `config/settings/base.py` (مشترک) ← `dev.py` / `prod.py` این را extend می‌کنن. فایل قدیمی `config/settings.py` (تک‌فایلی در ریشه‌ی `config/`) عمداً بازنشسته شده و با `raise ImportError` مسدوده — به آن ارجاع نده، ایمپورتش نکن، فقط برای تاریخچه نگه داشته شده.
+- **Settings سه‌لایه:** `config/settings/base.py` (مشترک) ← `dev.py` / `prod.py` این را extend می‌کنن. فایل تخت قدیمی `config/settings.py` دیگر روی دیسک وجود ندارد — کاملاً حذف شده (commit `ea1d08b`، تایید مجدد توسط یک اجرای خودکار در ۲۰۲۶-۰۸-۲۰)، نه صرفاً بلاک‌شده با `raise ImportError` (که توصیف قدیمی این خط بود). هیچ import فعالی به `config.settings` (بدون `.dev`/`.prod`) در کدبیس وجود ندارد.
 - **Routing تخت:** هر اپ `urls.py` خودش را دارد و در `config/urls.py` بدون prefix با `include()` مونت می‌شود. الگوی `<slug:handle>/` (پروفایل عمومی) عمداً آخرین pattern است — هر URL جدید باید **قبل از آن** در `config/urls.py` یا در `urls.py` یکی از اپ‌ها اضافه بشه، وگرنه این الگو مسیر جدید رو قورت می‌ده.
 - **لایه Service/Domain** طبق قانون بخش ۲ باید منطق کسب‌وکار رو از `views.py` جدا نگه داره؛ فعلاً فقط `plays/services.py` و `notifications/services.py` این الگو را کامل پیاده کرده‌اند (نمونه‌ی مرجع برای سرویس جدید). بقیه‌ی اپ‌ها (`accounts`, `tracks`, `billing`, ...) هنوز بخشی از منطق را مستقیم در `views.py` دارند — وقتی منطق غیرپیش‌پاافتاده به یکی از این اپ‌ها اضافه می‌کنی، آن را در یک ماژول `services.py` مشابه بنویس، نه مستقیم در view.
 - **گراف اصلی کسب‌وکار:** User → Creator (`accounts`) → Track/Album (`tracks`) → PlaybackSession/Event → QualifiedPlay (`plays`) → `PointLedger` (`plays/models.py`, نوشتن فقط از طریق `plays/services.py`) → Notification (`notifications`, signal-driven از `notifications/signals.py`) → Dashboard/Analytics.

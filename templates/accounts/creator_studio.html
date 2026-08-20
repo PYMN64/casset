@@ -71,6 +71,33 @@
     </div>
   </div>
 
+  <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px;margin-top:12px">
+    <div class="card" style="padding:14px">
+      <div class="muted small">شنونده‌های جدید (۳۰ روز)</div>
+      <div style="font-weight:900;font-size:22px">{{ first_time_listeners }}</div>
+    </div>
+    <div class="card" style="padding:14px">
+      <div class="muted small">شنونده‌های برگشتی (۳۰ روز)</div>
+      <div style="font-weight:900;font-size:22px">{{ returning_listeners }}</div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:14px;margin-top:12px">
+    <h2 style="margin:0 0 8px">عملکرد هر ترک (۳۰ روز اخیر)</h2>
+    <div class="list">
+      {% for row in track_performance %}
+        <div class="item" style="justify-content:space-between">
+          <div style="min-width:0">
+            <a href="/t/{{ row.track.slug }}/" style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ row.track.title }}</a>
+          </div>
+          <div>plays: <b>{{ row.plays }}</b> • points: <b>{{ row.points }}</b></div>
+        </div>
+      {% empty %}
+        <div class="item"><span class="muted">داده‌ای برای نمایش نیست.</span></div>
+      {% endfor %}
+    </div>
+  </div>
+
   <hr style="margin:16px 0">
   <a class="btn btn--ghost" href="/dashboard/">بازگشت به داشبورد</a>
 </section>

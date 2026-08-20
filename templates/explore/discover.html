@@ -23,6 +23,35 @@
 <div class="grid" style="grid-template-columns: 1.6fr 1fr; align-items:start">
   <main class="card">
 
+    {% if followed_feed %}
+      <h2 class="mt">تازه از افرادی که دنبال می‌کنی</h2>
+      <div class="list">
+        {% for t in followed_feed %}
+          <div class="row">
+            <div style="display:flex;gap:12px;align-items:center;min-width:0">
+              <div style="width:42px;height:42px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.06);flex:0 0 auto">
+                {% if t.cover %}<img src="{{ t.cover.url }}" alt="" style="width:100%;height:100%;object-fit:cover">{% endif %}
+              </div>
+              <div style="min-width:0">
+                <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</a>
+                <div class="muted small">@{{ t.creator.username }} • {{ t.play_count }} plays</div>
+              </div>
+            </div>
+
+            {% if t.audio %}
+              <button class="btn btn--primary" type="button"
+                data-play="1"
+                data-src="{{ t.audio.url }}"
+                data-title="{{ t.title }}"
+                data-by="@{{ t.creator.username }}"
+                data-track="{{ t.id }}"
+                data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">پخش</button>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
     {% if pinned %}
       <h2 class="mt">پین‌شده‌ها</h2>
       <div class="list">
@@ -96,6 +125,22 @@
   </main>
 
   <aside class="card">
+    <h3>افراد پیشنهادی برای دنبال کردن</h3>
+    <div class="suggested">
+      {% for u in suggested_creators %}
+        <div class="suggest-row">
+          <a href="/@{{ u.username }}/">@{{ u.username }}</a>
+          {% if request.user.is_authenticated and request.user.id != u.id %}
+            <button class="btn btn--ghost btn--sm" data-follow="1" data-creator="{{ u.username }}">Follow</button>
+          {% endif %}
+        </div>
+      {% empty %}
+        <div class="muted small">فعلاً پیشنهادی نداریم.</div>
+      {% endfor %}
+    </div>
+
+    <hr>
+
     <h3>پیشنهاد برای شما</h3>
     <p class="muted small">بدون ML سنگین؛ بر اساس آخرین پلی‌ها و ژانرها</p>
     <div class="list">

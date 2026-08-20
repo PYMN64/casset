@@ -10,7 +10,7 @@ from accounts.models import UserProfile
 from core.test_utils import make_user
 from tracks.models import Track
 
-from .models import FraudFlag, PlayEvent, PointLedger
+from .models import DailyTrackStat, FraudFlag, PlayEvent, PointLedger
 from .services import try_award_point
 
 User = get_user_model()
@@ -423,4 +423,56 @@ class RegisterProgressViewTests(TestCase):
             reverse("api_play_progress"), {"track_id": private.id, "progress": 0.9}
         )
         self.assertEqual(resp.status_code, 403)
+
+
+class AggregateStatsCommandTests(TestCase):
+    """plays/management/commands/aggregate_stats.py — had 0% coverage.
+    Not currently wired to any scheduler (documented as a deliberate,
+    not-yet-needed optimization in the Phase 4/5 delivery notes), but it's
+    reachable, real code an operator could run — it deserves a basic
+    correctness check like anything else in the codebase."""
+
+    def setUp(self):
+        self.creator = make_user("agg_creator")
+        self.track = _make_track(self.creator, title="Agg")
+        self.day = "2026-08-01"
+
+    def _run(self, **kwargs):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command("aggregate_stats", date=self.day, stdout=out, **kwargs)
+        return out.getvalue()
+
+    def test_aggregates_plays_and_unique_plays_for_the_given_day(self):
+        # PlayEvent has a UniqueConstraint on (track, ip_hash, day_key), so
+        # "plays" and "unique_plays" are necessarily equal at this level —
+        # that's a property of the source data, not something this test
+        # should paper over. Two distinct IPs on the same day/track:
+        _make_play_event(self.track, self.creator, ip_hash="ip1", day_key=self.day, point_awarded=True)
+        _make_play_event(self.track, self.creator, ip_hash="ip2", day_key=self.day)
+
+        self._run()
+
+        stat = DailyTrackStat.objects.get(track=self.track, day=self.day)
+        self.assertEqual(stat.plays, 2)
+        self.assertEqual(stat.unique_plays, 2)
+
+    def test_rerunning_the_same_day_updates_in_place_not_duplicates(self):
+        _make_play_event(self.track, self.creator, ip_hash="ip1", day_key=self.day)
+        self._run()
+        _make_play_event(self.track, self.creator, ip_hash="ip2", day_key=self.day)
+        self._run()
+
+        self.assertEqual(DailyTrackStat.objects.filter(track=self.track, day=self.day).count(), 1)
+        stat = DailyTrackStat.objects.get(track=self.track, day=self.day)
+        self.assertEqual(stat.plays, 2)
+
+    def test_invalid_date_raises_command_error(self):
+        from django.core.management import CommandError, call_command
+
+        with self.assertRaises(CommandError):
+            call_command("aggregate_stats", date="not-a-date")
         self.assertEqual(PointLedger.objects.filter(user=self.creator).count(), 0)
