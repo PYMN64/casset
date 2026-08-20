@@ -1,24 +1,40 @@
 {% extends "base.html" %}
-{% block title %}ورود با موبایل • Casset{% endblock %}
+{% block title %}ورود با شماره موبایل | کست{% endblock %}
+{% block meta_description %}با شماره موبایل و کد یک‌بارمصرف وارد کست شو — بدون رمز عبور.{% endblock %}
 
 {% block content %}
-<section class="card" style="max-width:520px;margin:0 auto">
-  <h1>ورود با شماره موبایل</h1>
-  <p class="muted small">کد یک‌بارمصرف برایت ارسال می‌شود.</p>
-
-  <form method="post" class="stack gap-2">
-    {% csrf_token %}
-    <div>
-      <div class="muted small">شماره موبایل</div>
-      {{ form.phone_number }}
+<div class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      <span class="auth__mark" aria-hidden="true"><svg class="icon"><use href="#i-phone"/></svg></span>
+      کست
     </div>
-    <button class="btn btn--primary" type="submit">ارسال کد</button>
-  </form>
+    <h1 class="auth__title">ورود با شماره موبایل</h1>
+    <p class="auth__sub">یک کد ۶ رقمی برایت پیامک می‌شود. رمز عبور لازم نیست.</p>
 
-  <hr style="margin:16px 0">
-  <div class="row" style="justify-content:space-between;gap:10px;flex-wrap:wrap">
-    <a class="btn btn--ghost" href="/login/">ورود با نام کاربری</a>
-    <a class="btn btn--ghost" href="/google/">ورود با گوگل</a>
+    <form method="post" class="auth__form" novalidate>
+      {% csrf_token %}
+      {% include "partials/_field.html" with field=form.phone_number hint="مثلاً ۰۹۱۲۱۲۳۴۵۶۷" %}
+      <button class="btn btn--primary btn--block" type="submit">ارسال کد</button>
+    </form>
+
+    <p class="auth__legal">
+      با ورود، <a href="{% url 'terms' %}">قوانین</a> و
+      <a href="{% url 'privacy' %}">حریم خصوصی</a> کست را می‌پذیری.
+    </p>
+
+    <div class="divider-or">یا</div>
+
+    <div class="social-row">
+      <a class="social-btn" href="{% url 'login' %}">
+        <svg class="icon"><use href="#i-lock"/></svg>ورود با رمز
+      </a>
+      {% if google_enabled %}
+        <a class="social-btn" href="{% url 'google_login' %}">
+          <svg class="icon"><use href="#i-google"/></svg>ورود با گوگل
+        </a>
+      {% endif %}
+    </div>
   </div>
-</section>
+</div>
 {% endblock %}

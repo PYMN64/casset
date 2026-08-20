@@ -1,32 +1,105 @@
 {% extends "base.html" %}
-{% block title %}Creator • Casset{% endblock %}
+{% block title %}انتشاردهنده شو | کست{% endblock %}
+{% block meta_description %}اثرت را مستقیم روی کست منتشر کن — با آمار پخش واقعی و امتیاز شفاف.{% endblock %}
 
 {% block content %}
-<section class="card" style="max-width:720px;margin:0 auto">
-  <h1>کاست بساز، پول دربیار</h1>
-  <p class="muted small">
-    برای فعال شدن حالت سازنده، باید درخواست بدهی. بعد از بررسی، Creator Studio فعال می‌شود.
-  </p>
+<div class="center-col">
+  <div class="page-head text-center">
+    <h1>روی کست منتشر کن</h1>
+    <p>آمار واقعی، امتیاز شفاف، و لینک اختصاصی خودت.</p>
+  </div>
 
-  {% if profile.creator_status == "pending" %}
-    <div class="card" style="padding:14px">
-      <strong>وضعیت:</strong> در حال بررسی ✅
-      <p class="muted small" style="margin-top:8px">به محض تایید، Creator Studio برایت باز می‌شود.</p>
+  {% if profile.creator_status == "rejected" %}
+    <div class="notice notice--bad mb-4">
+      <svg class="icon"><use href="#i-alert"/></svg>
+      <div>
+        <b>درخواست انتشار شما رد شده است.</b>
+        برای بررسی مجدد با پشتیبانی تماس بگیر.
+      </div>
     </div>
-  {% elif profile.creator_status == "rejected" %}
-    <div class="card" style="padding:14px">
-      <strong>وضعیت:</strong> رد شده ❌
-      <p class="muted small" style="margin-top:8px">می‌توانی دوباره درخواست بدهی.</p>
-    </div>
-  {% else %}
-    <form method="post" class="stack gap-2">
-      {% csrf_token %}
-      <button class="btn btn--primary" type="submit">درخواست فعال‌سازی Creator</button>
-      <p class="muted small">با ثبت درخواست، قوانین محتوا و بررسی اولیه فعال می‌شود.</p>
-    </form>
   {% endif %}
 
-  <hr style="margin:16px 0">
-  <a class="btn btn--ghost" href="/dashboard/">بازگشت به داشبورد</a>
-</section>
+  <div class="card">
+    <div class="card__title">دو قدم تا انتشار</div>
+    <p class="card__sub">
+      انتشاردهنده‌ی کست باید قابل‌شناسایی باشد — همین است که آمار پخش و تسویه‌ی
+      مالی را قابل‌اعتماد نگه می‌دارد.
+    </p>
+
+    <ol class="checklist">
+      <li class="{% if not needs_phone %}is-done{% endif %}">
+        <span class="checklist__mark">
+          <svg class="icon"><use href="{% if needs_phone %}#i-phone{% else %}#i-check{% endif %}"/></svg>
+        </span>
+        <span class="checklist__body">
+          <b>تایید شماره موبایل</b>
+          <span>
+            {% if needs_phone %}
+              یک کد ۶ رقمی برایت پیامک می‌شود. شماره‌ات عمومی نمی‌شود.
+            {% else %}
+              تایید شده — <span dir="ltr" class="num">{{ profile.phone_number }}</span>
+            {% endif %}
+          </span>
+        </span>
+        {% if needs_phone %}
+          <a class="btn btn--primary btn--sm" href="{% url 'account_phone_start' %}">تایید شماره</a>
+        {% endif %}
+      </li>
+
+      <li class="{% if not needs_handle %}is-done{% endif %}">
+        <span class="checklist__mark">
+          <svg class="icon"><use href="{% if needs_handle %}#i-user{% else %}#i-check{% endif %}"/></svg>
+        </span>
+        <span class="checklist__body">
+          <b>انتخاب یوزرنیم عمومی</b>
+          <span>
+            {% if needs_handle %}
+              آدرس اختصاصی صفحه‌ات: <span dir="ltr">casset.ir/yourname</span>
+            {% else %}
+              <span dir="ltr">casset.ir/{{ profile.public_handle }}</span>
+            {% endif %}
+          </span>
+        </span>
+        {% if needs_handle %}
+          <a class="btn {% if needs_phone %}btn--ghost{% else %}btn--primary{% endif %} btn--sm"
+             href="{% url 'creator_handle' %}"
+             {% if needs_phone %}title="اول شماره‌ات را تایید کن"{% endif %}>انتخاب یوزرنیم</a>
+        {% endif %}
+      </li>
+    </ol>
+
+    {% if not blockers %}
+      <form method="post" class="mt-4">
+        {% csrf_token %}
+        <button class="btn btn--primary btn--block btn--lg" type="submit">
+          <svg class="icon"><use href="#i-mic"/></svg>فعال‌سازی استودیو
+        </button>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="grid-3 mt-5">
+    <div class="card">
+      <span class="stat-card__icon mb-3"><svg class="icon"><use href="#i-trend"/></svg></span>
+      <div class="card__title">آمار قابل‌اعتماد</div>
+      <p class="t-sm muted lh-body mb-0">
+        «پخش معتبر» سمت سرور تعیین می‌شود، نه با گزارش مرورگر. عدد کوچک‌تر ولی واقعی.
+      </p>
+    </div>
+    <div class="card">
+      <span class="stat-card__icon stat-card__icon--gold mb-3"><svg class="icon"><use href="#i-coin"/></svg></span>
+      <div class="card__title">امتیاز شفاف</div>
+      <p class="t-sm muted lh-body mb-0">
+        هر امتیاز یک ردیف در دفتر تراکنش دارد که خودت می‌بینی — نه یک عدد مبهم.
+      </p>
+    </div>
+    <div class="card">
+      <span class="stat-card__icon mb-3"><svg class="icon"><use href="#i-share"/></svg></span>
+      <div class="card__title">صفحه اختصاصی</div>
+      <p class="t-sm muted lh-body mb-0">
+        یک لینک ساده برای معرفی خودت، به‌علاوه فید RSS برای پادکست.
+      </p>
+    </div>
+  </div>
+</div>
 {% endblock %}

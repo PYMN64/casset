@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}تایید شماره موبایل | کست{% endblock %}
+
+{% block content %}
+<div class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      <span class="auth__mark" aria-hidden="true"><svg class="icon"><use href="#i-shield"/></svg></span>
+      کست
+    </div>
+    <h1 class="auth__title">تایید شماره موبایل</h1>
+    <p class="auth__sub">
+      برای انتشار اثر، شماره‌ات باید تایید شده باشد. این شماره عمومی نمی‌شود.
+    </p>
+
+    {% if profile.phone_verified %}
+      <div class="notice notice--good mb-4">
+        <svg class="icon"><use href="#i-check-circle"/></svg>
+        <div>
+          شماره <b dir="ltr" class="num">{{ profile.phone_number }}</b> قبلاً تایید شده است.
+          با ثبت شماره جدید، شماره قبلی جایگزین می‌شود.
+        </div>
+      </div>
+    {% endif %}
+
+    <form method="post" class="auth__form" novalidate>
+      {% csrf_token %}
+      {% include "partials/_field.html" with field=form.phone_number hint="مثلاً ۰۹۱۲۱۲۳۴۵۶۷" %}
+      <button class="btn btn--primary btn--block" type="submit">ارسال کد تایید</button>
+    </form>
+
+    <div class="auth__legal">
+      چرا لازم است؟ انتشاردهنده‌های کست باید قابل‌تماس باشند — این همان چیزی است که
+      آمار پخش و تسویه‌ی مالی را قابل‌اعتماد نگه می‌دارد.
+    </div>
+
+    <div class="auth__foot">
+      <a href="{% url 'creator_apply' %}">بازگشت</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -15,6 +15,18 @@ class UserProfile(models.Model):
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
 
+    class AuthProvider(models.TextChoices):
+        """How this account was originally created.
+
+        Not an authorisation decision — it exists so the UI can say
+        "you signed up with Google" instead of showing a password-change
+        form to an account that has no usable password.
+        """
+
+        PASSWORD = "password", "Password"
+        PHONE = "phone", "Phone OTP"
+        GOOGLE = "google", "Google"
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile"
     )
@@ -107,11 +119,79 @@ class UserProfile(models.Model):
     suspended_at = models.DateTimeField(null=True, blank=True)
     suspended_reason = models.CharField(max_length=240, blank=True)
 
+    # --- Identity provenance ---
+    # Set once at sign-up. Google sign-in additionally stamps
+    # email_verified_at, because Google has already proved the address.
+    auth_provider = models.CharField(
+        max_length=16, choices=AuthProvider.choices, default=AuthProvider.PASSWORD
+    )
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+    google_sub = models.CharField(
+        max_length=64, blank=True, null=True, unique=True,
+        help_text="Google's stable subject id. Immutable per Google account, "
+                  "unlike the email address — this is what we match on.",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def public_name(self) -> str:
-        return self.display_name.strip() or self.user.username
+        return self.display_name.strip() or self.public_handle or self.user.username
+
+    # ------------------------------------------------------------------
+    # Publisher eligibility
+    #
+    # Product rule: choosing a public handle is what turns a listener into
+    # a publisher — but a publisher must be reachable, so a verified phone
+    # number is a hard prerequisite. Both conditions live here so views,
+    # templates and the upload gate all read the same definition instead
+    # of each re-deriving it.
+    # ------------------------------------------------------------------
+
+    @property
+    def phone_verified(self) -> bool:
+        return bool(self.phone_number and self.phone_verified_at)
+
+    @property
+    def email_verified(self) -> bool:
+        return self.email_verified_at is not None
+
+    @property
+    def can_publish(self) -> bool:
+        """May this account put content in front of the public?
+
+        Deliberately does NOT gate uploading a draft — a draft is private
+        and harmless. It gates submitting for review (uploads/views.py
+        ::submit_track), which is the moment content becomes public-bound.
+        """
+        if self.creator_status == self.CreatorStatus.REJECTED:
+            return False
+        return bool(self.public_handle) and self.phone_verified
+
+    def publish_blockers(self) -> list[str]:
+        """Ordered list of what still stands between this account and
+        publishing. Drives the checklist UI on the publisher page."""
+        blockers = []
+        if not self.phone_verified:
+            blockers.append("phone")
+        if not self.public_handle:
+            blockers.append("handle")
+        if self.creator_status == self.CreatorStatus.REJECTED:
+            blockers.append("rejected")
+        return blockers
+
+    @property
+    def profile_url(self) -> str:
+        """Canonical public URL for this profile.
+
+        Handle form (/name/) when one is set — that is the shareable
+        identity; otherwise the /@username/ form, which always resolves.
+        """
+        from django.urls import reverse
+
+        if self.public_handle:
+            return reverse("public_profile_by_handle", kwargs={"handle": self.public_handle})
+        return reverse("public_profile", kwargs={"username": self.user.username})
 
     def __str__(self):
         return f"Profile({self.user.username})"

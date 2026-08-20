@@ -29,6 +29,10 @@ class OnboardingRequiredMiddleware:
         "/google/",
         "/creator/apply/",
         "/accounts/",
+        "/account/phone/",
+        "/terms/",
+        "/privacy/",
+        "/healthz/",
     )
 
     # API paths: never redirect, return JSON instead.

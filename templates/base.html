@@ -4,227 +4,198 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0a10" />
+  <meta name="theme-color" content="#08080c" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#faf8ff" media="(prefers-color-scheme: light)" />
   <meta name="play-threshold-seconds" content="59" />
 
-  <title>{% block title %}Casset{% endblock %}</title>
+  {% comment %}
+    Every page overrides the title block with its own under-60-character
+    title. The default here is the logged-out home title, never a bare
+    "Casset" — a generic title on every page is what made the old site
+    invisible in search results.
+  {% endcomment %}
+  <title>{% block title %}کست — موسیقی، پادکست و کتاب صوتی فارسی{% endblock %}</title>
 
   {% block meta %}
-  <meta name="description" content="کست — اولین پلتفرم ایرانی انتشار و کشف موزیک، پادکست و کتاب صوتی." />
-  <meta property="og:site_name" content="Casset" />
-  <meta property="og:type" content="website" />
-  <meta property="og:title" content="Casset" />
-  <meta property="og:description" content="اولین پلتفرم ایرانی انتشار و کشف موزیک، پادکست و کتاب صوتی." />
+  <meta name="description" content="{% block meta_description %}کست؛ پلتفرم ایرانی انتشار و کشف موسیقی، پادکست و کتاب صوتی — مستقیم از خود هنرمند، با آمار پخش قابل‌اعتماد.{% endblock %}" />
+  <link rel="canonical" href="{% block canonical %}{{ request.build_absolute_uri|cut:'?' }}{% endblock %}" />
+  <meta property="og:site_name" content="کست" />
+  <meta property="og:locale" content="fa_IR" />
+  <meta property="og:type" content="{% block og_type %}website{% endblock %}" />
+  <meta property="og:title" content="{% block og_title %}کست — موسیقی، پادکست و کتاب صوتی فارسی{% endblock %}" />
+  <meta property="og:description" content="{% block og_description %}پلتفرم ایرانی انتشار و کشف صدا — مستقیم از خود هنرمند.{% endblock %}" />
   <meta property="og:url" content="{{ request.build_absolute_uri }}" />
-  <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Casset" />
-  <meta name="twitter:description" content="اولین پلتفرم ایرانی انتشار و کشف موزیک، پادکست و کتاب صوتی." />
+  <meta property="og:image" content="{% block og_image %}{{ request.scheme }}://{{ request.get_host }}{% static 'icons/og-default.png' %}{% endblock %}" />
+  <meta name="twitter:card" content="{% block twitter_card %}summary_large_image{% endblock %}" />
+  <meta name="twitter:title" content="{% block twitter_title %}کست{% endblock %}" />
+  <meta name="twitter:description" content="{% block twitter_description %}پلتفرم ایرانی انتشار و کشف صدا.{% endblock %}" />
   {% endblock %}
 
   <link rel="manifest" href="{% static 'manifest.webmanifest' %}">
-  <link rel="apple-touch-icon" href="{% static 'icons/icon.svg' %}">
+  <link rel="icon" href="{% static 'icons/icon.svg' %}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{% static 'icons/apple-touch-icon.png' %}">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="کست">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+  {# Load order matters: app.css owns the tokens + base layer, casset-ui.css
+     the component layer built on them, cassette.css the player identity. #}
   <link rel="stylesheet" href="{% static 'app.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/casset-ui.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/cassette.css' %}" />
   {% block head %}{% endblock %}
-
-  
-  <style>
-    /* ---- Orange Noir tweaks + responsive bottom nav ---- */
-    .bottomnav{display:none}
-    @media (max-width: 920px){
-      .bottomnav{display:flex}
-    }
-
-    /* Text colors: keep text white in BOTH themes.
-       In light theme only header (topbar) text becomes dark for contrast. */
-    html[data-theme="light"]{
-      --text: #ffffff;
-      --muted: rgba(255,255,255,.78);
-    }
-    html[data-theme="light"] .topbar,
-    html[data-theme="light"] .topbar .brand__name,
-    html[data-theme="light"] .topbar .chip__text,
-    html[data-theme="light"] .topbar a,
-    html[data-theme="light"] .topbar button,
-    html[data-theme="light"] .topbar input{
-      color:#0a0712 !important;
-    }
-    html[data-theme="light"] .topbar .icon{ fill:#0a0712 !important; }
-
-    /* RTL/LTR helpers */
-    html[dir="rtl"] .ltr-only{display:none}
-    html[dir="ltr"] .rtl-only{display:none}
-
-    /* Replace scattered inline styles with small utilities */
-    .row-wrap{justify-content:flex-start;gap:10px;flex-wrap:wrap}
-    .row-top{align-items:flex-start;gap:14px}
-
-    /* File input polish */
-    input[type="file"]{
-      width:100%;
-      padding:12px 12px;
-      background: var(--panel, rgba(255,255,255,.04));
-      border: 1px solid rgba(255,147,56,.55);
-      border-radius: 14px;
-      color: var(--text);
-      outline: none;
-    }
-    input[type="file"]::file-selector-button{
-      border: 0;
-      border-radius: 12px;
-      padding: 10px 12px;
-      margin-inline-end: 10px;
-      background: linear-gradient(135deg, rgba(255,147,56,1), rgba(255,185,120,1));
-      color: #090812;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    input[type="file"]::file-selector-button:hover{filter: brightness(1.05)}
-
-    /* Notification bell badge */
-    .notif-badge{
-      position:absolute;
-      top:2px;
-      inset-inline-end:2px;
-      min-width:18px;
-      height:18px;
-      padding:0 5px;
-      border-radius:9px;
-      background:#ff3b30;
-      color:#fff;
-      font-size:11px;
-      font-weight:800;
-      line-height:18px;
-      text-align:center;
-      pointer-events:none;
-    }
-  </style>
 
   {# Preferred: platform.playback_point_percent (0..100). Fallback: play_award_percent (0..1) #}
   <meta name="play-threshold-percent" content="{% if platform.playback_point_percent %}{{ platform.playback_point_percent }}{% else %}{{ platform.play_award_percent|default:0.6 }}{% endif %}">
+
+  {# Applied before first paint so the chosen theme never flashes the other one. #}
+  <script>
+    (function(){
+      try {
+        var t = localStorage.getItem("casset.theme");
+        if (!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
   <a class="skiplink" href="#main">رفتن به محتوا</a>
 
-  <!-- SVG icon set -->
-  <svg class="icons" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
-    <symbol id="i-search" viewBox="0 0 24 24">
-      <path d="M10.5 3a7.5 7.5 0 1 0 4.7 13.3l4.5 4.4a1 1 0 0 0 1.4-1.4l-4.4-4.5A7.5 7.5 0 0 0 10.5 3zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11z"/>
-    </symbol>
-    <symbol id="i-compass" viewBox="0 0 24 24">
-      <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm3.7 6.3-2 7a1 1 0 0 1-.7.7l-7 2a.6.6 0 0 1-.8-.8l2-7a1 1 0 0 1 .7-.7l7-2a.6.6 0 0 1 .8.8zM10 14l4-4-5 2z"/>
-    </symbol>
-    <symbol id="i-library" viewBox="0 0 24 24">
-      <path d="M6 4h2v16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm4 0h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-8V4zm2 4v2h6V8h-6z"/>
-    </symbol>
-    <symbol id="i-playlist" viewBox="0 0 24 24">
-      <path d="M4 6h12v2H4V6zm0 4h12v2H4v-2zm0 4h8v2H4v-2zm15-2v-2h2v2h2v2h-2v2h-2v-2h-2v-2h2z"/>
-    </symbol>
-    <symbol id="i-upload" viewBox="0 0 24 24">
-      <path d="M12 3l5 5h-3v6h-4V8H7l5-5zm-7 16h14v2H5v-2z"/>
-    </symbol>
-    <symbol id="i-dashboard" viewBox="0 0 24 24">
-      <path d="M4 13h8v8H4v-8zm10-10h6v10h-6V3zM4 3h8v8H4V3zm10 12h6v6h-6v-6z"/>
-    </symbol>
-    <symbol id="i-settings" viewBox="0 0 24 24">
-      <path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.1a1 1 0 0 0 .4-1.3l-2-3.4a1 1 0 0 0-1.2-.4l-2 1a7.8 7.8 0 0 0-1.7-1l-.3-2.2A1 1 0 0 0 13.6 2h-3.2a1 1 0 0 0-1 .8l-.3 2.2a7.8 7.8 0 0 0-1.7 1l-2-1a1 1 0 0 0-1.2.4l-2 3.4a1 1 0 0 0 .4 1.3l2 1.1a7.7 7.7 0 0 0 0 2l-2 1.1a1 1 0 0 0-.4 1.3l2 3.4a1 1 0 0 0 1.2.4l2-1a7.8 7.8 0 0 0 1.7 1l.3 2.2a1 1 0 0 0 1 .8h3.2a1 1 0 0 0 1-.8l.3-2.2a7.8 7.8 0 0 0 1.7-1l2 1a1 1 0 0 0 1.2-.4l2-3.4a1 1 0 0 0-.4-1.3L19.4 13zM12 16a4 4 0 1 1 4-4 4 4 0 0 1-4 4z"/>
-    </symbol>
-    <symbol id="i-sun" viewBox="0 0 24 24">
-      <path d="M12 18a6 6 0 1 1 6-6 6 6 0 0 1-6 6zm0-16h0v3h0V2zm0 17h0v3h0v-3zM4.2 5.6l2.1 2.1-2.1-2.1zm11.6 11.6 2.1 2.1-2.1-2.1zM2 12h3H2zm17 0h3-3zM4.2 18.4l2.1-2.1-2.1 2.1zm11.6-11.6 2.1-2.1-2.1 2.1z"/>
-    </symbol>
-    <symbol id="i-moon" viewBox="0 0 24 24">
-      <path d="M21 14.4A8.7 8.7 0 0 1 9.6 3a7.5 7.5 0 1 0 11.4 11.4z"/>
-    </symbol>
-    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 5h2v14H6V5zm12 0v14l-10-7 10-7z"/></symbol>
-    <symbol id="i-next" viewBox="0 0 24 24"><path d="M16 5h2v14h-2V5zM6 19V5l10 7-10 7z"/></symbol>
-    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
-    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7V5zm6 0h4v14h-4V5z"/></symbol>
-    <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M17 3h4v4h-2V5.4l-3.6 3.6a2 2 0 0 1-1.4.6H10a2 2 0 0 0-1.4.6L3 15.4V13l4.2-4.2A4 4 0 0 1 10 7h3.6l2.8-2.8H17V3zM3 7h2l4.6 4.6-1.4 1.4L3 7zm14 14h4v-4h-2v1.6l-3.6-3.6a2 2 0 0 0-1.4-.6H10a2 2 0 0 1-1.4-.6L3 8.6V11l4.2 4.2A4 4 0 0 0 10 17h3.6l2.8 2.8H17v1.2z"/></symbol>
-    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M7 7h11V4l4 4-4 4V9H7a3 3 0 0 0-3 3v1H2v-1a5 5 0 0 1 5-5zm10 10H6v3l-4-4 4-4v3h11a3 3 0 0 0 3-3v-1h2v1a5 5 0 0 1-5 5z"/></symbol>
-    <symbol id="i-queue" viewBox="0 0 24 24"><path d="M3 6h14v2H3V6zm0 4h14v2H3v-2zm0 4h10v2H3v-2zm16 0v-2h2v2h2v2h-2v2h-2v-2h-2v-2h2z"/></symbol>
-    <symbol id="i-back10" viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7a5 5 0 11-5 5H5a7 7 0 107-7z"/><text x="12" y="16.5" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" stroke="none">10</text></symbol>
-    <symbol id="i-fwd10" viewBox="0 0 24 24"><path d="M12 5V1l5 5-5 5V7a5 5 0 105 5h2a7 7 0 10-7-7z"/><text x="12" y="16.5" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" stroke="none">10</text></symbol>
-    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 00-2.5-4.03v8.05A4.5 4.5 0 0016.5 12zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></symbol>
-    <symbol id="i-mute" viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0014 7.97v2.21l2.45 2.45c.03-.2.05-.42.05-.63zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.796 8.796 0 0021 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 003.69-1.81L18.73 21 20 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></symbol>
-    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></symbol>
-    <symbol id="i-down" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></symbol>
-    <symbol id="i-user" viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z"/></symbol>
-    <symbol id="i-lang" viewBox="0 0 24 24">
-      <path d="M12 2a10 10 0 100 20 10 10 0 000-20Zm7.2 9h-3.02a15.6 15.6 0 00-1.02-4.1A8.03 8.03 0 0119.2 11ZM12 4.1c.83 1.08 1.53 2.78 1.92 4.9H10.1c.39-2.12 1.09-3.82 1.9-4.9ZM4.8 13h3.02c.2 1.47.63 2.9 1.27 4.1A8.03 8.03 0 014.8 13Zm3.02-2H4.8a8.03 8.03 0 014.3-4.1c-.64 1.2-1.07 2.63-1.28 4.1Zm2.28 2h3.82c-.39 2.12-1.1 3.82-1.92 4.9-.82-1.08-1.52-2.78-1.9-4.9Zm3.82-2H10.1c.38-2.12 1.08-3.82 1.9-4.9.83 1.08 1.53 2.78 1.92 4.9Zm1.25 6.1c.64-1.2 1.07-2.63 1.28-4.1h3.02a8.03 8.03 0 01-4.3 4.1Z"/>
-    </symbol>
-</svg>
+  {% include "partials/_icons.html" %}
 
   <!-- Topbar -->
   <header class="topbar">
     <div class="topbar__inner">
-      <a class="brand" href="/" aria-label="Casset">
-        <span class="brand__name">Casset</span><span class="brand__dot" aria-hidden="true"></span>
+      <a class="brand" href="/" aria-label="کست — صفحه اصلی">
+        <span class="brand__mark" aria-hidden="true"><svg class="icon"><use href="#i-play"/></svg></span>
+        <span class="brand__name">کست</span>
       </a>
 
-      <form class="search" action="/search/" method="get" role="search">
+      <form class="search" action="{% url 'search' %}" method="get" role="search">
         <button class="iconbtn iconbtn--ghost" type="submit" aria-label="جستجو">
           <svg class="icon"><use href="#i-search"/></svg>
         </button>
-        <input class="search__input" type="search" name="q" placeholder="جستجو در موزیک، پادکست، کتاب…" autocomplete="off">
+        <label class="sr-only" for="topSearch">جستجو در کست</label>
+        <input class="search__input" id="topSearch" type="search" name="q" value="{{ request.GET.q|default:'' }}"
+               placeholder="جستجو در موزیک، پادکست، کتاب صوتی…" autocomplete="off">
       </form>
 
       <div class="topbar__actions">
-        <button class="iconbtn" type="button" id="langToggle" aria-label="Language"><svg class="icon"><use href="#i-lang"/></svg></button><button class="iconbtn iconbtn--ghost" id="themeToggle" type="button" aria-label="تغییر تم">
+        <button class="iconbtn iconbtn--ghost" id="themeToggle" type="button" aria-label="تغییر تم روشن/تیره">
           <svg class="icon" id="themeIcon"><use href="#i-moon"/></svg>
         </button>
 
         {% if request.user.is_authenticated %}
-          <a class="iconbtn iconbtn--ghost" href="{% url 'notification_list' %}"
-             title="اعلان‌ها" id="notifBell" style="position:relative">
-            <svg class="icon" viewBox="0 0 24 24" width="22" height="22">
-              <path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 0 0-5-5.9V4a1 1 0 0 0-2 0v1.1A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2z"/>
-            </svg>
-            <span id="notifBadge" class="notif-badge" style="display:none"></span>
+          <a class="iconbtn iconbtn--ghost topbar__bell" href="{% url 'notification_list' %}" aria-label="اعلان‌ها" title="اعلان‌ها">
+            <svg class="icon"><use href="#i-bell"/></svg>
+            <span id="notifBadge" class="notif-badge hidden" aria-live="polite"></span>
           </a>
-          <a class="chip" href="/@{{ request.user.username }}/" title="پروفایل">
-            <svg class="icon"><use href="#i-user"/></svg>
-            <span class="chip__text">@{{ request.user.username }}</span>
-          </a>
-          <a class="btn btn--ghost" href="/logout/">خروج</a>
+
+          <div class="menu" id="accountMenu">
+            <button class="chip" type="button" id="accountMenuBtn" aria-haspopup="true" aria-expanded="false">
+              <span class="chip__avatar" aria-hidden="true"
+                    {% if request.user.profile.avatar %}style="background-image:url('{{ request.user.profile.avatar.url }}')"{% endif %}>
+                {% if not request.user.profile.avatar %}<svg class="icon"><use href="#i-user"/></svg>{% endif %}
+              </span>
+              <span class="chip__text truncate">{{ request.user.profile.public_name }}</span>
+              <svg class="icon chip__caret"><use href="#i-down"/></svg>
+            </button>
+            <div class="menu__panel" id="accountMenuPanel" role="menu">
+              <a class="menu__item" role="menuitem" href="{{ request.user.profile.profile_url }}">
+                <svg class="icon"><use href="#i-user"/></svg>پروفایل من
+              </a>
+              <a class="menu__item" role="menuitem" href="{% url 'dashboard' %}">
+                <svg class="icon"><use href="#i-dashboard"/></svg>داشبورد
+              </a>
+              {% if request.user.profile.can_publish %}
+                <a class="menu__item" role="menuitem" href="{% url 'creator_studio' %}">
+                  <svg class="icon"><use href="#i-studio"/></svg>استودیوی من
+                </a>
+              {% else %}
+                <a class="menu__item" role="menuitem" href="{% url 'creator_apply' %}">
+                  <svg class="icon"><use href="#i-mic"/></svg>انتشاردهنده شو
+                </a>
+              {% endif %}
+              <a class="menu__item" role="menuitem" href="{% url 'vip' %}">
+                <svg class="icon"><use href="#i-wallet"/></svg>کیف پول و VIP
+              </a>
+              <a class="menu__item" role="menuitem" href="{% url 'settings' %}">
+                <svg class="icon"><use href="#i-settings"/></svg>تنظیمات
+              </a>
+              {% if request.user.is_staff %}
+                <a class="menu__item" role="menuitem" href="{% url 'staff:platform_dashboard' %}">
+                  <svg class="icon"><use href="#i-shield"/></svg>پنل مدیریت
+                </a>
+              {% endif %}
+              <hr class="divider-line mt-2 mb-2">
+              <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button class="menu__item menu__item--danger" type="submit" role="menuitem">
+                  <svg class="icon"><use href="#i-logout"/></svg>خروج از حساب
+                </button>
+              </form>
+            </div>
+          </div>
         {% else %}
-          <a class="btn btn--ghost" href="/login/">ورود</a>
-          <a class="btn btn--primary" href="/register/">ثبت‌نام</a>
+          <a class="btn btn--ghost btn--sm" href="{% url 'login' %}">ورود</a>
+          <a class="btn btn--primary btn--sm" href="{% url 'register' %}">ثبت‌نام رایگان</a>
         {% endif %}
       </div>
     </div>
   </header>
 
   <div class="appshell">
-    <aside class="sidebar" aria-label="Sidebar">
+    <aside class="sidebar" aria-label="ناوبری کناری">
       <nav class="sidenav">
-        <a class="sidenav__link" href="/discover/"><svg class="icon"><use href="#i-compass"/></svg><span>کشف</span></a>
-        <a class="sidenav__link" href="/search/"><svg class="icon"><use href="#i-search"/></svg><span>جستجو</span></a>
-        <a class="sidenav__link" href="/library/"><svg class="icon"><use href="#i-library"/></svg><span>کتابخانه</span></a>
-        <a class="sidenav__link" href="/library/#playlists"><svg class="icon"><use href="#i-playlist"/></svg><span>پلی‌لیست‌ها</span></a>
-        <a class="sidenav__link" href="/upload/"><svg class="icon"><use href="#i-upload"/></svg><span>آپلود</span></a>
+        <a class="sidenav__link{% if nav_active == 'home' %} sidenav__link--active{% endif %}" href="{% url 'discover' %}">
+          <svg class="icon"><use href="#i-home"/></svg><span>خانه</span></a>
+        <a class="sidenav__link{% if nav_active == 'search' %} sidenav__link--active{% endif %}" href="{% url 'search' %}">
+          <svg class="icon"><use href="#i-search"/></svg><span>جستجو</span></a>
+        <a class="sidenav__link{% if nav_active == 'trending' %} sidenav__link--active{% endif %}" href="{% url 'trending' %}">
+          <svg class="icon"><use href="#i-trend"/></svg><span>پرطرفدارها</span></a>
+        <a class="sidenav__link{% if nav_active == 'library' %} sidenav__link--active{% endif %}" href="{% url 'library' %}">
+          <svg class="icon"><use href="#i-library"/></svg><span>کتابخانه</span></a>
         {% if request.user.is_authenticated %}
-          <a class="sidenav__link" href="{% url 'notification_list' %}"><svg class="icon" viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5a6 6 0 0 0-5-5.9V4a1 1 0 0 0-2 0v1.1A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2z"/></svg><span>اعلان‌ها</span></a>
-          <a class="sidenav__link" href="/albums/"><svg class="icon"><use href="#i-playlist"/></svg><span>آلبوم‌های من</span></a>
-          <a class="sidenav__link" href="/dashboard/"><svg class="icon"><use href="#i-dashboard"/></svg><span>داشبورد</span></a>
-          <a class="sidenav__link" href="/settings/"><svg class="icon"><use href="#i-settings"/></svg><span>تنظیمات</span></a>
+          <hr class="divider-line">
+          <a class="sidenav__link{% if nav_active == 'studio' %} sidenav__link--active{% endif %}"
+             href="{% if request.user.profile.can_publish %}{% url 'creator_studio' %}{% else %}{% url 'creator_apply' %}{% endif %}">
+            <svg class="icon"><use href="#i-studio"/></svg><span>استودیو</span></a>
+          <a class="sidenav__link{% if nav_active == 'dashboard' %} sidenav__link--active{% endif %}" href="{% url 'dashboard' %}">
+            <svg class="icon"><use href="#i-dashboard"/></svg><span>داشبورد</span></a>
+          <a class="sidenav__link{% if nav_active == 'notifications' %} sidenav__link--active{% endif %}" href="{% url 'notification_list' %}">
+            <svg class="icon"><use href="#i-bell"/></svg><span>اعلان‌ها</span></a>
+          <a class="sidenav__link{% if nav_active == 'settings' %} sidenav__link--active{% endif %}" href="{% url 'settings' %}">
+            <svg class="icon"><use href="#i-settings"/></svg><span>تنظیمات</span></a>
         {% endif %}
       </nav>
+
+      {% if not request.user.profile.is_vip %}
+        <div class="sidebar__cta">
+          <b>کست VIP</b>
+          <span>دانلود آفلاین، کیفیت بالا و پشتیبانی از سازنده‌ها.</span>
+          <a class="btn btn--primary btn--sm mt-3" href="{% url 'vip' %}">مشاهده اشتراک</a>
+        </div>
+      {% endif %}
+
       <div class="sidebar__hint">
-        <div class="muted small">Now Playing</div>
+        <div class="muted t-xs">در حال پخش</div>
         <div class="sidebar__np" id="sidebarNowPlaying">—</div>
       </div>
     </aside>
 
     <main id="main" class="page">
       {% if messages %}
-        <div class="stack gap-2">
+        <div class="stack gap-2 mb-4" role="status">
           {% for message in messages %}
-            <div class="alert">{{ message }}</div>
+            <div class="notice{% if message.tags == 'error' %} notice--bad{% elif message.tags == 'warning' %} notice--warn{% elif message.tags == 'success' %} notice--good{% endif %}">
+              <svg class="icon"><use href="{% if message.tags == 'error' %}#i-alert{% elif message.tags == 'success' %}#i-check-circle{% else %}#i-info{% endif %}"/></svg>
+              <div>{{ message }}</div>
+            </div>
           {% endfor %}
         </div>
       {% endif %}
@@ -233,11 +204,14 @@
   </div>
 
   <!-- Player bar -->
-  <div id="playerbar" class="playerbar" style="display:none">
+  <div id="playerbar" class="playerbar hidden">
     <div class="playerbar__inner">
       <div class="playerbar__row">
         <div class="playerbar__left" id="pbOpenNP" role="button" tabindex="0" aria-label="نمایش کامل پخش‌کننده">
-          <div id="pbCover" class="playerbar__cover" aria-hidden="true"></div>
+          <div id="pbCover" class="playerbar__cover" aria-hidden="true">
+            <span class="reel reel--mini reel--a"><span class="reel__spokes"></span><span class="reel__hub"></span></span>
+            <span class="reel reel--mini reel--b"><span class="reel__spokes"></span><span class="reel__hub"></span></span>
+          </div>
           <div class="playerbar__meta">
             <div id="pbTitle" class="playerbar__title">—</div>
             <div id="pbBy" class="playerbar__by muted">—</div>
@@ -246,11 +220,11 @@
 
         <div class="playerbar__controls">
           <button class="iconbtn" type="button" id="pbBack10" aria-label="۱۰ ثانیه عقب"><svg class="icon"><use href="#i-back10"/></svg></button>
-          <a class="iconbtn" href="#" id="pbPrev" aria-label="قبلی"><svg class="icon"><use href="#i-prev"/></svg></a>
-          <button class="iconbtn iconbtn--primary" type="button" id="pbPlayPause" aria-label="پخش/توقف">
+          <a class="iconbtn" href="#" id="pbPrev" aria-label="قطعه قبلی"><svg class="icon"><use href="#i-prev"/></svg></a>
+          <button class="iconbtn iconbtn--primary" type="button" id="pbPlayPause" aria-label="پخش یا توقف">
             <svg class="icon" id="pbPlayIcon"><use href="#i-play"/></svg>
           </button>
-          <a class="iconbtn" href="#" id="pbNext" aria-label="بعدی"><svg class="icon"><use href="#i-next"/></svg></a>
+          <a class="iconbtn" href="#" id="pbNext" aria-label="قطعه بعدی"><svg class="icon"><use href="#i-next"/></svg></a>
           <button class="iconbtn" type="button" id="pbFwd10" aria-label="۱۰ ثانیه جلو"><svg class="icon"><use href="#i-fwd10"/></svg></button>
         </div>
 
@@ -260,17 +234,17 @@
 
         <div class="playerbar__tools">
           <div class="pb-vol">
-            <button class="iconbtn" type="button" id="pbVolBtn" aria-label="صدا" title="صدا"><svg class="icon" id="pbVolIcon"><use href="#i-volume"/></svg></button>
+            <button class="iconbtn" type="button" id="pbVolBtn" aria-label="میزان صدا" title="صدا"><svg class="icon" id="pbVolIcon"><use href="#i-volume"/></svg></button>
             <div class="pb-vol__pop" id="pbVolPop">
               <input type="range" id="pbVolume" min="0" max="1" step="0.05" value="1" aria-label="میزان صدا" orient="vertical">
             </div>
           </div>
           <button class="iconbtn" type="button" id="pbSpeed" aria-label="سرعت پخش" title="سرعت پخش">1x</button>
           <button class="iconbtn" type="button" id="pbSleep" aria-label="تایمر خواب" title="تایمر خواب"><svg class="icon"><use href="#i-moon"/></svg></button>
-          <a class="iconbtn" href="#" id="pbShuffle" aria-label="Shuffle" title="پخش تصادفی"><svg class="icon"><use href="#i-shuffle"/></svg></a>
-          <a class="iconbtn" href="#" id="pbRepeat" aria-label="Repeat" title="تکرار"><svg class="icon"><use href="#i-repeat"/></svg></a>
-          <a class="iconbtn" href="#" id="pbQueue" aria-label="Queue" title="صف پخش"><svg class="icon"><use href="#i-queue"/></svg></a>
-          <button class="iconbtn" type="button" id="pbExpand" aria-label="نمایش کامل" title="نمایش کامل"><svg class="icon"><use href="#i-expand"/></svg></button>
+          <a class="iconbtn" href="#" id="pbShuffle" aria-label="پخش تصادفی" title="پخش تصادفی"><svg class="icon"><use href="#i-shuffle"/></svg></a>
+          <a class="iconbtn" href="#" id="pbRepeat" aria-label="تکرار" title="تکرار"><svg class="icon"><use href="#i-repeat"/></svg></a>
+          <a class="iconbtn" href="#" id="pbQueue" aria-label="صف پخش" title="صف پخش"><svg class="icon"><use href="#i-queue"/></svg></a>
+          <button class="iconbtn" type="button" id="pbExpand" aria-label="نمایش کامل پخش‌کننده" title="نمایش کامل"><svg class="icon"><use href="#i-expand"/></svg></button>
         </div>
       </div>
 
@@ -284,208 +258,155 @@
     </div>
   </div>
 
-  <!-- Now Playing — full-screen expanded player (opened by #pbExpand / tapping cover) -->
-  <div id="npView" class="np-view" style="display:none" aria-hidden="true">
+  <!-- Now Playing — the cassette. Opened by #pbExpand or tapping the cover. -->
+  <div id="npView" class="np-view hidden" aria-hidden="true" role="dialog" aria-label="در حال پخش">
     <div class="np-view__inner">
       <div class="np-view__top">
         <button class="iconbtn" type="button" id="npClose" aria-label="بستن">
           <svg class="icon"><use href="#i-down"/></svg>
         </button>
-        <div class="muted small">در حال پخش</div>
+        <div class="muted t-xs w-700">در حال پخش</div>
         <a class="iconbtn" href="#" id="npQueue" aria-label="صف پخش"><svg class="icon"><use href="#i-queue"/></svg></a>
       </div>
-      <div id="npCover" class="np-view__cover" aria-hidden="true"></div>
-      <div class="np-view__meta">
-        <div id="npTitle" class="np-view__title">—</div>
-        <div id="npBy" class="np-view__by muted">—</div>
+
+      <div class="np-view__stage">
+        <div class="cassette" id="npCassette">
+          <span class="reel reel--big reel--a"><span class="reel__spokes"></span><span class="reel__hub"></span></span>
+          <span class="reel reel--big reel--b"><span class="reel__spokes"></span><span class="reel__hub"></span></span>
+          <div id="npCover" class="cassette__art" aria-hidden="true"></div>
+        </div>
+        <div class="label-sticker">
+          <span class="label-sticker__title" id="npTitle">—</span>
+          <span class="label-sticker__by" id="npBy">—</span>
+        </div>
       </div>
+
       <div class="playerbar__scrub np-view__scrub">
         <span id="npElapsed" class="playerbar__time muted">0:00</span>
         <input type="range" id="npSeek" class="pb-seek" min="0" max="1000" step="1" value="0" aria-label="موقعیت پخش">
         <span id="npDuration" class="playerbar__time muted">0:00</span>
       </div>
+
       <div class="np-view__controls">
-        <a class="iconbtn" href="#" id="npShuffle" aria-label="Shuffle"><svg class="icon"><use href="#i-shuffle"/></svg></a>
+        <a class="iconbtn" href="#" id="npShuffle" aria-label="پخش تصادفی"><svg class="icon"><use href="#i-shuffle"/></svg></a>
         <button class="iconbtn" type="button" id="npBack10" aria-label="۱۰ ثانیه عقب"><svg class="icon"><use href="#i-back10"/></svg></button>
-        <a class="iconbtn" href="#" id="npPrev" aria-label="قبلی"><svg class="icon"><use href="#i-prev"/></svg></a>
-        <button class="iconbtn iconbtn--primary np-view__play" type="button" id="npPlayPause" aria-label="پخش/توقف">
+        <a class="iconbtn" href="#" id="npPrev" aria-label="قطعه قبلی"><svg class="icon"><use href="#i-prev"/></svg></a>
+        <button class="iconbtn iconbtn--primary np-view__play" type="button" id="npPlayPause" aria-label="پخش یا توقف">
           <svg class="icon" id="npPlayIcon"><use href="#i-play"/></svg>
         </button>
-        <a class="iconbtn" href="#" id="npNext" aria-label="بعدی"><svg class="icon"><use href="#i-next"/></svg></a>
+        <a class="iconbtn" href="#" id="npNext" aria-label="قطعه بعدی"><svg class="icon"><use href="#i-next"/></svg></a>
         <button class="iconbtn" type="button" id="npFwd10" aria-label="۱۰ ثانیه جلو"><svg class="icon"><use href="#i-fwd10"/></svg></button>
-        <a class="iconbtn" href="#" id="npRepeat" aria-label="Repeat"><svg class="icon"><use href="#i-repeat"/></svg></a>
+        <a class="iconbtn" href="#" id="npRepeat" aria-label="تکرار"><svg class="icon"><use href="#i-repeat"/></svg></a>
+      </div>
+
+      <div class="np-view__extra">
+        <button class="iconbtn" type="button" id="npLike" aria-label="پسندیدن"><svg class="icon"><use href="#i-heart"/></svg></button>
+        <button class="iconbtn" type="button" id="npPlaylist" aria-label="افزودن به پلی‌لیست"><svg class="icon"><use href="#i-plus"/></svg></button>
+        <button class="iconbtn" type="button" id="npShare" aria-label="اشتراک‌گذاری"><svg class="icon"><use href="#i-share"/></svg></button>
+        <a class="iconbtn" href="#" id="npOpen" aria-label="صفحه اثر"><svg class="icon"><use href="#i-external"/></svg></a>
       </div>
     </div>
   </div>
 
   <!-- Bottom nav (mobile) -->
-  <nav class="bottomnav" aria-label="Bottom">
-    <a class="bottomnav__link" href="/discover/"><svg class="icon"><use href="#i-compass"/></svg><span>کشف</span></a>
-    <a class="bottomnav__link" href="/search/"><svg class="icon"><use href="#i-search"/></svg><span>جستجو</span></a>
-    <a class="bottomnav__link" href="/library/"><svg class="icon"><use href="#i-library"/></svg><span>کتابخانه</span></a>
-    <a class="bottomnav__link" href="/dashboard/"><svg class="icon"><use href="#i-dashboard"/></svg><span>داشبورد</span></a>
-    <a class="bottomnav__link" href="/accounts/settings/"><svg class="icon"><use href="#i-user"/></svg><span>پروفایل</span></a>
+  <nav class="bottomnav" aria-label="ناوبری پایین">
+    <a class="bottomnav__link{% if nav_active == 'home' %} bottomnav__link--active{% endif %}" href="{% url 'discover' %}">
+      <svg class="icon"><use href="#i-home"/></svg><span>خانه</span></a>
+    <a class="bottomnav__link{% if nav_active == 'search' %} bottomnav__link--active{% endif %}" href="{% url 'search' %}">
+      <svg class="icon"><use href="#i-search"/></svg><span>جستجو</span></a>
+    <a class="bottomnav__link{% if nav_active == 'library' %} bottomnav__link--active{% endif %}" href="{% url 'library' %}">
+      <svg class="icon"><use href="#i-library"/></svg><span>کتابخانه</span></a>
+    {% if request.user.is_authenticated %}
+      <a class="bottomnav__link{% if nav_active == 'studio' %} bottomnav__link--active{% endif %}"
+         href="{% if request.user.profile.can_publish %}{% url 'creator_studio' %}{% else %}{% url 'creator_apply' %}{% endif %}">
+        <svg class="icon"><use href="#i-studio"/></svg><span>استودیو</span></a>
+      <a class="bottomnav__link" href="{{ request.user.profile.profile_url }}">
+        <svg class="icon"><use href="#i-user"/></svg><span>پروفایل</span></a>
+    {% else %}
+      <a class="bottomnav__link" href="{% url 'trending' %}"><svg class="icon"><use href="#i-trend"/></svg><span>داغ‌ها</span></a>
+      <a class="bottomnav__link" href="{% url 'login' %}"><svg class="icon"><use href="#i-user"/></svg><span>ورود</span></a>
+    {% endif %}
   </nav>
 
   <!-- Toast -->
-  <div id="toast" class="toast" style="display:none">
+  <div id="toast" class="toast hidden">
     <div id="toastInner" class="toast__inner"></div>
   </div>
 
   <!-- Queue panel (opened by #pbQueue — see app.js qPanelOpen/renderQueuePanel) -->
-  <div id="qPanel" class="overlay-panel" style="display:none">
+  <div id="qPanel" class="overlay-panel hidden">
     <div class="overlay-panel__inner card">
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <h2 style="margin:0">صف پخش</h2>
-        <button id="qClose" class="iconbtn" type="button" aria-label="بستن">✕</button>
+      <div class="cluster cluster--between">
+        <h2 class="mb-0">صف پخش</h2>
+        <button id="qClose" class="iconbtn" type="button" aria-label="بستن"><svg class="icon"><use href="#i-close"/></svg></button>
       </div>
-      <div id="qMeta" class="muted small" style="margin:6px 0 10px"></div>
+      <div id="qMeta" class="muted t-xs mt-2 mb-3"></div>
       <div id="qList" class="list"></div>
     </div>
   </div>
 
   <!-- Add-to-playlist modal (opened by [data-pl-open] — see app.js plModalOpen) -->
-  <div id="plModal" class="overlay-panel" style="display:none">
+  <div id="plModal" class="overlay-panel hidden">
     <div class="overlay-panel__inner card">
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <h2 style="margin:0">افزودن به پلی‌لیست</h2>
-        <button id="plClose" class="iconbtn" type="button" aria-label="بستن">✕</button>
+      <div class="cluster cluster--between">
+        <h2 class="mb-0">افزودن به پلی‌لیست</h2>
+        <button id="plClose" class="iconbtn" type="button" aria-label="بستن"><svg class="icon"><use href="#i-close"/></svg></button>
       </div>
-      <div id="plModalTrack" class="muted small" style="margin:6px 0 10px"></div>
+      <div id="plModalTrack" class="muted t-xs mt-2 mb-3"></div>
       <div id="plModalList" class="list"></div>
-      <div class="row" style="justify-content:flex-start;margin-top:10px">
-        <a class="btn btn--ghost" href="{% url 'library' %}">ساخت پلی‌لیست جدید</a>
+      <div class="cluster cluster--start mt-3">
+        <a class="btn btn--ghost btn--sm" href="{% url 'library' %}"><svg class="icon"><use href="#i-plus"/></svg>ساخت پلی‌لیست جدید</a>
       </div>
     </div>
   </div>
 
   <!-- Embed-snippet modal (opened by [data-embed-open] — see app.js embedModalOpen) -->
-  <div id="embedModal" class="overlay-panel" style="display:none">
+  <div id="embedModal" class="overlay-panel hidden">
     <div class="overlay-panel__inner card">
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <h2 style="margin:0">جاسازی (Embed)</h2>
-        <button id="embedClose" class="iconbtn" type="button" aria-label="بستن">✕</button>
+      <div class="cluster cluster--between">
+        <h2 class="mb-0">جاسازی (Embed)</h2>
+        <button id="embedClose" class="iconbtn" type="button" aria-label="بستن"><svg class="icon"><use href="#i-close"/></svg></button>
       </div>
-      <p class="muted small" style="margin:6px 0 10px">این کد را در سایت یا وبلاگ خودت کپی کن.</p>
-      <textarea id="embedCode" class="input" rows="3" readonly style="width:100%;font-family:monospace;direction:ltr;text-align:left"></textarea>
-      <div class="row" style="justify-content:flex-start;margin-top:10px">
-        <button id="embedCopyBtn" class="btn btn--primary" type="button">کپی کد</button>
+      <p class="muted t-xs mt-2 mb-3">این کد را در سایت یا وبلاگ خودت کپی کن.</p>
+      <textarea id="embedCode" class="input code-box" rows="3" readonly aria-label="کد جاسازی"></textarea>
+      <div class="cluster cluster--start mt-3">
+        <button id="embedCopyBtn" class="btn btn--primary btn--sm" type="button">کپی کد</button>
       </div>
     </div>
   </div>
 
-  <script src="{% static 'app.js' %}"></script>
-  <script>
-    // Theme toggle (dark/light)
-    (function(){
-      const root = document.documentElement;
-      const btn = document.getElementById("themeToggle");
-      const icon = document.getElementById("themeIcon");
-      function apply(t){
-        root.setAttribute("data-theme", t);
-        try { localStorage.setItem("theme", t); } catch(e){}
-        if(icon){
-          icon.innerHTML = '';
-          const use = document.createElementNS("http://www.w3.org/2000/svg","use");
-          use.setAttribute("href", t === "dark" ? "#i-moon" : "#i-sun");
-          icon.appendChild(use);
-        }
-      }
-      let saved = null;
-      try { saved = localStorage.getItem("theme"); } catch(e){}
-      if(!saved){
-        const prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
-        saved = prefersLight ? "light" : "dark";
-      }
-      apply(saved);
-      if(btn){
-        btn.addEventListener("click", ()=>{
-          const cur = root.getAttribute("data-theme") || "dark";
-          apply(cur === "dark" ? "light" : "dark");
-        });
-      }
-    })();
+  <!-- Second-confirmation modal for destructive actions (see app.js confirmOpen).
+       Any control carrying data-confirm="..." routes through here instead of
+       deleting on a single click. -->
+  <div id="confirmModal" class="overlay-panel hidden">
+    <div class="overlay-panel__inner card confirm">
+      <div class="confirm__title" id="confirmTitle">تایید عملیات</div>
+      <p class="confirm__text" id="confirmText"></p>
+      <div class="cluster cluster--end">
+        <button class="btn btn--ghost" type="button" id="confirmCancel">انصراف</button>
+        <button class="btn btn--danger" type="button" id="confirmOk">تایید و ادامه</button>
+      </div>
+    </div>
+  </div>
 
-    // Service worker (PWA)
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("{% static 'sw.js' %}").catch(()=>{});
-      });
-    }
-
-    // Play/pause icon sync, seek/volume/skip/keyboard, and Now-Playing view
-    // are wired centrally in app.js (hookPlayerControls / hookNowPlayingView)
-    // so the same logic drives both the mini playerbar and the full view.
-  </script>
-
-  {% block scripts %}{% endblock %}
+  <!-- Branded install prompt, revealed by casset-ui.js only after a few
+       visits and never again once dismissed. -->
+  <div id="installBanner" class="install-banner hidden" role="dialog" aria-label="نصب اپ کست">
+    <span class="install-banner__mark" aria-hidden="true"><svg class="icon"><use href="#i-play"/></svg></span>
+    <div class="flex-1">
+      <b class="t-sm w-800">کست را روی گوشی‌ات نصب کن</b>
+      <div class="muted t-xs">دسترسی سریع‌تر، بدون مرورگر.</div>
+    </div>
+    <button class="btn btn--primary btn--sm" type="button" data-install-accept>نصب</button>
+    <button class="iconbtn" type="button" data-install-dismiss aria-label="بستن"><svg class="icon"><use href="#i-close"/></svg></button>
+  </div>
 
   {% if request.user.is_authenticated %}
-  <script>
-    // Notification badge — poll unread count every 60s
-    (function(){
-      const badge = document.getElementById("notifBadge");
-      if(!badge) return;
-
-      async function refresh(){
-        try{
-          const r = await fetch("/api/v1/notifications/", {
-            headers: {"X-Requested-With": "XMLHttpRequest"}
-          });
-          if(!r.ok) return;
-          const data = await r.json();
-          const n = data.unread_count || 0;
-          if(n > 0){
-            badge.textContent = n > 99 ? "99+" : n;
-            badge.style.display = "block";
-          } else {
-            badge.style.display = "none";
-          }
-        }catch(e){ /* silent */ }
-      }
-
-      refresh();
-      setInterval(refresh, 60000);
-    })();
-  </script>
+    <script>window.__cassetAuthed = true;</script>
   {% endif %}
 
-  <script>
-    // Simple i18n (FA default) + RTL/LTR toggle
-    (function(){
-      const dict = {
-        fa: {
-          discover:"کشف", search:"جستجو", library:"کتابخانه", dashboard:"داشبورد", profile:"پروفایل",
-          playlists:"پلی‌لیست‌ها", upload:"آپلود", settings:"تنظیمات"
-        },
-        en: {
-          discover:"Discover", search:"Search", album:"Album", library:"Library", dashboard:"Dashboard", profile:"Profile",
-          playlists:"Playlists", upload:"Upload", settings:"Settings"
-        }
-      };
-      function applyLang(lang){
-        const html = document.documentElement;
-        html.lang = lang;
-        html.dir = (lang === "fa") ? "rtl" : "ltr";
-        // swap text
-        document.querySelectorAll("[data-i18n]").forEach(el=>{
-          if(el.closest(".topbar,.sidenav,.bottomnav")) return;
-          const key = el.getAttribute("data-i18n");
-          if(dict[lang] && dict[lang][key]) el.textContent = dict[lang][key];
-        });
-        localStorage.setItem("lang", lang);
-      }
-      const stored = localStorage.getItem("lang") || "fa";
-      applyLang(stored);
-      const btn = document.getElementById("langToggle");
-      if(btn){
-        btn.addEventListener("click", ()=>{
-          const next = (document.documentElement.lang === "fa") ? "en" : "fa";
-          applyLang(next);
-        });
-      }
-    })();
-  </script>
-
+  <script src="{% static 'app.js' %}"></script>
+  <script src="{% static 'js/casset-ui.js' %}"></script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,23 +1,42 @@
 {% extends "base.html" %}
-{% block title %}تایید کد • Casset{% endblock %}
+{% block title %}تایید کد پیامکی | کست{% endblock %}
 
 {% block content %}
-<section class="card" style="max-width:520px;margin:0 auto">
-  <h1>تایید کد</h1>
-  <p class="muted small">کد ۶ رقمی را وارد کن.</p>
-
-  <form method="post" class="stack gap-2">
-    {% csrf_token %}
-    {{ form.phone_number }}
-    <div>
-      <div class="muted small">کد</div>
-      {{ form.code }}
+<div class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      <span class="auth__mark" aria-hidden="true"><svg class="icon"><use href="#i-phone"/></svg></span>
+      کست
     </div>
-    <button class="btn btn--primary" type="submit">ورود</button>
-  </form>
+    <h1 class="auth__title">کد را وارد کن</h1>
+    <p class="auth__sub">
+      کد ۶ رقمی به
+      {% if phone %}<b dir="ltr" class="num">{{ phone }}</b>{% else %}شماره‌ات{% endif %}
+      ارسال شد.
+    </p>
 
-  <p class="muted small" style="margin-top:12px">
-    کد نرسید؟ <a href="/phone/">دوباره درخواست بده</a>
-  </p>
-</section>
+    <form method="post" class="auth__form" novalidate>
+      {% csrf_token %}
+      {{ form.phone_number }}
+      {% include "partials/_field.html" with field=form.code %}
+      <button class="btn btn--primary btn--block" type="submit">
+        {% if attaching %}تایید شماره{% else %}ورود{% endif %}
+      </button>
+    </form>
+
+    {# The cooldown is enforced server-side (accounts/services.py); this
+       counter only makes the wait visible instead of silent. #}
+    <div class="resend" data-resend-seconds="{{ resend_in|default:0 }}">
+      <span>کد نرسید؟</span>
+      <span class="muted hidden" data-resend-counter></span>
+      <a href="{% if attaching %}{% url 'account_phone_start' %}{% else %}{% url 'phone_start' %}{% endif %}"
+         class="text-accent w-700">ارسال مجدد</a>
+    </div>
+
+    <div class="auth__foot">
+      شماره اشتباه است؟
+      <a href="{% if attaching %}{% url 'account_phone_start' %}{% else %}{% url 'phone_start' %}{% endif %}">تغییر شماره</a>
+    </div>
+  </div>
+</div>
 {% endblock %}

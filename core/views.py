@@ -37,3 +37,40 @@ def health_check(request):
         {"status": "ok" if healthy else "degraded", "checks": checks},
         status=status_code,
     )
+
+
+def robots_txt(request):
+    """robots.txt, generated rather than a static file.
+
+    The Sitemap: line has to carry the live host — hardcoding it in a
+    static file breaks the moment the site is served from a staging
+    domain, and a wrong sitemap URL is worse than none.
+
+    The Disallow list is the set of routes that are either private or
+    infinite (search result permutations), which are the two things that
+    waste crawl budget on a media site.
+    """
+    from django.http import HttpResponse
+
+    lines = [
+        "User-agent: *",
+        "Disallow: /admin/",
+        "Disallow: /staff/",
+        "Disallow: /settings/",
+        "Disallow: /dashboard/",
+        "Disallow: /upload/",
+        "Disallow: /my/",
+        "Disallow: /onboarding/",
+        "Disallow: /creator/",
+        "Disallow: /account/",
+        "Disallow: /api/",
+        "Disallow: /search/",
+        "Disallow: /login/",
+        "Disallow: /register/",
+        "Disallow: /phone/",
+        "Disallow: /google/",
+        "",
+        f"Sitemap: {request.scheme}://{request.get_host()}/sitemap.xml",
+        "",
+    ]
+    return HttpResponse("\n".join(lines), content_type="text/plain; charset=utf-8")

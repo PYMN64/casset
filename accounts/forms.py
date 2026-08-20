@@ -11,11 +11,46 @@ User = get_user_model()
 
 
 class RegisterForm(UserCreationForm):
-    email = forms.EmailField(required=True)
+    """Sign-up with a real e-mail address and explicit terms acceptance.
+
+    `accept_terms` is a form-level field, not a model field: it records a
+    gate that must be passed at sign-up, and the account simply cannot be
+    created without it. Storing the boolean afterwards would add nothing —
+    an existing account by definition passed the gate.
+    """
+
+    email = forms.EmailField(
+        required=True,
+        widget=forms.EmailInput(attrs={"autocomplete": "email", "placeholder": "you@example.com"}),
+    )
+    accept_terms = forms.BooleanField(
+        required=True,
+        error_messages={"required": "برای ساخت حساب باید قوانین و حریم خصوصی را بپذیری."},
+    )
 
     class Meta:
         model = User
         fields = ("username", "email")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["username"].widget.attrs.update({
+            "autocomplete": "username", "placeholder": "نام کاربری انگلیسی",
+        })
+        for name in ("password1", "password2"):
+            self.fields[name].widget.attrs.update({"autocomplete": "new-password"})
+
+    def clean_email(self):
+        """One account per e-mail address.
+
+        Django's default User model does not enforce this, and without it
+        the Google sign-in match-by-email step would have to guess between
+        several accounts sharing an address.
+        """
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if email and User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("این ایمیل قبلاً ثبت شده است. وارد شو یا رمز را بازیابی کن.")
+        return email
 
 
 class LoginForm(AuthenticationForm):
@@ -91,15 +126,38 @@ class ProfileSettingsForm(forms.ModelForm):
 class PhoneStartForm(forms.Form):
     phone_number = forms.CharField(
         max_length=32,
-        widget=forms.TextInput(attrs={"placeholder": "09xxxxxxxxx", "autocomplete": "tel"}),
+        label="شماره موبایل",
+        widget=forms.TextInput(attrs={
+            "placeholder": "09121234567",
+            "autocomplete": "tel",
+            "inputmode": "tel",
+            "dir": "ltr",
+        }),
     )
+
+    def clean_phone_number(self):
+        """Reject a malformed number here rather than sending an SMS into
+        the void and charging the platform for it."""
+        from .services import is_valid_iran_mobile, normalize_phone
+
+        raw = self.cleaned_data.get("phone_number") or ""
+        if not is_valid_iran_mobile(raw):
+            raise forms.ValidationError("شماره موبایل معتبر نیست. نمونه درست: ۰۹۱۲۱۲۳۴۵۶۷")
+        return normalize_phone(raw)
 
 
 class PhoneVerifyForm(forms.Form):
     phone_number = forms.CharField(max_length=32, widget=forms.HiddenInput())
     code = forms.CharField(
         max_length=6,
-        widget=forms.TextInput(attrs={"placeholder": "کد ۶ رقمی", "inputmode": "numeric"}),
+        label="کد تایید",
+        widget=forms.TextInput(attrs={
+            "placeholder": "------",
+            "inputmode": "numeric",
+            "autocomplete": "one-time-code",
+            "maxlength": "6",
+            "class": "input otp-input",
+        }),
     )
 
 
@@ -236,3 +294,48 @@ class CreatorHandleForm(forms.ModelForm):
         if commit:
             profile.save(update_fields=["public_handle", "public_handle_set_at"])
         return profile
+
+
+class NotificationPreferenceForm(forms.ModelForm):
+    """Backs the toggle rows in Settings → notifications.
+
+    Every switch here is enforced server-side in
+    notifications/services.py::_allowed, so turning one off actually stops
+    the row from being written — it is not a cosmetic filter over a feed
+    that keeps growing.
+    """
+
+    class Meta:
+        # Imported inside Meta rather than at module level: accounts.forms is
+        # imported by accounts.views during app loading, and a top-level
+        # notifications import there creates a circular import.
+        from notifications.models import NotificationPreference
+
+        model = NotificationPreference
+        fields = [
+            "new_follower",
+            "track_liked",
+            "track_comment",
+            "comment_liked",
+            "new_track_from_follow",
+            "milestone_plays",
+            "track_reposted",
+            "weekly_email_digest",
+        ]
+
+    #: label + helper text per switch, so the template renders rows from
+    #: data instead of repeating eight nearly-identical blocks.
+    ROWS = [
+        ("new_follower", "دنبال‌کننده جدید", "وقتی کسی تو را دنبال می‌کند"),
+        ("track_liked", "لایک اثر", "وقتی کسی اثرت را می‌پسندد"),
+        ("track_comment", "کامنت جدید", "وقتی کسی روی اثرت کامنت می‌گذارد"),
+        ("comment_liked", "لایک کامنت", "وقتی کامنتت لایک می‌شود"),
+        ("new_track_from_follow", "انتشار جدید", "وقتی کسی که دنبال می‌کنی اثر تازه منتشر می‌کند"),
+        ("milestone_plays", "نقطه‌عطف پخش", "وقتی اثرت به ۱۰۰، ۵۰۰، ۱۰۰۰ … پخش می‌رسد"),
+        ("track_reposted", "بازنشر", "وقتی اثرت بازنشر می‌شود"),
+        ("weekly_email_digest", "خلاصه ایمیلی هفتگی", "گزارش عملکرد، هر دوشنبه صبح"),
+    ]
+
+    def rows(self):
+        for name, label, hint in self.ROWS:
+            yield {"field": self[name], "label": label, "hint": hint}

@@ -1,31 +1,47 @@
 {% extends "base.html" %}
-{% block title %}انتخاب یوزرنیم عمومی • Casset{% endblock %}
+{% block title %}انتخاب یوزرنیم عمومی | کست{% endblock %}
 
 {% block content %}
-<section class="card" style="max-width:720px;margin:0 auto">
-  <h1>انتخاب یوزرنیم عمومی</h1>
-  <p class="muted small">
-    این یوزرنیم برای لینک مستقیم صفحه‌ی شما استفاده می‌شود: <b>casset.ir/username</b>.
+<div class="auth">
+  <div class="auth__card auth__card--wide">
+    <div class="auth__brand">
+      <span class="auth__mark" aria-hidden="true"><svg class="icon"><use href="#i-user"/></svg></span>
+      کست
+    </div>
+    <h1 class="auth__title">یوزرنیم عمومی‌ات را انتخاب کن</h1>
+    <p class="auth__sub">
+      این همان چیزی است که تو را انتشاردهنده می‌کند: آدرس اختصاصی صفحه‌ات.
+    </p>
+
     {% if profile.public_handle %}
-      <br><span class="muted small">یوزرنیم شما قبلاً ثبت شده و قابل تغییر نیست.</span>
+      <div class="notice notice--good mb-4">
+        <svg class="icon"><use href="#i-check-circle"/></svg>
+        <div>
+          یوزرنیم شما ثبت شده است:
+          <b dir="ltr">casset.ir/{{ profile.public_handle }}</b>
+          <div class="t-xs mt-1">یوزرنیم قابل تغییر نیست — لینک‌های منتشرشده نباید بشکنند.</div>
+        </div>
+      </div>
+    {% else %}
+      <div class="notice notice--warn mb-4">
+        <svg class="icon"><use href="#i-alert"/></svg>
+        <div>با دقت انتخاب کن: یوزرنیم بعد از ثبت <b>قابل تغییر نیست</b>.</div>
+      </div>
     {% endif %}
-  </p>
 
-  <form method="post" class="stack" style="gap:12px">
-    {% csrf_token %}
-    <div>
-      <label class="label">یوزرنیم عمومی</label>
-      {{ form.public_handle }}
-      {% if form.public_handle.errors %}
-        <div class="error">{{ form.public_handle.errors }}</div>
-      {% endif %}
-      <div class="muted small" style="margin-top:6px">فقط حروف انگلیسی، عدد، _ و - (حداقل ۳ کاراکتر)</div>
-    </div>
+    <form method="post" class="auth__form" novalidate>
+      {% csrf_token %}
+      {% include "partials/_field.html" with field=form.public_handle hint="۳ تا ۳۰ کاراکتر — حروف انگلیسی، عدد، _ و -" %}
 
-    <div class="row" style="display:flex;gap:10px;align-items:center">
-      <button class="btn btn--primary" type="submit">ذخیره</button>
-      <a class="btn btn--ghost" href="/creator/studio/">انصراف</a>
-    </div>
-  </form>
-</section>
+      <div class="cluster cluster--between mt-4">
+        <a class="btn btn--ghost" href="{% url 'creator_apply' %}">بازگشت</a>
+        {% if not profile.public_handle %}
+          <button class="btn btn--primary" type="submit">ثبت نهایی یوزرنیم</button>
+        {% else %}
+          <a class="btn btn--primary" href="{% url 'creator_studio' %}">رفتن به استودیو</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}

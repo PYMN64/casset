@@ -202,3 +202,71 @@ class Notification(models.Model):
             ),
         }
         return texts.get(self.verb, self.get_verb_display())
+
+
+class NotificationPreference(models.Model):
+    """Per-user opt-outs for notification delivery.
+
+    One row per user, created lazily by `for_user()`. Absent row == all
+    defaults on, so an existing account never silently loses notifications
+    when this model is introduced.
+
+    Enforcement lives in notifications/services.py (`_allowed`) — a single
+    checkpoint every notify_* helper passes through, rather than each call
+    site remembering to check. Two verbs are deliberately NOT suppressible
+    (`track_approved`, `track_rejected`): those are moderation outcomes the
+    creator must see for the product to be honest with them.
+    """
+
+    #: Verbs a user may never mute — they carry consequences, not social noise.
+    ALWAYS_ON = {
+        Notification.Verb.TRACK_APPROVED,
+        Notification.Verb.TRACK_REJECTED,
+    }
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notification_preference",
+    )
+
+    new_follower = models.BooleanField(default=True)
+    track_liked = models.BooleanField(default=True)
+    track_comment = models.BooleanField(default=True)
+    comment_liked = models.BooleanField(default=True)
+    new_track_from_follow = models.BooleanField(default=True)
+    milestone_plays = models.BooleanField(default=True)
+    track_reposted = models.BooleanField(default=True)
+
+    #: Off the in-app feed and onto email — the weekly creator digest
+    #: (notifications/tasks.py). Opt-out, matching the in-app defaults.
+    weekly_email_digest = models.BooleanField(default=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    #: Field name on this model for each suppressible verb.
+    VERB_FIELDS = {
+        Notification.Verb.NEW_FOLLOWER: "new_follower",
+        Notification.Verb.TRACK_LIKED: "track_liked",
+        Notification.Verb.TRACK_COMMENT: "track_comment",
+        Notification.Verb.COMMENT_LIKED: "comment_liked",
+        Notification.Verb.NEW_TRACK_FROM_FOLLOW: "new_track_from_follow",
+        Notification.Verb.MILESTONE_PLAYS: "milestone_plays",
+        Notification.Verb.TRACK_REPOSTED: "track_reposted",
+    }
+
+    @classmethod
+    def for_user(cls, user) -> "NotificationPreference":
+        obj, _ = cls.objects.get_or_create(user=user)
+        return obj
+
+    def allows(self, verb: str) -> bool:
+        if verb in self.ALWAYS_ON:
+            return True
+        field = self.VERB_FIELDS.get(verb)
+        if field is None:
+            return True
+        return bool(getattr(self, field))
+
+    def __str__(self) -> str:
+        return f"NotificationPreference({self.user.username})"

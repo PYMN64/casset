@@ -1,0 +1,164 @@
+/* =====================================================================
+   Casset — the cassette player identity
+   "کست" is a cassette. Nothing else in this market has a brand tied to a
+   physical object, so the player is where the brand actually lives:
+   two turning reels, a hand-written label, and a tape-coloured scrubber.
+   Restrained on purpose — no plastic textures, no fake wear.
+
+   Motion contract: reels are driven by `animation-play-state`, toggled by
+   the `is-playing` class on the container, never by adding/removing the
+   animation. Compositor-only (transform), so a paused player costs nothing.
+   ===================================================================== */
+
+@keyframes reel-spin { to { transform: rotate(360deg); } }
+
+/* ---------------------------------------------------------------------
+   Reel — one component, two sizes
+   ------------------------------------------------------------------ */
+.reel {
+  position: absolute;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.reel__spokes {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2px dashed rgb(var(--text-rgb) / .42);
+  animation: reel-spin 3s linear infinite;
+  animation-play-state: paused;
+}
+.reel__hub { border-radius: 50%; background: var(--accent); }
+
+.is-playing .reel__spokes { animation-play-state: running; }
+
+/* ---------------------------------------------------------------------
+   Mini reels — on the playerbar cover
+   ------------------------------------------------------------------ */
+.playerbar__cover { position: relative; overflow: hidden; }
+.reel--mini { width: 15px; height: 15px; inset-block-start: 50%; margin-block-start: -7.5px; }
+.reel--mini.reel--a { inset-inline-end: 4px; }
+.reel--mini.reel--b { inset-inline-start: 4px; }
+.reel--mini .reel__spokes { border-width: 2px; animation-duration: 2.6s; }
+.reel--mini .reel__hub { width: 4px; height: 4px; }
+/* Only show the reels once a track is actually loaded — an empty bar with
+   spinning reels reads as broken. */
+.playerbar__cover:not(.has-track) .reel { display: none; }
+
+/* ---------------------------------------------------------------------
+   Full "Now Playing" — the cassette shell
+   ------------------------------------------------------------------ */
+.cassette {
+  position: relative;
+  width: min(78vw, 300px);
+  aspect-ratio: 1/1;
+  margin: 0 auto;
+  border-radius: 34px;
+  background: linear-gradient(160deg, var(--panel2), var(--panel));
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-1);
+  display: flex; align-items: center; justify-content: center;
+  flex: none;
+}
+.cassette::before {
+  content: "";
+  position: absolute; inset: 14px;
+  border-radius: 24px;
+  border: 1px dashed rgb(var(--text-rgb) / .10);
+  pointer-events: none;
+}
+.cassette__art {
+  width: 54%; aspect-ratio: 1/1;
+  border-radius: 50%;
+  background-color: var(--bg2);
+  background-image: linear-gradient(135deg, rgb(var(--accent-rgb) / .55), rgb(var(--purple-rgb) / .55));
+  background-size: cover; background-position: center;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 6px rgb(var(--bg-rgb) / .30);
+  position: relative;
+}
+/* The spindle hole at the centre of the reel-to-reel hub. */
+.cassette__art::after {
+  content: "";
+  width: 20%; aspect-ratio: 1/1;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.reel--big {
+  width: 58px; height: 58px;
+  inset-block-start: 50%; margin-block-start: -29px;
+  background: var(--panel);
+  border: 3px solid rgb(var(--text-rgb) / .14);
+}
+.reel--big.reel--a { inset-inline-end: 18px; }
+.reel--big.reel--b { inset-inline-start: 18px; }
+.reel--big .reel__spokes { inset: 5px; border-width: 2px; }
+.reel--big .reel__hub { width: 10px; height: 10px; }
+
+/* The hand-written label. Warm paper against the dark shell — the single
+   detail that makes the player unmistakably Casset at a glance. */
+.label-sticker {
+  display: inline-block;
+  max-width: min(86%, 300px);
+  margin: var(--sp-5) auto 0;
+  padding: 9px 20px;
+  border-radius: 6px;
+  background: #f3ead8;
+  color: #241a30;
+  transform: rotate(-1deg);
+  box-shadow: 0 6px 16px rgb(var(--bg-rgb) / .40);
+  text-align: center;
+}
+.label-sticker__title {
+  display: block;
+  font-size: var(--fs-base); font-weight: 800;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.label-sticker__by { display: block; font-size: var(--fs-xs); opacity: .72; margin-top: 1px; }
+
+/* Tape-coloured scrubber: the magnetic ribbon, filled in orange as it plays. */
+.np-view__scrub .pb-seek {
+  height: 6px;
+  background: linear-gradient(to right,
+    var(--accent) var(--seek-pct, 0%),
+    var(--tape) 0);
+}
+.np-view__scrub .pb-seek::-moz-range-track { height: 6px; background: var(--tape); }
+
+/* Mechanical-counter feel for the elapsed/total readout: wider tracking and
+   tabular figures, so the digits sit still instead of jittering. */
+.np-view__scrub .playerbar__time {
+  letter-spacing: .06em;
+  font-weight: 700;
+  min-width: 44px;
+}
+
+/* ---------------------------------------------------------------------
+   Now Playing layout adjustments around the cassette
+   ------------------------------------------------------------------ */
+.np-view__stage {
+  flex: 1;
+  min-height: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4) 0;
+}
+.np-view__meta { text-align: center; margin-bottom: var(--sp-4); }
+.np-view__title { font-size: var(--fs-xl); font-weight: 900; margin-bottom: 4px; }
+.np-view__by { font-size: var(--fs-sm); }
+.np-view__extra {
+  display: flex; align-items: center; justify-content: center;
+  gap: var(--sp-4); margin-top: var(--sp-4);
+}
+
+@media (max-height: 700px){
+  .cassette { width: min(60vw, 220px); }
+  .label-sticker { margin-top: var(--sp-3); }
+}
+
+/* A user who asked for less motion gets a still cassette, not a broken one. */
+@media (prefers-reduced-motion: reduce){
+  .reel__spokes { animation: none !important; }
+}

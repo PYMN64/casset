@@ -187,12 +187,41 @@ def _gkey(verb: str, target_type: str, target_id: int) -> str:
     return f"{verb}:{target_type}:{target_id}"
 
 
+def _allowed(recipient, verb) -> bool:
+    """Single enforcement point for per-user notification opt-outs.
+
+    Every notify_* helper funnels through _upsert/_create_system, so
+    checking here is enough — no call site can forget. A missing
+    preference row means "all defaults", which is all-on.
+    """
+    from .models import NotificationPreference
+
+    pref = getattr(recipient, "notification_preference", None)
+    if pref is None:
+        # Never create rows on the notification hot path; absence is a
+        # valid, permissive state (see NotificationPreference docstring).
+        return verb in NotificationPreference.ALWAYS_ON or _default_allows(verb)
+    return pref.allows(verb)
+
+
+def _default_allows(verb) -> bool:
+    from .models import NotificationPreference
+
+    field = NotificationPreference.VERB_FIELDS.get(verb)
+    if field is None:
+        return True
+    return NotificationPreference._meta.get_field(field).default
+
+
 def _upsert(
     *, recipient, verb, actor, group_key,
     track=None, comment=None, extra=None,
 ) -> None:
     """Create or update a grouped notification within the group window."""
     from .models import Notification
+
+    if not _allowed(recipient, verb):
+        return
 
     window_start = timezone.now() - _GROUP_WINDOW
     with transaction.atomic():
@@ -233,6 +262,9 @@ def _upsert(
 
 def _create_system(*, recipient, verb, track=None, extra=None) -> None:
     """Create a system notification (no actor, no grouping)."""
+    if not _allowed(recipient, verb):
+        return
+
     from .models import Notification
 
     Notification.objects.create(

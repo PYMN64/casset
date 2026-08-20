@@ -1,41 +1,84 @@
 {% extends "base.html" %}
-{% block title %}Register • Casset{% endblock %}
+{% block title %}ساخت حساب رایگان در کست{% endblock %}
+{% block meta_description %}در چند ثانیه حساب رایگان کست بساز و شنیدن یا انتشار را شروع کن.{% endblock %}
+{% block og_title %}ساخت حساب رایگان در کست{% endblock %}
+
 {% block content %}
-<div class="card">
-  <h1>ثبت‌نام</h1>
-  <p class="muted">یک اکانت بساز. هم شنونده‌ای، هم می‌تونی Creator Mode رو فعال کنی.</p>
+<div class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      <span class="auth__mark" aria-hidden="true"><svg class="icon"><use href="#i-play"/></svg></span>
+      کست
+    </div>
+    <h1 class="auth__title">ساخت حساب رایگان</h1>
+    <p class="auth__sub">هم می‌شنوی، هم هر وقت خواستی منتشر می‌کنی.</p>
 
-  <form method="post" class="list">
-    {% csrf_token %}
+    <form method="post" class="auth__form" novalidate>
+      {% csrf_token %}
 
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Username</div>
-      {{ form.username }}
-      <div class="muted" style="font-size:12px">{{ form.username.errors }}</div>
+      {% if form.non_field_errors %}
+        <div class="notice notice--bad mb-3" role="alert">
+          <svg class="icon"><use href="#i-alert"/></svg>
+          <div>{% for error in form.non_field_errors %}{{ error }}{% endfor %}</div>
+        </div>
+      {% endif %}
+
+      {% include "partials/_field.html" with field=form.username hint="فقط حروف انگلیسی، عدد و @ . + - _" %}
+      {% include "partials/_field.html" with field=form.email hint="برای بازیابی رمز و گزارش‌های عملکرد لازم است." %}
+
+      <div class="form-field{% if form.password1.errors %} form-field--invalid{% endif %}">
+        <label class="form-field__label" for="{{ form.password1.id_for_label }}">رمز عبور</label>
+        <span class="input-wrap">
+          {{ form.password1 }}
+          <button class="input-wrap__btn" type="button"
+                  data-toggle-password="{{ form.password1.id_for_label }}" aria-label="نمایش رمز">
+            <svg class="icon"><use href="#i-eye"/></svg>
+          </button>
+        </span>
+        <div class="strength" data-strength-for="{{ form.password1.id_for_label }}" data-level="0" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="strength__label"></div>
+        {% if form.password1.errors %}
+          <div class="form-field__error" role="alert">{% for e in form.password1.errors %}<div>{{ e }}</div>{% endfor %}</div>
+        {% endif %}
+      </div>
+
+      {% include "partials/_field.html" with field=form.password2 %}
+
+      <label class="checkline{% if form.accept_terms.errors %} text-bad{% endif %}">
+        <input type="checkbox" name="accept_terms" id="{{ form.accept_terms.id_for_label }}"
+               {% if form.accept_terms.value %}checked{% endif %} required>
+        <span>
+          <a href="{% url 'terms' %}" target="_blank" rel="noopener">قوانین استفاده</a>
+          و
+          <a href="{% url 'privacy' %}" target="_blank" rel="noopener">حریم خصوصی</a>
+          کست را خوانده‌ام و می‌پذیرم.
+        </span>
+      </label>
+      {% if form.accept_terms.errors %}
+        <div class="form-field__error mb-3" role="alert">{% for e in form.accept_terms.errors %}<div>{{ e }}</div>{% endfor %}</div>
+      {% endif %}
+
+      <button class="btn btn--primary btn--block" type="submit">ساخت حساب</button>
+    </form>
+
+    <div class="divider-or">یا</div>
+
+    <div class="social-row">
+      <a class="social-btn" href="{% url 'phone_start' %}">
+        <svg class="icon"><use href="#i-phone"/></svg>ثبت‌نام با پیامک
+      </a>
+      {% if google_enabled %}
+        <a class="social-btn" href="{% url 'google_login' %}">
+          <svg class="icon"><use href="#i-google"/></svg>ادامه با گوگل
+        </a>
+      {% endif %}
     </div>
 
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Email (optional)</div>
-      {{ form.email }}
-      <div class="muted" style="font-size:12px">{{ form.email.errors }}</div>
+    <div class="auth__foot">
+      حساب داری؟ <a href="{% url 'login' %}">وارد شو</a>
     </div>
-
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Password</div>
-      {{ form.password1 }}
-      <div class="muted" style="font-size:12px">{{ form.password1.errors }}</div>
-    </div>
-
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Repeat Password</div>
-      {{ form.password2 }}
-      <div class="muted" style="font-size:12px">{{ form.password2.errors }}</div>
-    </div>
-
-    <div class="item">
-      <button class="btn primary" type="submit">ساخت اکانت</button>
-      <a class="btn" href="/login/">ورود</a>
-    </div>
-  </form>
+  </div>
 </div>
 {% endblock %}

@@ -106,6 +106,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sitemaps",
 
     "rest_framework",
     "django_filters",
@@ -285,6 +286,19 @@ PLAY_COUNT_AFTER_SECONDS = int(os.getenv("PLAY_COUNT_AFTER_SECONDS", "59"))
 SMS_PROVIDER = os.getenv("SMS_PROVIDER", "console").strip().lower()
 KAVENEGAR_API_KEY = os.getenv("KAVENEGAR_API_KEY", "").strip()
 KAVENEGAR_SENDER = os.getenv("KAVENEGAR_SENDER", "").strip()
+
+# ---------------------------------------------------------------------------
+# Google sign-in (OpenID Connect) — see accounts/oauth.py.
+#
+# Optional by design: with these unset the Google button is hidden and
+# phone/password sign-in still works, so a deployment without Google
+# credentials degrades gracefully instead of showing a dead button. That is
+# why there is no prod fail-fast guard here, unlike SMS and payments, which
+# the product genuinely cannot run without.
+# ---------------------------------------------------------------------------
+
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
 
 # ---------------------------------------------------------------------------
 # Payment gateway — see billing/services.py for the provider abstraction.

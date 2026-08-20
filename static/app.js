@@ -11,14 +11,22 @@ function csrfHeader() {
   const token = getCookie("csrftoken");
   return token ? { "X-CSRFToken": token } : {};
 }
+/* Visibility is a class, not an inline style.
+   Inline display:block on an .overlay-panel would override its
+   display:flex centering — which is exactly the bug the old mix of
+   "block" and "flex" toggles produced. One helper, one source of truth. */
+function showEl(el) { if (el) el.classList.remove("hidden"); }
+function hideEl(el) { if (el) el.classList.add("hidden"); }
+function isHidden(el) { return !el || el.classList.contains("hidden"); }
+
 function showToast(msg, ok = true) {
   const wrap = document.getElementById("toast");
   const inner = document.getElementById("toastInner");
   if (!wrap || !inner) return;
   inner.textContent = msg;
   inner.classList.toggle("primary", !!ok);
-  wrap.style.display = "block";
-  setTimeout(() => (wrap.style.display = "none"), 2200);
+  showEl(wrap);
+  setTimeout(() => hideEl(wrap), 2200);
 }
 async function postForm(url, dataObj) {
   const body = new URLSearchParams();
@@ -258,7 +266,7 @@ function updateQueueUI() {
 
   // Queue panel render (اگر بازه)
   const panel = document.getElementById("qPanel");
-  if (panel && panel.style.display === "block") renderQueuePanel();
+  if (!isHidden(panel)) renderQueuePanel();
 }
 
 function setQueue(items, index) {
@@ -275,7 +283,9 @@ function setQueue(items, index) {
 
 function setCoverEl(el, coverUrl) {
   if (!el) return;
-  el.innerHTML = "";
+  // Background image only — never innerHTML. The playerbar cover holds the
+  // two cassette reels as child elements, and it also means a data-cover
+  // value can never be injected into the page as markup.
   el.style.backgroundImage = coverUrl ? `url('${coverUrl.replace(/'/g, "%27")}')` : "";
 }
 
@@ -296,15 +306,17 @@ function openPlayerBar({ src, title, by, cover, trackId, peaks }) {
   if (npTitle) npTitle.textContent = title || "—";
   if (npBy) npBy.textContent = by || "—";
   if (sidebarNP) sidebarNP.textContent = title || "—";
-  setCoverEl(document.getElementById("pbCover"), cover);
+  const pbCover = document.getElementById("pbCover");
+  setCoverEl(pbCover, cover);
   setCoverEl(document.getElementById("npCover"), cover);
+  if (pbCover) pbCover.classList.add("has-track");
   if (pbWave) renderWaveform(pbWave, peaks);
   resetSeekUI();
 
   window.__nowTrackId = trackId || null;
 
   audio.src = src;
-  bar.style.display = "block";
+  showEl(bar);
   audio.play().catch(() => {});
 
   // Media Session
@@ -557,6 +569,11 @@ function setPlayPauseIcon(paused) {
   });
   const bar = document.getElementById("playerbar");
   if (bar) bar.classList.toggle("is-playing", !paused);
+  // Same flag on the full view: the cassette reels are driven by
+  // animation-play-state under .is-playing, so both players' reels stop
+  // and start together without any second animation being defined.
+  const np = document.getElementById("npView");
+  if (np) np.classList.toggle("is-playing", !paused);
 }
 
 function togglePlayPause() {
@@ -643,8 +660,8 @@ function hookPlayerControls(audio) {
 function hookNowPlayingView() {
   const view = document.getElementById("npView");
   if (!view) return;
-  view.__open = () => { view.style.display = "block"; view.setAttribute("aria-hidden", "false"); document.body.style.overflow = "hidden"; };
-  view.__close = () => { view.style.display = "none"; view.setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; };
+  view.__open = () => { showEl(view); view.setAttribute("aria-hidden", "false"); document.body.style.overflow = "hidden"; };
+  view.__close = () => { hideEl(view); view.setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; };
 
   const opener = document.getElementById("pbOpenNP");
   if (opener) {
@@ -660,7 +677,7 @@ function hookKeyboardShortcuts() {
     const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select" || (document.activeElement && document.activeElement.isContentEditable)) return;
     const audio = getAudioEl();
-    if (!audio || !document.getElementById("playerbar") || document.getElementById("playerbar").style.display === "none") return;
+    if (!audio || isHidden(document.getElementById("playerbar"))) return;
 
     switch (e.key) {
       case " ":
@@ -891,12 +908,12 @@ function plModalOpen(trackId, trackTitle) {
   if (t) t.textContent = `ترک: ${trackTitle || trackId}`;
 
   list.innerHTML = `<div class="item"><span class="muted">در حال بارگذاری...</span></div>`;
-  modal.style.display = "block";
+  showEl(modal);
   loadMyPlaylistsIntoModal();
 }
 function plModalClose() {
   const modal = document.getElementById("plModal");
-  if (modal) modal.style.display = "none";
+  hideEl(modal);
   window.__plTrackId = null;
 }
 async function loadMyPlaylistsIntoModal() {
@@ -989,11 +1006,11 @@ function embedModalOpen(trackSlug) {
   if (!modal || !code || !trackSlug) return;
   const src = `${window.location.origin}/embed/t/${encodeURIComponent(trackSlug)}/`;
   code.value = `<iframe src="${src}" width="100%" height="120" frameborder="0" loading="lazy"></iframe>`;
-  modal.style.display = "flex";
+  showEl(modal);
 }
 function embedModalClose() {
   const modal = document.getElementById("embedModal");
-  if (modal) modal.style.display = "none";
+  hideEl(modal);
 }
 function embedCopyCode() {
   const code = document.getElementById("embedCode");
@@ -1086,13 +1103,13 @@ function hookSearchUI() {
 function qPanelOpen() {
   const p = document.getElementById("qPanel");
   if (!p) return;
-  p.style.display = "block";
+  showEl(p);
   renderQueuePanel();
 }
 function qPanelClose() {
   const p = document.getElementById("qPanel");
   if (!p) return;
-  p.style.display = "none";
+  hideEl(p);
 }
 function renderQueuePanel() {
   const list = document.getElementById("qList");

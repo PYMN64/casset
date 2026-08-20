@@ -1,93 +1,159 @@
 {% extends "base.html" %}
-{% block title %}ایجاد پروفایل • Casset{% endblock %}
+{% block title %}تکمیل پروفایل | کست{% endblock %}
 
 {% block content %}
-<section class="card" style="max-width:720px;margin:0 auto">
-  <h1>ایجاد پروفایل</h1>
-  <p class="muted small">برای شروع، چند اطلاعات اولیه را تکمیل کن.</p>
+<div class="center-col">
+  <div class="card">
+    {# The stepper exists for one reason: an un-numbered multi-part form
+       reads as endless, and people abandon it. Three visible steps make
+       the same form feel finite. #}
+    <ol class="stepper" aria-label="مراحل تکمیل پروفایل">
+      <li class="stepper__step stepper__step--active" data-step="1">
+        <span class="stepper__dot">۱</span>
+        <span class="stepper__label">اطلاعات پایه</span>
+      </li>
+      <li class="stepper__bar" aria-hidden="true"></li>
+      <li class="stepper__step" data-step="2">
+        <span class="stepper__dot">۲</span>
+        <span class="stepper__label">علاقه‌مندی‌ها</span>
+      </li>
+      <li class="stepper__bar" aria-hidden="true"></li>
+      <li class="stepper__step" data-step="3">
+        <span class="stepper__dot">۳</span>
+        <span class="stepper__label">نقش تو</span>
+      </li>
+    </ol>
 
-  <form method="post" class="stack gap-2">
-    {% csrf_token %}
-    <div class="row row-top" style="gap:12px;flex-wrap:wrap">
-      <div style="min-width:240px;flex:1">
-        <div class="muted small">نام</div>
-        {{ form.first_name }}
-      </div>
-      <div style="min-width:240px;flex:1">
-        <div class="muted small">نام خانوادگی</div>
-        {{ form.last_name }}
-      </div>
+    <div class="page-head">
+      <h1>پروفایلت را بساز</h1>
+      <p>یک بار پر می‌کنی، همیشه می‌توانی از تنظیمات عوضش کنی.</p>
     </div>
 
+    <form method="post" id="onboardingForm" novalidate>
+      {% csrf_token %}
 
-    <div class="row row-top" style="gap:12px;flex-wrap:wrap">
-      <div style="min-width:240px;flex:1">
-        <div class="muted small">نام نمایشی</div>
-        {{ form.display_name }}
-      </div>
-      <div style="min-width:240px;flex:1">
-        <div class="muted small">ایمیل</div>
-        {{ form.email }}
-      </div>
-    </div>
+      <!-- ================= Step 1 ================= -->
+      <section data-step-panel="1">
+        <div class="grid-3">
+          {% include "partials/_field.html" with field=form.first_name %}
+          {% include "partials/_field.html" with field=form.last_name %}
+          {% include "partials/_field.html" with field=form.display_name hint="نامی که روی آثارت دیده می‌شود" %}
+        </div>
+        {% include "partials/_field.html" with field=form.email hint="برای بازیابی رمز و گزارش عملکرد" %}
 
-    <div>
-      <div class="muted small">علاقه‌مندی برای پیشنهاد محتوا</div>
-      <div class="list" style="margin-top:8px">
-        {% for value,label in form.interests.field.choices %}
-          <label class="row" style="justify-content:flex-start;gap:10px">
-            <input type="checkbox"
-                   name="interests"
-                   value="{{ value }}"
-                   {% if value in selected_interests %}checked{% endif %}
-                   {% if value in disabled_interest_types %}disabled{% endif %}>
-            <span>
-              {{ label }}
+        <div class="card__title mt-5">شبکه‌های اجتماعی <span class="muted t-xs w-400">(اختیاری)</span></div>
+        <div class="grid-3">
+          {% include "partials/_field.html" with field=form.instagram_url %}
+          {% include "partials/_field.html" with field=form.telegram_url %}
+          {% include "partials/_field.html" with field=form.youtube_url %}
+          {% include "partials/_field.html" with field=form.twitter_url %}
+          {% include "partials/_field.html" with field=form.website_url %}
+        </div>
+
+        <div class="cluster cluster--end mt-4">
+          <button class="btn btn--primary" type="button" data-step-next="2">ادامه</button>
+        </div>
+      </section>
+
+      <!-- ================= Step 2 ================= -->
+      <section data-step-panel="2" class="hidden">
+        <div class="card__title">به چه چیزی گوش می‌دهی؟</div>
+        <p class="card__sub">برای پیشنهاد محتوا استفاده می‌شود. هر تعداد می‌توانی انتخاب کنی.</p>
+
+        <div class="interest-grid">
+          {% for value, label in form.interests.field.choices %}
+            <label class="interest">
+              <input type="checkbox" name="interests" value="{{ value }}"
+                     {% if value in selected_interests %}checked{% endif %}
+                     {% if value in disabled_interest_types %}disabled{% endif %}>
+              <span>{{ label }}</span>
               {% if value in disabled_interest_types %}
-                <span class="muted small">(به‌زودی)</span>
+                <span class="muted t-xs" title="این نوع محتوا هنوز روی کست فعال نیست">(به‌زودی)</span>
               {% endif %}
+            </label>
+          {% endfor %}
+        </div>
+
+        <div class="cluster cluster--between mt-5">
+          <button class="btn btn--ghost" type="button" data-step-prev="1">بازگشت</button>
+          <button class="btn btn--primary" type="button" data-step-next="3">ادامه</button>
+        </div>
+      </section>
+
+      <!-- ================= Step 3 ================= -->
+      <section data-step-panel="3" class="hidden">
+        <div class="card__title">با کست چه کار می‌کنی؟</div>
+        <p class="card__sub">این انتخاب مسیر بعدی‌ات را تعیین می‌کند — بعداً هم قابل تغییر است.</p>
+
+        <div class="choice-grid">
+          <button class="choice" type="submit" name="next_action" value="viewer">
+            <span class="choice__icon"><svg class="icon"><use href="#i-volume"/></svg></span>
+            <span class="choice__title">می‌خواهم گوش بدهم</span>
+            <span class="choice__desc">
+              کشف موزیک و پادکست، ساخت پلی‌لیست، دنبال‌کردن سازنده‌ها.
+              هر وقت خواستی می‌توانی انتشاردهنده هم بشوی.
             </span>
-          </label>
-        {% endfor %}
-      </div>
-    </div>
+          </button>
 
-    <hr>
-    <h2 style="margin:0">شبکه‌های اجتماعی</h2>
+          <button class="choice choice--purple" type="submit" name="next_action" value="creator">
+            <span class="choice__icon"><svg class="icon"><use href="#i-mic"/></svg></span>
+            <span class="choice__title">می‌خواهم منتشر کنم</span>
+            <span class="choice__desc">
+              آپلود اثر، آمار پخش قابل‌اعتماد، و کسب امتیاز.
+              برای شروع فقط تایید شماره موبایل و انتخاب یوزرنیم لازم است.
+            </span>
+          </button>
+        </div>
 
-    <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
-      <div>
-        <div class="muted small">اینستاگرام</div>
-        {{ form.instagram_url }}
-      </div>
-      <div>
-        <div class="muted small">تلگرام</div>
-        {{ form.telegram_url }}
-      </div>
-      <div>
-        <div class="muted small">یوتیوب</div>
-        {{ form.youtube_url }}
-      </div>
-      <div>
-        <div class="muted small">توییتر / X</div>
-        {{ form.twitter_url }}
-      </div>
-    </div>
+        <div class="cluster cluster--start mt-5">
+          <button class="btn btn--ghost" type="button" data-step-prev="2">بازگشت</button>
+        </div>
+      </section>
+    </form>
+  </div>
+</div>
+{% endblock %}
 
-    <div>
-      <div class="muted small">وبسایت</div>
-      {{ form.website_url }}
-    </div>
+{% block scripts %}
+<script>
+/* Client-side stepper over a single server-side form.
 
-    <hr>
-    <div class="row" style="justify-content:flex-end;gap:10px;flex-wrap:wrap">
-      <button class="btn btn--ghost" type="submit" name="next_action" value="viewer">
-        من عضو میشم محتوا ببینم
-      </button>
-      <button class="btn btn--primary" type="submit" name="next_action" value="creator">
-        من عضو میشم محتوا بسازم
-      </button>
-    </div>
-  </form>
-</section>
+   Deliberately one <form> with hidden panels rather than three requests:
+   the server sees exactly the same POST it always did (OnboardingForm is
+   unchanged), and with JavaScript off every panel is simply visible and
+   the form still submits correctly. */
+(function () {
+  var form = document.getElementById("onboardingForm");
+  if (!form) return;
+
+  function show(step) {
+    form.querySelectorAll("[data-step-panel]").forEach(function (panel) {
+      panel.classList.toggle("hidden", panel.getAttribute("data-step-panel") !== String(step));
+    });
+    document.querySelectorAll(".stepper__step").forEach(function (el) {
+      var n = parseInt(el.getAttribute("data-step"), 10);
+      el.classList.toggle("stepper__step--active", n === step);
+      el.classList.toggle("stepper__step--done", n < step);
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  form.addEventListener("click", function (e) {
+    var next = e.target.closest("[data-step-next]");
+    if (next) {
+      // Let the browser surface its own validation messages before
+      // advancing — otherwise a required field fails silently on step 1
+      // and the user only finds out at the end.
+      var panel = next.closest("[data-step-panel]");
+      var invalid = Array.prototype.slice.call(panel.querySelectorAll("input, select, textarea"))
+        .filter(function (el) { return !el.checkValidity(); });
+      if (invalid.length) { invalid[0].reportValidity(); return; }
+      show(parseInt(next.getAttribute("data-step-next"), 10));
+      return;
+    }
+    var prev = e.target.closest("[data-step-prev]");
+    if (prev) show(parseInt(prev.getAttribute("data-step-prev"), 10));
+  });
+})();
+</script>
 {% endblock %}

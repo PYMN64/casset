@@ -53,10 +53,37 @@ class RegisterViewTests(TestCase):
             "password1": "V3ryStr0ngPass!",
             "password2": "V3ryStr0ngPass!",
             "email": "new@example.com",
+            "accept_terms": "on",
         })
         self.assertEqual(resp.status_code, 302)
         user = User.objects.get(username="newuser1")
         self.assertTrue(UserProfile.objects.filter(user=user).exists())
+        self.assertEqual(user.profile.auth_provider, UserProfile.AuthProvider.PASSWORD)
+
+    def test_registration_refused_without_accepting_terms(self):
+        """The consent checkbox is a gate, not decoration."""
+        resp = self.client.post(reverse("register"), {
+            "username": "noterms",
+            "password1": "V3ryStr0ngPass!",
+            "password2": "V3ryStr0ngPass!",
+            "email": "noterms@example.com",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(User.objects.filter(username="noterms").exists())
+
+    def test_duplicate_email_rejected(self):
+        """One account per address — Google sign-in matches on email, so a
+        duplicate would make that match ambiguous."""
+        User.objects.create_user(username="first", email="dupe@example.com", password="pass12345")
+        resp = self.client.post(reverse("register"), {
+            "username": "second",
+            "password1": "V3ryStr0ngPass!",
+            "password2": "V3ryStr0ngPass!",
+            "email": "dupe@example.com",
+            "accept_terms": "on",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(User.objects.filter(username="second").exists())
 
     def test_authenticated_user_redirected_away(self):
         _make_user("existing1")
@@ -683,7 +710,7 @@ class SmsProviderTests(TestCase):
 
     def test_phone_start_view_calls_send_otp_sms(self):
         cache.clear()
-        with patch("accounts.views.send_otp_sms") as mock_send:
+        with patch("accounts.services.send_otp_sms") as mock_send:
             resp = self.client.post(reverse("phone_start"), {"phone_number": "09121234567"})
         self.assertEqual(resp.status_code, 302)
         mock_send.assert_called_once()

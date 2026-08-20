@@ -474,7 +474,10 @@ class CanDownloadRegressionTests(TestCase):
         self.client.login(username="dl_listener_free", password="pass12345")
         resp = self.client.get(reverse("track_detail", args=[self.track.slug]))
         self.assertFalse(resp.context["can_download"])
-        self.assertNotContains(resp, "دانلود")
+        # Assert on the download URL, not the word "دانلود": the shell's VIP
+        # promo also uses that word, so matching on it tested the layout
+        # rather than the gate.
+        self.assertNotContains(resp, reverse("download_track", args=[self.track.id]))
 
     def test_vip_user_sees_download_button(self):
         from billing.models import Invoice, Plan

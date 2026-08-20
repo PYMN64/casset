@@ -1,34 +1,78 @@
 {% extends "base.html" %}
-{% block title %}Login • Casset{% endblock %}
+{% block title %}ورود به حساب کست{% endblock %}
+{% block meta_description %}وارد حساب کست شو — با رمز عبور، شماره موبایل یا حساب گوگل.{% endblock %}
+{% block og_title %}ورود به حساب کست{% endblock %}
+
 {% block content %}
-<div class="card">
-  <h1>ورود</h1>
-  <p class="muted">به اکانتت وارد شو.</p>
-
-  <form method="post" class="list">
-    {% csrf_token %}
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Username</div>
-      {{ form.username }}
+<div class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      <span class="auth__mark" aria-hidden="true"><svg class="icon"><use href="#i-play"/></svg></span>
+      کست
     </div>
-    <div class="item" style="display:block">
-      <div class="muted" style="font-size:12px">Password</div>
-      {{ form.password }}
+    <h1 class="auth__title">خوش برگشتی</h1>
+    <p class="auth__sub">برای ادامه وارد حسابت شو.</p>
+
+    <form method="post" class="auth__form" novalidate>
+      {% csrf_token %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+      {% if form.non_field_errors %}
+        <div class="notice notice--bad mb-3" role="alert">
+          <svg class="icon"><use href="#i-alert"/></svg>
+          <div>{% for error in form.non_field_errors %}{{ error }}{% endfor %}</div>
+        </div>
+      {% endif %}
+
+      <div class="form-field{% if form.username.errors %} form-field--invalid{% endif %}">
+        <label class="form-field__label" for="{{ form.username.id_for_label }}">نام کاربری</label>
+        {{ form.username }}
+        {% if form.username.errors %}
+          <div class="form-field__error" role="alert">{% for e in form.username.errors %}<div>{{ e }}</div>{% endfor %}</div>
+        {% endif %}
+      </div>
+
+      <div class="form-field{% if form.password.errors %} form-field--invalid{% endif %}">
+        <label class="form-field__label" for="{{ form.password.id_for_label }}">رمز عبور</label>
+        <span class="input-wrap">
+          {{ form.password }}
+          <button class="input-wrap__btn" type="button"
+                  data-toggle-password="{{ form.password.id_for_label }}" aria-label="نمایش رمز">
+            <svg class="icon"><use href="#i-eye"/></svg>
+          </button>
+        </span>
+        {% if form.password.errors %}
+          <div class="form-field__error" role="alert">{% for e in form.password.errors %}<div>{{ e }}</div>{% endfor %}</div>
+        {% endif %}
+      </div>
+
+      <div class="cluster cluster--between mb-4">
+        <label class="checkline mb-0">
+          <input type="checkbox" name="remember_me" value="1" checked>
+          <span>مرا به‌خاطر بسپار</span>
+        </label>
+        <a class="t-sm w-700 text-accent" href="{% url 'password_reset' %}">رمز را فراموش کردی؟</a>
+      </div>
+
+      <button class="btn btn--primary btn--block" type="submit">ورود</button>
+    </form>
+
+    <div class="divider-or">یا</div>
+
+    <div class="social-row">
+      <a class="social-btn" href="{% url 'phone_start' %}">
+        <svg class="icon"><use href="#i-phone"/></svg>ورود با پیامک
+      </a>
+      {% if google_enabled %}
+        <a class="social-btn" href="{% url 'google_login' %}{% if next %}?next={{ next|urlencode }}{% endif %}">
+          <svg class="icon"><use href="#i-google"/></svg>ورود با گوگل
+        </a>
+      {% endif %}
     </div>
 
-    {% if form.non_field_errors %}
-      <div class="item"><span class="muted">{{ form.non_field_errors }}</span></div>
-    {% endif %}
-
-    <div class="item">
-      <button class="btn primary" type="submit">ورود</button>
-      <a class="btn" href="/register/">ساخت اکانت</a>
+    <div class="auth__foot">
+      حساب نداری؟ <a href="{% url 'register' %}">ثبت‌نام رایگان</a>
     </div>
-
-    <div class="item" style="gap:8px;flex-wrap:wrap">
-      <a class="btn" href="/phone/">ورود با موبایل (OTP)</a>
-      <a class="btn" href="/google/">ورود با گوگل</a>
-    </div>
-  </form>
+  </div>
 </div>
 {% endblock %}
