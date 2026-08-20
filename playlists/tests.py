@@ -402,6 +402,18 @@ class NoJavascriptFallbackTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["ok"])
 
+    def test_accept_json_alone_is_enough_to_get_json(self):
+        """Both signals are honoured. Relying on X-Requested-With alone
+        broke the site's own fetch() calls once already — they did not set
+        it, so they got a redirect and choked parsing HTML as JSON."""
+        resp = self.client.post(
+            reverse("api_playlist_delete"),
+            {"playlist_id": self.pl.id},
+            HTTP_ACCEPT="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+
     def test_deleting_someone_elses_playlist_is_refused(self):
         stranger = make_user("nojs_stranger")
         theirs = Playlist.objects.create(owner=stranger, name="Theirs")

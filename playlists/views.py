@@ -100,6 +100,18 @@ def api_playlist_create(request):
 
 @require_POST
 @login_required
+def _wants_json(request) -> bool:
+    """Whether this caller expects JSON rather than a page.
+
+    Checks both signals rather than just one: our own fetch() calls set
+    X-Requested-With, but a caller that only sets Accept should not be
+    handed a redirect it cannot follow.
+    """
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return True
+    return "application/json" in (request.headers.get("Accept") or "")
+
+
 def _api_response(request, payload, *, status=200, redirect_to="library"):
     """JSON for XHR callers, a redirect for a plain form POST.
 
@@ -108,7 +120,7 @@ def _api_response(request, payload, *, status=200, redirect_to="library"):
     output — which is exactly what used to happen when JavaScript was off
     or when a handler was bypassed.
     """
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+    if _wants_json(request):
         return JsonResponse(payload, status=status)
     if not payload.get("ok", False):
         from django.contrib import messages

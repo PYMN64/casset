@@ -92,7 +92,11 @@ def mark_read(request):
     # A plain form POST (no JavaScript) must land back on the page, not on
     # a screenful of raw JSON — which is exactly what this endpoint used to
     # return to the notification list's own non-AJAX form.
-    if request.headers.get("X-Requested-With") != "XMLHttpRequest":
+    wants_json = (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in (request.headers.get("Accept") or "")
+    )
+    if not wants_json:
         from django.shortcuts import redirect
 
         return redirect("notification_list")

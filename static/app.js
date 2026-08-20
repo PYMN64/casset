@@ -11,6 +11,11 @@ function csrfHeader() {
   const token = getCookie("csrftoken");
   return token ? { "X-CSRFToken": token } : {};
 }
+/* Several endpoints back both a fetch() call and a real <form>, and answer
+   differently: JSON for us, a redirect for a plain form post so a
+   no-JavaScript visitor never lands on raw JSON. That decision is made on
+   this header, so every request we send must carry it. */
+const XHR_HEADER = { "X-Requested-With": "XMLHttpRequest" };
 /* Visibility is a class, not an inline style.
    Inline display:block on an .overlay-panel would override its
    display:flex centering — which is exactly the bug the old mix of
@@ -33,7 +38,7 @@ async function postForm(url, dataObj) {
   Object.entries(dataObj).forEach(([k, v]) => body.append(k, v));
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", ...csrfHeader() },
+    headers: { "Content-Type": "application/x-www-form-urlencoded", ...csrfHeader(), ...XHR_HEADER },
     body: body.toString(),
   });
   if (res.status === 401) {
@@ -48,7 +53,7 @@ async function postForm(url, dataObj) {
   return await res.json();
 }
 async function getJSON(url) {
-  const res = await fetch(url, { method: "GET", headers: { ...csrfHeader() } });
+  const res = await fetch(url, { method: "GET", headers: { ...csrfHeader(), ...XHR_HEADER } });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     console.error("GET failed:", url, res.status, text);
