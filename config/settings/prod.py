@@ -17,6 +17,27 @@ if not _prod_hosts:
         "localhost/127.0.0.1 are not valid production hosts."
     )
 
+# Constitution (CLAUDE.md §2): production must run on PostgreSQL, never
+# SQLite or a local filesystem-backed store. Fail fast rather than let a
+# misconfigured DB_ENGINE silently boot prod on SQLite.
+if DB_ENGINE != "postgresql":  # noqa: F405
+    raise ImproperlyConfigured(
+        f"Production requires DB_ENGINE=postgresql (got {DB_ENGINE!r}). "  # noqa: F405
+        "SQLite is not a supported production database for Casset."
+    )
+
+if not DATABASES["default"].get("PASSWORD", "").strip():  # noqa: F405
+    raise ImproperlyConfigured(
+        "DB_PASSWORD environment variable is required but not set in production."
+    )
+
+# Default to enforcing TLS to the database unless the operator explicitly
+# chose a different sslmode (e.g. a private VPC link where "disable" is
+# acceptable). base.py defaults to "prefer", which silently allows an
+# unencrypted connection — too permissive for prod.
+if os.getenv("DB_SSLMODE") is None:
+    DATABASES["default"]["OPTIONS"]["sslmode"] = "require"  # noqa: F405
+
 # Production security toggles
 SECURE_SSL_REDIRECT = os.getenv("DJANGO_SECURE_SSL_REDIRECT", "1") in ("1", "true", "yes", "on")
 SESSION_COOKIE_SECURE = True

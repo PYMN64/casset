@@ -163,6 +163,17 @@ if DB_ENGINE == "postgresql":
             "HOST": os.getenv("DB_HOST", "localhost"),
             "PORT": os.getenv("DB_PORT", "5432"),
             "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "60")),
+            # Pairs with CONN_MAX_AGE: probes a pooled connection before
+            # reuse so a connection killed server-side (idle timeout,
+            # managed-Postgres failover) doesn't surface as a request error.
+            "CONN_HEALTH_CHECKS": True,
+            "OPTIONS": {
+                # "prefer" negotiates TLS when the server offers it and
+                # silently falls back otherwise — safe for local/dev
+                # Postgres. prod.py raises this to "require".
+                "sslmode": os.getenv("DB_SSLMODE", "prefer").strip().lower(),
+                "connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT", "10")),
+            },
         }
     }
 elif DB_ENGINE == "sqlite":
