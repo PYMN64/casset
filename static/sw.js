@@ -6,9 +6,10 @@
    decision is readable in one screen.
 
    Strategy per resource class, and why:
-     static assets  cache-first          — hashed-by-content in practice
-                                           (they change with a deploy, and
-                                           the cache version bumps with it)
+     static assets  cache-first          — safe because production names
+                                           every asset by content hash
+                                           (ManifestStaticFilesStorage), so
+                                           a changed file is a changed URL
      HTML pages     network-first        — a stale page showing a stale
                                            track list is worse than a
                                            slightly slower one; falls back
@@ -30,18 +31,16 @@ const STATIC_CACHE = `casset-static-${VERSION}`;
 const PAGE_CACHE = `casset-pages-${VERSION}`;
 const API_CACHE = `casset-api-${VERSION}`;
 
+/* Only routes, never asset paths.
+ *
+ * In production every static file is content-hashed
+ * (ManifestStaticFilesStorage), so "/static/app.css" does not exist —
+ * listing it here would precache a set of 404s. Assets are picked up by
+ * the cache-first runtime rule below on first use instead, which works
+ * under either storage backend and needs no list to keep in sync. */
 const APP_SHELL = [
-  "/discover/",
   "/offline/",
-  "/static/app.css",
-  "/static/css/casset-ui.css",
-  "/static/css/cassette.css",
-  "/static/css/fonts.css",
-  "/static/app.js",
-  "/static/js/casset-ui.js",
-  "/static/fonts/vazirmatn-arabic.woff2",
-  "/static/manifest.webmanifest",
-  "/static/icons/icon-192.png",
+  "/discover/",
 ];
 
 self.addEventListener("install", (event) => {

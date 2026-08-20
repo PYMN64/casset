@@ -46,8 +46,11 @@
   <link rel="preload" href="{% static 'fonts/vazirmatn-arabic.woff2' %}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{% static 'css/fonts.css' %}" />
 
-  {# Load order matters: app.css owns the tokens + base layer, casset-ui.css
-     the component layer built on them, cassette.css the player identity. #}
+  {% comment %}
+    Load order matters: app.css owns the tokens and base layer,
+    casset-ui.css the component layer built on them, and cassette.css the
+    player identity.
+  {% endcomment %}
   <link rel="stylesheet" href="{% static 'app.css' %}" />
   <link rel="stylesheet" href="{% static 'css/casset-ui.css' %}" />
   <link rel="stylesheet" href="{% static 'css/cassette.css' %}" />

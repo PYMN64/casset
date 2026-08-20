@@ -85,6 +85,22 @@ if not ZARINPAL_MERCHANT_ID:  # noqa: F405
 
 USE_S3_STORAGE = os.getenv("USE_S3_STORAGE", "0") in ("1", "true", "yes", "on")
 
+# Content-hashed static filenames.
+#
+# The service worker (static/sw.js) serves /static/ cache-first, which is
+# only safe when a changed file gets a changed URL. With plain
+# StaticFilesStorage a deploy would keep serving the previous CSS and JS
+# from the visitor's cache until sw.js's own VERSION constant happened to
+# be bumped — a manual step that will eventually be forgotten.
+# ManifestStaticFilesStorage renames every asset by content hash at
+# collectstatic time, so "cache it forever" and "ship an update" stop
+# being in tension. Requires `collectstatic` before serving; a missing
+# manifest entry then fails loudly instead of quietly serving stale bytes.
+_STATICFILES_BACKEND = os.getenv(
+    "DJANGO_STATICFILES_BACKEND",
+    "django.contrib.staticfiles.storage.ManifestStaticFilesStorage",
+)
+
 if USE_S3_STORAGE:
     _required_s3_vars = ["S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BUCKET_NAME", "S3_ENDPOINT_URL"]
     _missing_s3_vars = [v for v in _required_s3_vars if not os.getenv(v, "").strip()]
@@ -112,7 +128,12 @@ if USE_S3_STORAGE:
 
     STORAGES = {
         "default": {"BACKEND": "storages.backends.s3.S3Storage"},
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        "staticfiles": {"BACKEND": _STATICFILES_BACKEND},
+    }
+else:
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": _STATICFILES_BACKEND},
     }
 
 # ---------------------------------------------------------------------------

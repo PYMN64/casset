@@ -2,7 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Max
 from django.http import Http404, JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from interactions.models import TrackLike
@@ -100,6 +100,23 @@ def api_playlist_create(request):
 
 @require_POST
 @login_required
+def _api_response(request, payload, *, status=200, redirect_to="library"):
+    """JSON for XHR callers, a redirect for a plain form POST.
+
+    These endpoints back both a fetch() call and a real <form>. Answering
+    a form submission with raw JSON drops the visitor on a page of machine
+    output — which is exactly what used to happen when JavaScript was off
+    or when a handler was bypassed.
+    """
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse(payload, status=status)
+    if not payload.get("ok", False):
+        from django.contrib import messages
+
+        messages.error(request, "عملیات انجام نشد.")
+    return redirect(redirect_to)
+
+
 def api_playlist_delete(request):
     pid = request.POST.get("playlist_id")
     if not pid or not str(pid).isdigit():
@@ -107,10 +124,10 @@ def api_playlist_delete(request):
 
     pl = Playlist.objects.filter(id=int(pid), owner=request.user).first()
     if not pl:
-        return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
+        return _api_response(request, {"ok": False, "reason": "not_found"}, status=404)
 
     pl.delete()
-    return JsonResponse({"ok": True})
+    return _api_response(request, {"ok": True})
 
 
 @require_POST

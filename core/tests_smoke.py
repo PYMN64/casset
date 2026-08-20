@@ -266,3 +266,46 @@ class AdminSmokeTests(TestCase):
                     resp.status_code, 200,
                     f"Admin page {url} failed with {resp.status_code}",
                 )
+
+
+# ---------------------------------------------------------------------------
+# 6. Template hygiene
+# ---------------------------------------------------------------------------
+
+class TemplateCommentHygieneTests(TestCase):
+    """Django's {# #} comment is SINGLE-LINE only.
+
+    Spanning it across lines does not comment anything out — the opening
+    line disappears and every following line is rendered as visible text
+    on the page. That shipped once already; this makes it impossible to
+    ship again without the suite going red.
+    """
+
+    def test_no_multiline_hash_comments_in_any_template(self):
+        from pathlib import Path
+
+        from django.conf import settings
+
+        offenders = []
+        for template_dir in settings.TEMPLATES[0]["DIRS"]:
+            for path in Path(template_dir).rglob("*.html"):
+                for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                    if "{#" in line and "#}" not in line:
+                        offenders.append(f"{path.name}:{number}")
+
+        self.assertEqual(
+            offenders, [],
+            "Use {% comment %}…{% endcomment %} for multi-line comments; "
+            f"these {{# … leak into the rendered page: {offenders}",
+        )
+
+    def test_rendered_pages_contain_no_template_comment_markers(self):
+        """Belt and braces: assert on the actual output, not just source."""
+        PlatformSetting.get_solo()
+        _make_user("hygiene_user")
+        self.client.login(username="hygiene_user", password="pass12345")
+        for url in ("/discover/", "/library/", "/settings/", "/dashboard/", "/upload/", "/login/"):
+            with self.subTest(url=url):
+                body = self.client.get(url).content.decode()
+                self.assertNotIn("{#", body)
+                self.assertNotIn("{%", body)

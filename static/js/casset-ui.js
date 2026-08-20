@@ -137,14 +137,24 @@
         if (el.tagName === "A") {
           window.location.href = el.getAttribute("href");
         } else if (el.form) {
-          if (el.name) {
-            var hidden = d.createElement("input");
-            hidden.type = "hidden";
-            hidden.name = el.name;
-            hidden.value = el.value || "1";
-            el.form.appendChild(hidden);
+          /* requestSubmit(), not submit(). form.submit() deliberately does
+             NOT fire the submit event, so app.js's delegated handlers
+             (playlist delete/rename, comments) never ran and the browser
+             posted straight to a JSON endpoint — the user ended up looking
+             at raw JSON. requestSubmit() dispatches the event, preserves
+             the submitter, and falls back cleanly below. */
+          if (typeof el.form.requestSubmit === "function") {
+            el.form.requestSubmit(el.type === "submit" ? el : undefined);
+          } else {
+            if (el.name) {
+              var hidden = d.createElement("input");
+              hidden.type = "hidden";
+              hidden.name = el.name;
+              hidden.value = el.value || "1";
+              el.form.appendChild(hidden);
+            }
+            el.form.submit();
           }
-          el.form.submit();
         } else {
           el.click();
         }

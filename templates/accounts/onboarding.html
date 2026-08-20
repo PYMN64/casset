@@ -4,9 +4,11 @@
 {% block content %}
 <div class="center-col">
   <div class="card">
-    {# The stepper exists for one reason: an un-numbered multi-part form
-       reads as endless, and people abandon it. Three visible steps make
-       the same form feel finite. #}
+    {% comment %}
+      The stepper exists for one reason: an un-numbered multi-part form
+      reads as endless, and people abandon it. Three visible steps make
+      the same form feel finite.
+    {% endcomment %}
     <ol class="stepper" aria-label="مراحل تکمیل پروفایل">
       <li class="stepper__step stepper__step--active" data-step="1">
         <span class="stepper__dot">۱</span>

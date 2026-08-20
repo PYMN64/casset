@@ -133,14 +133,22 @@ class PlaylistCreateDeleteApiTests(TestCase):
         pl_id = resp.json()["playlist_id"]
         self.assertTrue(Playlist.objects.filter(id=pl_id, owner=self.user).exists())
 
-        resp2 = self.client.post(reverse("api_playlist_delete"), {"playlist_id": pl_id})
+        resp2 = self.client.post(
+            reverse("api_playlist_delete"),
+            {"playlist_id": pl_id},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
         self.assertEqual(resp2.status_code, 200)
         self.assertFalse(Playlist.objects.filter(id=pl_id).exists())
 
     def test_cannot_delete_others_playlist(self):
         other = make_user("pl_api_other")
         pl = Playlist.objects.create(owner=other, name="Theirs")
-        resp = self.client.post(reverse("api_playlist_delete"), {"playlist_id": pl.id})
+        resp = self.client.post(
+            reverse("api_playlist_delete"),
+            {"playlist_id": pl.id},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
         self.assertEqual(resp.status_code, 404)
         self.assertTrue(Playlist.objects.filter(id=pl.id).exists())
 
@@ -366,3 +374,41 @@ class PlaylistDragReorderTests(TestCase):
         })
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(self._order(), [ids[0], ids[2], ids[1]])
+
+
+class NoJavascriptFallbackTests(TestCase):
+    """These endpoints back both a fetch() call and a real <form>.
+
+    Answering a plain form POST with raw JSON drops the visitor on a page
+    of machine output, which is what happened before this fallback existed.
+    """
+
+    def setUp(self):
+        self.user = make_user("nojs_user")
+        self.client.login(username="nojs_user", password="pass12345")
+        self.pl = Playlist.objects.create(owner=self.user, name="Delete me")
+
+    def test_plain_form_delete_redirects_to_the_library(self):
+        resp = self.client.post(reverse("api_playlist_delete"), {"playlist_id": self.pl.id})
+        self.assertRedirects(resp, reverse("library"))
+        self.assertFalse(Playlist.objects.filter(pk=self.pl.pk).exists())
+
+    def test_xhr_delete_still_returns_json(self):
+        resp = self.client.post(
+            reverse("api_playlist_delete"),
+            {"playlist_id": self.pl.id},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+
+    def test_deleting_someone_elses_playlist_is_refused(self):
+        stranger = make_user("nojs_stranger")
+        theirs = Playlist.objects.create(owner=stranger, name="Theirs")
+        resp = self.client.post(
+            reverse("api_playlist_delete"),
+            {"playlist_id": theirs.id},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 404)
+        self.assertTrue(Playlist.objects.filter(pk=theirs.pk).exists())
