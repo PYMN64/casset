@@ -32,5 +32,23 @@
       <div class="item"><span class="muted">درخواست در انتظار بررسی وجود ندارد.</span></div>
     {% endfor %}
   </div>
+  {% include "staff/_pagination.html" %}
+
+  <h2 style="margin:20px 0 8px">تاریخچه‌ی اخیر</h2>
+  <div class="list">
+    {% for p in history %}
+      <div class="item">
+        <div>
+          <div style="font-weight:900">@{{ p.user.username }} — {{ p.amount }}</div>
+          <div class="muted small">{{ p.points }} امتیاز • {{ p.created_at|date:"Y-m-d" }}</div>
+        </div>
+        <span class="muted small" style="{% if p.status == 'paid' %}color:var(--good){% else %}color:var(--bad){% endif %}">
+          {{ p.get_status_display }}
+        </span>
+      </div>
+    {% empty %}
+      <div class="item"><span class="muted">هنوز تصمیمی ثبت نشده.</span></div>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}

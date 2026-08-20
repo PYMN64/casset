@@ -6,6 +6,7 @@ services.py::approve_payout/reject_payout), views stay thin.
 """
 
 from django.contrib.admin.views.decorators import staff_member_required
+from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -20,7 +21,17 @@ def payout_queue(request):
         .select_related("user", "user__profile")
         .order_by("created_at")
     )
-    return render(request, "billing/staff_payout_queue.html", {"payouts": payouts})
+    page = Paginator(payouts, 30).get_page(request.GET.get("page") or 1)
+    # Previously there was no visibility into past decisions at all — every
+    # approve/reject vanished from this page the moment it happened.
+    history = (
+        PayoutRequest.objects.exclude(status=PayoutRequest.Status.PENDING)
+        .select_related("user", "user__profile")
+        .order_by("-created_at")[:20]
+    )
+    return render(request, "billing/staff_payout_queue.html", {
+        "payouts": page, "page_obj": page, "history": history,
+    })
 
 
 @staff_member_required

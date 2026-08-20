@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
-from django.db.models import Count
-from django.http import JsonResponse
+from django.db.models import Count, Max
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 
@@ -36,16 +36,22 @@ def library_view(request):
     })
 
 
-@login_required
 def playlist_detail(request, playlist_id: int):
-    pl = get_object_or_404(Playlist, id=playlist_id, owner=request.user)
+    """A playlist is visible to its owner always, and to everyone else only
+    when `is_private=False` — this is also what the public-profile "Playlists"
+    tab links to (accounts/views.py::_public_profile_context), so a private
+    playlist reached that way must 404 exactly like a private track does."""
+    pl = get_object_or_404(Playlist, id=playlist_id)
+    is_owner = request.user.is_authenticated and pl.owner_id == request.user.id
+    if pl.is_private and not is_owner:
+        raise Http404
     items = (
         PlaylistItem.objects.filter(playlist=pl)
         .select_related("track", "track__creator")
         .prefetch_related("track__genres")
-        .order_by("-created_at")
+        .order_by("order", "-created_at")
     )
-    return render(request, "playlists/playlist_detail.html", {"pl": pl, "items": items})
+    return render(request, "playlists/playlist_detail.html", {"pl": pl, "items": items, "is_owner": is_owner})
 
 
 @require_POST
@@ -103,7 +109,10 @@ def api_playlist_toggle_track(request):
     added = False
     try:
         with transaction.atomic():
-            PlaylistItem.objects.create(playlist=pl, track=track)
+            next_order = (
+                PlaylistItem.objects.filter(playlist=pl).aggregate(m=Max("order"))["m"] or 0
+            ) + 1
+            PlaylistItem.objects.create(playlist=pl, track=track, order=next_order)
             added = True
     except IntegrityError:
         PlaylistItem.objects.filter(playlist=pl, track=track).delete()
@@ -113,6 +122,62 @@ def api_playlist_toggle_track(request):
     return JsonResponse({"ok": True, "added": added, "count": count})
 
 
+@require_POST
+@login_required
+def api_playlist_rename(request):
+    pid = request.POST.get("playlist_id")
+    name = (request.POST.get("name") or "").strip()
+    if not pid or not str(pid).isdigit():
+        return JsonResponse({"ok": False, "reason": "invalid_playlist_id"}, status=400)
+    if not name or len(name) > 80:
+        return JsonResponse({"ok": False, "reason": "invalid_name"}, status=400)
+
+    pl = Playlist.objects.filter(id=int(pid), owner=request.user).first()
+    if not pl:
+        return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
+
+    pl.name = name
+    pl.save(update_fields=["name"])
+    return JsonResponse({"ok": True, "name": pl.name})
+
+
+@require_POST
+@login_required
+def api_playlist_reorder(request):
+    """Swap one item's position with its immediate neighbour — simple,
+    touch-friendly up/down reordering (same pattern as the queue-panel
+    reorder in app.js) rather than drag-and-drop."""
+    pid = request.POST.get("playlist_id")
+    item_id = request.POST.get("item_id")
+    direction = request.POST.get("direction")
+
+    if not pid or not str(pid).isdigit() or not item_id or not str(item_id).isdigit():
+        return JsonResponse({"ok": False, "reason": "invalid_params"}, status=400)
+    if direction not in ("up", "down"):
+        return JsonResponse({"ok": False, "reason": "invalid_direction"}, status=400)
+
+    pl = Playlist.objects.filter(id=int(pid), owner=request.user).first()
+    if not pl:
+        return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
+
+    items = list(PlaylistItem.objects.filter(playlist=pl).order_by("order", "-created_at"))
+    ids = [it.id for it in items]
+    try:
+        idx = ids.index(int(item_id))
+    except ValueError:
+        return JsonResponse({"ok": False, "reason": "item_not_found"}, status=404)
+
+    target = idx - 1 if direction == "up" else idx + 1
+    if target < 0 or target >= len(items):
+        return JsonResponse({"ok": True, "moved": False})
+
+    # Re-sequence orders 1..N from the swapped list so ties never recur.
+    items[idx], items[target] = items[target], items[idx]
+    with transaction.atomic():
+        for i, it in enumerate(items, start=1):
+            PlaylistItem.objects.filter(pk=it.pk).update(order=i)
+
+    return JsonResponse({"ok": True, "moved": True})
 
 
 @login_required

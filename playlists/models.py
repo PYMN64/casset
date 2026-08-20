@@ -20,10 +20,15 @@ class Playlist(models.Model):
 class PlaylistItem(models.Model):
     playlist = models.ForeignKey(Playlist, on_delete=models.CASCADE, related_name="items")
     track = models.ForeignKey("tracks.Track", on_delete=models.CASCADE, related_name="in_playlists")
+    # Manual sort position (lowest first). New items append past the current
+    # max — see api_playlist_toggle_track — so existing rows built before
+    # this field existed (default=0) simply sort first, oldest-first via the
+    # created_at tiebreaker below, which is a harmless one-time ordering.
+    order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ["order", "-created_at"]
         constraints = [
             models.UniqueConstraint(fields=["playlist", "track"], name="uniq_playlist_track")
         ]

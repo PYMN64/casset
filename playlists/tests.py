@@ -61,23 +61,48 @@ class PlaylistDetailViewTests(TestCase):
         self.pl = Playlist.objects.create(owner=self.user, name="My Mix")
         self.client.login(username="pld_user", password="pass12345")
 
-    def test_requires_login(self):
+    def test_anonymous_access_to_private_playlist_404s(self):
+        """A private playlist (the default) is not visible to a logged-out
+        visitor, exactly like a private track — a plain 404, not a
+        login-redirect, since the resource simply isn't there for them."""
         self.client.logout()
         resp = self.client.get(reverse("playlist_detail", args=[self.pl.id]))
-        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.status_code, 404)
 
-    def test_other_users_playlist_404s(self):
+    def test_anonymous_access_to_public_playlist_succeeds(self):
+        self.pl.is_private = False
+        self.pl.save(update_fields=["is_private"])
+        self.client.logout()
+        resp = self.client.get(reverse("playlist_detail", args=[self.pl.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.context["is_owner"])
+
+    def test_other_users_private_playlist_404s(self):
         make_user("pld_stranger")
         self.client.login(username="pld_stranger", password="pass12345")
         resp = self.client.get(reverse("playlist_detail", args=[self.pl.id]))
         self.assertEqual(resp.status_code, 404)
 
+    def test_other_users_public_playlist_is_viewable_but_not_editable(self):
+        self.pl.is_private = False
+        self.pl.save(update_fields=["is_private"])
+        make_user("pld_stranger")
+        self.client.login(username="pld_stranger", password="pass12345")
+        resp = self.client.get(reverse("playlist_detail", args=[self.pl.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.context["is_owner"])
+        self.assertContains(resp, "<h1>My Mix</h1>", html=False)
+        self.assertNotContains(resp, "data-pl-remove")
+
     def test_playlist_name_renders(self):
         """Regression: the template used to reference the undefined
-        `playlist` context var instead of `pl` — the name never showed."""
+        `playlist` context var instead of `pl` — the name never showed.
+        The owner's view is now an editable rename input, not a static
+        <h1> (see test_other_users_public_playlist_is_viewable_but_not_editable
+        for the non-owner <h1> case)."""
         resp = self.client.get(reverse("playlist_detail", args=[self.pl.id]))
         self.assertContains(resp, "My Mix")
-        self.assertContains(resp, "<h1>My Mix</h1>", html=False)
+        self.assertContains(resp, 'value="My Mix"', html=False)
 
     def test_items_render_with_track_titles(self):
         creator = make_user("pld_creator")
@@ -147,3 +172,87 @@ class PlaylistToggleTrackApiTests(TestCase):
         resp = self.client.get(reverse("api_playlist_mine"))
         data = resp.json()["playlists"]
         self.assertEqual(data[0]["item_count"], 1)
+
+
+class ApiPlaylistRenameTests(TestCase):
+    def setUp(self):
+        self.user = make_user("rename_owner")
+        self.other = make_user("rename_other")
+        self.pl = Playlist.objects.create(owner=self.user, name="Old Name")
+        self.client.login(username="rename_owner", password="pass12345")
+
+    def test_rename_updates_name(self):
+        resp = self.client.post(reverse("api_playlist_rename"), {"playlist_id": self.pl.id, "name": "New Name"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        self.pl.refresh_from_db()
+        self.assertEqual(self.pl.name, "New Name")
+
+    def test_empty_name_rejected(self):
+        resp = self.client.post(reverse("api_playlist_rename"), {"playlist_id": self.pl.id, "name": "  "})
+        self.assertEqual(resp.status_code, 400)
+        self.pl.refresh_from_db()
+        self.assertEqual(self.pl.name, "Old Name")
+
+    def test_non_owner_cannot_rename(self):
+        self.client.logout()
+        self.client.login(username="rename_other", password="pass12345")
+        resp = self.client.post(reverse("api_playlist_rename"), {"playlist_id": self.pl.id, "name": "Hijacked"})
+        self.assertEqual(resp.status_code, 404)
+        self.pl.refresh_from_db()
+        self.assertEqual(self.pl.name, "Old Name")
+
+
+class ApiPlaylistReorderTests(TestCase):
+    def setUp(self):
+        self.user = make_user("reorder_owner")
+        self.creator = make_user("reorder_creator")
+        self.pl = Playlist.objects.create(owner=self.user, name="Mix")
+        self.t1 = make_public_track(self.creator, title="One")
+        self.t2 = make_public_track(self.creator, title="Two")
+        self.t3 = make_public_track(self.creator, title="Three")
+        self.i1 = PlaylistItem.objects.create(playlist=self.pl, track=self.t1, order=1)
+        self.i2 = PlaylistItem.objects.create(playlist=self.pl, track=self.t2, order=2)
+        self.i3 = PlaylistItem.objects.create(playlist=self.pl, track=self.t3, order=3)
+        self.client.login(username="reorder_owner", password="pass12345")
+
+    def _order(self):
+        return list(
+            PlaylistItem.objects.filter(playlist=self.pl).order_by("order", "-created_at").values_list("id", flat=True)
+        )
+
+    def test_move_up_swaps_with_previous(self):
+        resp = self.client.post(
+            reverse("api_playlist_reorder"),
+            {"playlist_id": self.pl.id, "item_id": self.i2.id, "direction": "up"},
+        )
+        self.assertTrue(resp.json()["moved"])
+        self.assertEqual(self._order(), [self.i2.id, self.i1.id, self.i3.id])
+
+    def test_move_down_swaps_with_next(self):
+        resp = self.client.post(
+            reverse("api_playlist_reorder"),
+            {"playlist_id": self.pl.id, "item_id": self.i1.id, "direction": "down"},
+        )
+        self.assertTrue(resp.json()["moved"])
+        self.assertEqual(self._order(), [self.i2.id, self.i1.id, self.i3.id])
+
+    def test_move_first_item_up_is_a_noop(self):
+        resp = self.client.post(
+            reverse("api_playlist_reorder"),
+            {"playlist_id": self.pl.id, "item_id": self.i1.id, "direction": "up"},
+        )
+        self.assertTrue(resp.json()["ok"])
+        self.assertFalse(resp.json()["moved"])
+        self.assertEqual(self._order(), [self.i1.id, self.i2.id, self.i3.id])
+
+    def test_non_owner_cannot_reorder(self):
+        make_user("reorder_stranger")
+        self.client.logout()
+        self.client.login(username="reorder_stranger", password="pass12345")
+        resp = self.client.post(
+            reverse("api_playlist_reorder"),
+            {"playlist_id": self.pl.id, "item_id": self.i1.id, "direction": "down"},
+        )
+        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(self._order(), [self.i1.id, self.i2.id, self.i3.id])

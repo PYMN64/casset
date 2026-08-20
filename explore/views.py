@@ -228,7 +228,7 @@ def api_station(request, username):
             "src": t.audio.url,
             "title": t.title,
             "by": f"@{t.creator.username}",
-            "coverHtml": f"<img src='{t.cover.url}' />" if t.cover else "",
+            "cover": t.cover.url if t.cover else "",
             "trackId": t.id,
             "peaks": t.waveform_peaks or [],
         }

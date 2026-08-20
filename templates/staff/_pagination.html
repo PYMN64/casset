@@ -1,0 +1,11 @@
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="row" style="justify-content:center;gap:10px;margin-top:14px">
+  {% if page_obj.has_previous %}
+    <a class="btn btn--ghost btn--sm" href="?{% if extra_qs %}{{ extra_qs }}&{% endif %}page={{ page_obj.previous_page_number }}">« قبلی</a>
+  {% endif %}
+  <span class="muted small">صفحه {{ page_obj.number }} از {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} مورد)</span>
+  {% if page_obj.has_next %}
+    <a class="btn btn--ghost btn--sm" href="?{% if extra_qs %}{{ extra_qs }}&{% endif %}page={{ page_obj.next_page_number }}">بعدی »</a>
+  {% endif %}
+</div>
+{% endif %}

@@ -4,6 +4,7 @@ from django.db import models
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from core.models import PlatformSetting
 from tracks.models import Track
@@ -105,6 +106,33 @@ def edit_track(request, track_id: int):
         messages.success(request, "تغییرات ذخیره شد.")
         return redirect("my_tracks")
     return render(request, "uploads/edit.html", {"form": form, "track": track, "setting": setting})
+
+
+@login_required
+@require_POST
+def toggle_track_visibility(request, track_id: int):
+    """Self-service unpublish/republish for an approved track's creator.
+
+    Not a hard delete — flips `visibility` between PUBLIC and PRIVATE, the
+    same field moderation/admin already use to hide content. This keeps
+    play history, points and audit records intact (Constitution: derived
+    data must stay reconstructable) while immediately removing the track
+    from public listings and blocking new plays (see plays/views.py
+    `_is_playable`). A creator can always republish it again from here.
+    """
+    track = get_object_or_404(Track, id=track_id, creator=request.user)
+    if track.status != Track.Status.APPROVED:
+        messages.error(request, "فقط محتوای منتشرشده قابل مخفی/نمایش‌کردن است.")
+        return redirect("my_tracks")
+
+    if track.visibility == Track.Visibility.PRIVATE:
+        track.visibility = Track.Visibility.PUBLIC
+        messages.success(request, f"«{track.title}» دوباره منتشر شد ✅")
+    else:
+        track.visibility = Track.Visibility.PRIVATE
+        messages.success(request, f"«{track.title}» از دید عموم مخفی شد.")
+    track.save(update_fields=["visibility"])
+    return redirect("my_tracks")
 
 
 @login_required

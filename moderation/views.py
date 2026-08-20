@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
+from django.core.paginator import Paginator
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -13,6 +14,8 @@ from . import services
 from .models import Report
 
 User = get_user_model()
+
+_PAGE_SIZE = 30
 
 
 def _already_reported_today(user_id: int, target_key: str, *, queryset) -> bool:
@@ -154,8 +157,10 @@ def track_queue(request):
     from core.models import PlatformSetting
 
     qs = Track.objects.filter(status__in=[Track.Status.SUBMITTED, Track.Status.PENDING]).select_related('creator').order_by('-submitted_at','-created_at')
+    page = Paginator(qs, _PAGE_SIZE).get_page(request.GET.get('page') or 1)
     return render(request, 'moderation/track_queue.html', {
-        'tracks': qs[:200],
+        'tracks': page,
+        'page_obj': page,
         'platform': PlatformSetting.get_solo(),
     })
 
@@ -186,9 +191,17 @@ def report_queue(request):
         .select_related('reporter', 'track', 'target_user', 'comment', 'comment__author')
         .order_by('-created_at')
     )
+    status = (request.GET.get('status') or '').strip()
+    if status:
+        qs = qs.filter(status=status)
+    page = Paginator(qs, _PAGE_SIZE).get_page(request.GET.get('page') or 1)
+    extra_qs = f"status={status}" if status else ""
     return render(request, 'moderation/report_queue.html', {
-        'reports': qs[:200],
+        'reports': page,
+        'page_obj': page,
         'report_statuses': Report.Status.choices,
+        'status': status,
+        'extra_qs': extra_qs,
     })
 
 

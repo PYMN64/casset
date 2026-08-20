@@ -147,6 +147,12 @@
     <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M17 3h4v4h-2V5.4l-3.6 3.6a2 2 0 0 1-1.4.6H10a2 2 0 0 0-1.4.6L3 15.4V13l4.2-4.2A4 4 0 0 1 10 7h3.6l2.8-2.8H17V3zM3 7h2l4.6 4.6-1.4 1.4L3 7zm14 14h4v-4h-2v1.6l-3.6-3.6a2 2 0 0 0-1.4-.6H10a2 2 0 0 1-1.4-.6L3 8.6V11l4.2 4.2A4 4 0 0 0 10 17h3.6l2.8 2.8H17v1.2z"/></symbol>
     <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M7 7h11V4l4 4-4 4V9H7a3 3 0 0 0-3 3v1H2v-1a5 5 0 0 1 5-5zm10 10H6v3l-4-4 4-4v3h11a3 3 0 0 0 3-3v-1h2v1a5 5 0 0 1-5 5z"/></symbol>
     <symbol id="i-queue" viewBox="0 0 24 24"><path d="M3 6h14v2H3V6zm0 4h14v2H3v-2zm0 4h10v2H3v-2zm16 0v-2h2v2h2v2h-2v2h-2v-2h-2v-2h2z"/></symbol>
+    <symbol id="i-back10" viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7a5 5 0 11-5 5H5a7 7 0 107-7z"/><text x="12" y="16.5" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" stroke="none">10</text></symbol>
+    <symbol id="i-fwd10" viewBox="0 0 24 24"><path d="M12 5V1l5 5-5 5V7a5 5 0 105 5h2a7 7 0 10-7-7z"/><text x="12" y="16.5" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" stroke="none">10</text></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 00-2.5-4.03v8.05A4.5 4.5 0 0016.5 12zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></symbol>
+    <symbol id="i-mute" viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0014 7.97v2.21l2.45 2.45c.03-.2.05-.42.05-.63zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.796 8.796 0 0021 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 003.69-1.81L18.73 21 20 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z"/></symbol>
     <symbol id="i-lang" viewBox="0 0 24 24">
       <path d="M12 2a10 10 0 100 20 10 10 0 000-20Zm7.2 9h-3.02a15.6 15.6 0 00-1.02-4.1A8.03 8.03 0 0119.2 11ZM12 4.1c.83 1.08 1.53 2.78 1.92 4.9H10.1c.39-2.12 1.09-3.82 1.9-4.9ZM4.8 13h3.02c.2 1.47.63 2.9 1.27 4.1A8.03 8.03 0 014.8 13Zm3.02-2H4.8a8.03 8.03 0 014.3-4.1c-.64 1.2-1.07 2.63-1.28 4.1Zm2.28 2h3.82c-.39 2.12-1.1 3.82-1.92 4.9-.82-1.08-1.52-2.78-1.9-4.9Zm3.82-2H10.1c.38-2.12 1.08-3.82 1.9-4.9.83 1.08 1.53 2.78 1.92 4.9Zm1.25 6.1c.64-1.2 1.07-2.63 1.28-4.1h3.02a8.03 8.03 0 01-4.3 4.1Z"/>
@@ -229,36 +235,86 @@
   <!-- Player bar -->
   <div id="playerbar" class="playerbar" style="display:none">
     <div class="playerbar__inner">
-      <div class="playerbar__left">
-        <div id="pbCover" class="playerbar__cover" aria-hidden="true"></div>
-        <div class="playerbar__meta">
-          <div id="pbTitle" class="playerbar__title">—</div>
-          <div id="pbBy" class="playerbar__by muted">—</div>
-          <div id="pbPos" class="playerbar__pos muted"></div>
+      <div class="playerbar__row">
+        <div class="playerbar__left" id="pbOpenNP" role="button" tabindex="0" aria-label="نمایش کامل پخش‌کننده">
+          <div id="pbCover" class="playerbar__cover" aria-hidden="true"></div>
+          <div class="playerbar__meta">
+            <div id="pbTitle" class="playerbar__title">—</div>
+            <div id="pbBy" class="playerbar__by muted">—</div>
+          </div>
+        </div>
+
+        <div class="playerbar__controls">
+          <button class="iconbtn" type="button" id="pbBack10" aria-label="۱۰ ثانیه عقب"><svg class="icon"><use href="#i-back10"/></svg></button>
+          <a class="iconbtn" href="#" id="pbPrev" aria-label="قبلی"><svg class="icon"><use href="#i-prev"/></svg></a>
+          <button class="iconbtn iconbtn--primary" type="button" id="pbPlayPause" aria-label="پخش/توقف">
+            <svg class="icon" id="pbPlayIcon"><use href="#i-play"/></svg>
+          </button>
+          <a class="iconbtn" href="#" id="pbNext" aria-label="بعدی"><svg class="icon"><use href="#i-next"/></svg></a>
+          <button class="iconbtn" type="button" id="pbFwd10" aria-label="۱۰ ثانیه جلو"><svg class="icon"><use href="#i-fwd10"/></svg></button>
+        </div>
+
+        <div id="pbWave" class="playerbar__wave" aria-hidden="true">
+          {% for i in "0123456789012345"|make_list %}<span></span>{% endfor %}
+        </div>
+
+        <div class="playerbar__tools">
+          <div class="pb-vol">
+            <button class="iconbtn" type="button" id="pbVolBtn" aria-label="صدا" title="صدا"><svg class="icon" id="pbVolIcon"><use href="#i-volume"/></svg></button>
+            <div class="pb-vol__pop" id="pbVolPop">
+              <input type="range" id="pbVolume" min="0" max="1" step="0.05" value="1" aria-label="میزان صدا" orient="vertical">
+            </div>
+          </div>
+          <button class="iconbtn" type="button" id="pbSpeed" aria-label="سرعت پخش" title="سرعت پخش">1x</button>
+          <button class="iconbtn" type="button" id="pbSleep" aria-label="تایمر خواب" title="تایمر خواب"><svg class="icon"><use href="#i-moon"/></svg></button>
+          <a class="iconbtn" href="#" id="pbShuffle" aria-label="Shuffle" title="پخش تصادفی"><svg class="icon"><use href="#i-shuffle"/></svg></a>
+          <a class="iconbtn" href="#" id="pbRepeat" aria-label="Repeat" title="تکرار"><svg class="icon"><use href="#i-repeat"/></svg></a>
+          <a class="iconbtn" href="#" id="pbQueue" aria-label="Queue" title="صف پخش"><svg class="icon"><use href="#i-queue"/></svg></a>
+          <button class="iconbtn" type="button" id="pbExpand" aria-label="نمایش کامل" title="نمایش کامل"><svg class="icon"><use href="#i-expand"/></svg></button>
         </div>
       </div>
 
-      <div class="playerbar__controls">
-        <a class="iconbtn" href="#" id="pbPrev" aria-label="قبلی"><svg class="icon"><use href="#i-prev"/></svg></a>
-        <button class="iconbtn iconbtn--primary" type="button" id="pbPlayPause" aria-label="پخش/توقف">
-          <svg class="icon" id="pbPlayIcon"><use href="#i-play"/></svg>
-        </button>
-        <a class="iconbtn" href="#" id="pbNext" aria-label="بعدی"><svg class="icon"><use href="#i-next"/></svg></a>
-      </div>
-
-      <div id="pbWave" class="playerbar__wave" aria-hidden="true">
-        {% for i in "0123456789012345"|make_list %}<span></span>{% endfor %}
-      </div>
-
-      <div class="playerbar__tools">
-        <button class="iconbtn" type="button" id="pbSpeed" aria-label="سرعت پخش" title="سرعت پخش">1x</button>
-        <button class="iconbtn" type="button" id="pbSleep" aria-label="تایمر خواب" title="تایمر خواب"><svg class="icon"><use href="#i-moon"/></svg></button>
-        <a class="iconbtn" href="#" id="pbShuffle" aria-label="Shuffle"><svg class="icon"><use href="#i-shuffle"/></svg></a>
-        <a class="iconbtn" href="#" id="pbRepeat" aria-label="Repeat"><svg class="icon"><use href="#i-repeat"/></svg></a>
-        <a class="iconbtn" href="#" id="pbQueue" aria-label="Queue"><svg class="icon"><use href="#i-queue"/></svg></a>
+      <div class="playerbar__scrub">
+        <span id="pbElapsed" class="playerbar__time muted">0:00</span>
+        <input type="range" id="pbSeek" class="pb-seek" min="0" max="1000" step="1" value="0" aria-label="موقعیت پخش">
+        <span id="pbDuration" class="playerbar__time muted">0:00</span>
       </div>
 
       <audio id="globalAudio" preload="none"></audio>
+    </div>
+  </div>
+
+  <!-- Now Playing — full-screen expanded player (opened by #pbExpand / tapping cover) -->
+  <div id="npView" class="np-view" style="display:none" aria-hidden="true">
+    <div class="np-view__inner">
+      <div class="np-view__top">
+        <button class="iconbtn" type="button" id="npClose" aria-label="بستن">
+          <svg class="icon"><use href="#i-down"/></svg>
+        </button>
+        <div class="muted small">در حال پخش</div>
+        <a class="iconbtn" href="#" id="npQueue" aria-label="صف پخش"><svg class="icon"><use href="#i-queue"/></svg></a>
+      </div>
+      <div id="npCover" class="np-view__cover" aria-hidden="true"></div>
+      <div class="np-view__meta">
+        <div id="npTitle" class="np-view__title">—</div>
+        <div id="npBy" class="np-view__by muted">—</div>
+      </div>
+      <div class="playerbar__scrub np-view__scrub">
+        <span id="npElapsed" class="playerbar__time muted">0:00</span>
+        <input type="range" id="npSeek" class="pb-seek" min="0" max="1000" step="1" value="0" aria-label="موقعیت پخش">
+        <span id="npDuration" class="playerbar__time muted">0:00</span>
+      </div>
+      <div class="np-view__controls">
+        <a class="iconbtn" href="#" id="npShuffle" aria-label="Shuffle"><svg class="icon"><use href="#i-shuffle"/></svg></a>
+        <button class="iconbtn" type="button" id="npBack10" aria-label="۱۰ ثانیه عقب"><svg class="icon"><use href="#i-back10"/></svg></button>
+        <a class="iconbtn" href="#" id="npPrev" aria-label="قبلی"><svg class="icon"><use href="#i-prev"/></svg></a>
+        <button class="iconbtn iconbtn--primary np-view__play" type="button" id="npPlayPause" aria-label="پخش/توقف">
+          <svg class="icon" id="npPlayIcon"><use href="#i-play"/></svg>
+        </button>
+        <a class="iconbtn" href="#" id="npNext" aria-label="بعدی"><svg class="icon"><use href="#i-next"/></svg></a>
+        <button class="iconbtn" type="button" id="npFwd10" aria-label="۱۰ ثانیه جلو"><svg class="icon"><use href="#i-fwd10"/></svg></button>
+        <a class="iconbtn" href="#" id="npRepeat" aria-label="Repeat"><svg class="icon"><use href="#i-repeat"/></svg></a>
+      </div>
     </div>
   </div>
 
@@ -357,35 +413,9 @@
       });
     }
 
-    // Global play/pause button sync (playerbar)
-    (function(){
-      const b = document.getElementById("pbPlayPause");
-      const a = document.getElementById("globalAudio");
-      const ic = document.getElementById("pbPlayIcon");
-      const np = document.getElementById("sidebarNowPlaying");
-      if(!b || !a) return;
-      function setIcon(paused){
-        if(!ic) return;
-        ic.innerHTML = '';
-        const use = document.createElementNS("http://www.w3.org/2000/svg","use");
-        use.setAttribute("href", paused ? "#i-play" : "#i-pause");
-        ic.appendChild(use);
-      }
-      function sync(){
-        setIcon(a.paused);
-      }
-      b.addEventListener("click", ()=>{ if(a.paused) a.play().catch(()=>{}); else a.pause(); });
-      a.addEventListener("play", sync);
-      a.addEventListener("pause", sync);
-      a.addEventListener("loadedmetadata", ()=>{
-        sync();
-        if(np){
-          const title = document.getElementById("pbTitle");
-          np.textContent = title ? title.textContent : "—";
-        }
-      });
-      sync();
-    })();
+    // Play/pause icon sync, seek/volume/skip/keyboard, and Now-Playing view
+    // are wired centrally in app.js (hookPlayerControls / hookNowPlayingView)
+    // so the same logic drives both the mini playerbar and the full view.
   </script>
 
   {% block scripts %}{% endblock %}

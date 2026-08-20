@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load thumbnails %}
 {% block title %}Tracks • Casset{% endblock %}
 {% block content %}
 <div class="grid">
@@ -10,7 +11,7 @@
       {% for t in tracks %}
         <div class="row">
           <div style="display:flex;gap:12px;align-items:center;min-width:0">
-            <span class="dot"></span>
+            <div class="row-cover" style="{% if t.cover %}background-image:url('{{ t.cover|thumbnail_url:"120x120" }}');{% endif %}"></div>
             <div style="min-width:0">
               <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
                 {{ t.title }}
@@ -29,7 +30,7 @@
                data-title="{{ t.title }}"
                data-by="@{{ t.creator.username }}"
                data-track="{{ t.id }}"
-               data-cover="{% if t.cover %}<img src='{{ t.cover.url }}' />{% endif %}">
+               data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">
                Play
             </a>
           {% endif %}

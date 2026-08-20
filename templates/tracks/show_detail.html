@@ -58,7 +58,7 @@
                data-play="1" data-src="{{ t.audio.url }}" data-title="{{ t.title }}"
                data-by="@{{ t.creator.username }}" data-track="{{ t.id }}"
                data-peaks="{{ t.waveform_peaks|jsonify }}"
-               data-cover="{% if t.cover %}<img src='{{ t.cover.url }}' />{% elif album.cover %}<img src='{{ album.cover.url }}' />{% endif %}">
+               data-cover="{% if t.cover %}{{ t.cover.url }}{% elif album.cover %}{{ album.cover.url }}{% endif %}">
                پخش
             </a>
           {% endif %}

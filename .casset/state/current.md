@@ -1,5 +1,39 @@
 # Casset Current State
 
+## v1 professional (2026-08-20)
+
+Second major pass on top of the v1.0 baseline below, triggered by an explicit
+owner request for an end-to-end professional-grade review (player, profile,
+upload, admin dashboard) with real browser QA across 3 account types
+(listener, creator, VIP). Full detail: `.casset/state/changelog.md` entry
+"فاز حرفه‌ای — پلیر/پروفایل/آپلود/ادمین بازبینی جامع".
+
+- **503 tests green on real PostgreSQL** (502 on SQLite + 1 Postgres-only
+  full-text-search test), up from 417/416. `ruff check .` clean.
+- Player: volume/mute, always-visible native seek scrubber (touch + keyboard
+  free), ±10s skip, full keyboard shortcuts, queue reorder, full-screen
+  "Now Playing" view.
+- Playback security hardened (without login-gating playback — explicit owner
+  decision, since Embed/RSS podcast distribution require anonymous access):
+  `TRUST_PROXY_HEADERS` for safe X-Forwarded-For behind a trusted proxy,
+  `PlayEvent` uniqueness now includes `user` (was silently colliding for
+  different users behind the same IP/NAT).
+- Profile page rebuilt: two real dead-button bugs fixed (like, add-to-queue),
+  share button, social links, real content tabs, follower/following modal,
+  self-service unpublish, playlist rename/reorder (plus a real access-control
+  bug fix — public playlists were 404ing for everyone but the owner).
+- Upload flow rebuilt: drag & drop, real XHR progress, client-side
+  validation, browser-side duration auto-detect, cover preview.
+- Staff dashboard is now graphical: Chart.js vendored locally (no CDN), 4
+  trend charts on the platform dashboard, a per-creator performance chart,
+  and pagination added to every staff queue (previously unpaginated or
+  hard-capped with no way to see more).
+- Image polish: a real cover thumbnail (with a gradient placeholder
+  fallback) now renders in 5 list templates that previously showed no
+  artwork at all; a real bug in the `data-cover` convention (half the
+  templates emitted raw HTML into an attribute the player treated as a
+  plain URL) is fixed everywhere.
+
 ## v1.0 — MVP baseline (2026-08-20)
 
 This tree is the **v1 reference point**: the first fully working, tested,
@@ -40,7 +74,11 @@ Postgres full-text search, OG tags, thumbnail pipeline, creator earnings dashboa
 dashboard, decorative waveform, upload/review UX pass. Two real Sum(BooleanField)-on-PostgreSQL bugs
 found this session (one via code audit before writing code, one via the live-Postgres verification pass
 itself — same class as item #13, in a view that had never been reachable before this session fixed its
-routing). Not committed yet — awaiting explicit user approval per this session's instructions.
+routing).
+Professional pass (player/profile/upload/admin dashboard, roadmap phase "فاز حرفه‌ای") **closed**
+2026-08-20 — items #29-#34 resolved. See the "v1 professional" section above for the summary; full
+detail in changelog.md. 502→503 tests, live-Postgres-verified, ruff clean, manually QA'd in-browser
+across 3 real demo accounts (plain listener, creator, VIP).
 
 ## Repository strategy
 Keep the existing Django modular monolith. Stabilize and refactor critical domains instead of rewriting.

@@ -8,10 +8,18 @@ logger = logging.getLogger("casset.plays")
 
 
 class PlayEvent(models.Model):
-    """One unique play per (track, ip_hash, day).
+    """One unique play per (track, user, ip_hash, day).
 
     This is the raw event source. play_count on Track is a derived cache.
     All point decisions are made in register_progress(), not here.
+
+    `user` is part of the uniqueness key (not just ip_hash/day) so that two
+    different logged-in listeners behind the same IP/NAT (same office,
+    campus, or mobile carrier CGNAT) each get their own PlayEvent instead of
+    the second one silently colliding with the first's row. `user` is
+    nullable for schema flexibility, but every write path currently
+    requires authentication (see plays/views.py), so it is never actually
+    null in practice today.
     """
 
     track = models.ForeignKey(
@@ -37,8 +45,8 @@ class PlayEvent(models.Model):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["track", "ip_hash", "day_key"],
-                name="uniq_play_track_ip_day",
+                fields=["track", "user", "ip_hash", "day_key"],
+                name="uniq_play_track_user_ip_day",
             )
         ]
 

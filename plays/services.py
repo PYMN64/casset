@@ -116,10 +116,12 @@ def _run_gating_pipeline(
 
     creator = track.creator
 
-    # Gate 1 - PlayEvent must exist
+    # Gate 1 - PlayEvent must exist for this specific listener (not just
+    # this IP — two different users can share an IP/day/track now that
+    # PlayEvent uniqueness includes `user`, see plays/models.py).
     pe = (
         PlayEvent.objects
-        .filter(track=track, ip_hash=ip_hash, day_key=day_key)
+        .filter(track=track, user=listener_user, ip_hash=ip_hash, day_key=day_key)
         .first()
     )
     if pe is None:

@@ -344,6 +344,88 @@ class RegisterPlayViewTests(TestCase):
         )
 
 
+class SameIpDifferentUsersPlayEventTests(TestCase):
+    """Regression: PlayEvent uniqueness used to be (track, ip_hash, day_key)
+    only, so two different logged-in listeners sharing an IP (office, campus
+    Wi-Fi, mobile CGNAT) would silently collapse into a single PlayEvent —
+    the second listener's play was dropped entirely, not just uncounted for
+    points. Uniqueness now includes `user` (plays/models.py)."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.creator = _make_user("shared_ip_creator")
+        UserProfile.objects.get_or_create(user=self.creator)
+        self.track = _make_track(self.creator)
+        self.listener_a = _make_user("shared_ip_listener_a")
+        self.listener_b = _make_user("shared_ip_listener_b")
+
+    def tearDown(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_two_users_same_ip_each_get_a_play_event(self):
+        # Django's test client defaults every request to REMOTE_ADDR="127.0.0.1"
+        # — both logins below share that IP without any extra setup.
+        self.client.login(username="shared_ip_listener_a", password="pass12345")
+        resp_a = self.client.post(reverse("api_play"), {"track_id": self.track.id})
+        self.assertTrue(resp_a.json()["counted"])
+        self.client.logout()
+
+        self.client.login(username="shared_ip_listener_b", password="pass12345")
+        resp_b = self.client.post(reverse("api_play"), {"track_id": self.track.id})
+        self.assertTrue(resp_b.json()["counted"])
+
+        self.assertEqual(PlayEvent.objects.filter(track=self.track).count(), 2)
+        self.assertEqual(
+            set(PlayEvent.objects.filter(track=self.track).values_list("user_id", flat=True)),
+            {self.listener_a.id, self.listener_b.id},
+        )
+
+    def test_same_user_twice_same_ip_still_deduped(self):
+        self.client.login(username="shared_ip_listener_a", password="pass12345")
+        self.client.post(reverse("api_play"), {"track_id": self.track.id})
+        resp = self.client.post(reverse("api_play"), {"track_id": self.track.id})
+        self.assertFalse(resp.json()["counted"])
+        self.assertEqual(PlayEvent.objects.filter(track=self.track).count(), 1)
+
+
+class GetClientIpTests(TestCase):
+    """get_client_ip must ignore X-Forwarded-For unless TRUST_PROXY_HEADERS
+    is explicitly enabled — trusting it unconditionally would let any
+    visitor spoof their IP and defeat the fraud-signal/dedup logic above."""
+
+    def test_ignores_forwarded_header_by_default(self):
+        from django.test import RequestFactory
+
+        from .utils import get_client_ip
+
+        req = RequestFactory().get(
+            "/", REMOTE_ADDR="10.0.0.1", HTTP_X_FORWARDED_FOR="1.2.3.4, 10.0.0.1"
+        )
+        self.assertEqual(get_client_ip(req), "10.0.0.1")
+
+    def test_uses_forwarded_header_when_trusted(self):
+        from django.test import RequestFactory, override_settings
+
+        from .utils import get_client_ip
+
+        req = RequestFactory().get(
+            "/", REMOTE_ADDR="10.0.0.1", HTTP_X_FORWARDED_FOR="1.2.3.4, 10.0.0.1"
+        )
+        with override_settings(TRUST_PROXY_HEADERS=True):
+            self.assertEqual(get_client_ip(req), "1.2.3.4")
+
+    def test_falls_back_to_remote_addr_when_trusted_but_header_absent(self):
+        from django.test import RequestFactory, override_settings
+
+        from .utils import get_client_ip
+
+        req = RequestFactory().get("/", REMOTE_ADDR="10.0.0.1")
+        with override_settings(TRUST_PROXY_HEADERS=True):
+            self.assertEqual(get_client_ip(req), "10.0.0.1")
+
+
 class RegisterProgressViewTests(TestCase):
     def setUp(self):
         from django.core.cache import cache

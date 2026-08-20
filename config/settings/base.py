@@ -71,6 +71,14 @@ SECRET_KEY = _require_secret("DJANGO_SECRET_KEY", dev_fallback=DEBUG)
 PLAY_IP_SALT = _require_secret("PLAY_IP_SALT", dev_fallback=DEBUG)
 PLAY_UA_SALT = _require_secret("PLAY_UA_SALT", dev_fallback=DEBUG)
 
+# Only set this to true when Casset sits behind a reverse proxy/CDN you
+# control that strips/overwrites any client-supplied X-Forwarded-For before
+# forwarding — see plays/utils.py::get_client_ip. Off by default: trusting
+# this header from an untrusted source lets any visitor spoof their IP for
+# fraud-signal purposes, which is worse than the single-IP-behind-CDN
+# problem it's meant to solve.
+TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "0") == "1"
+
 # ---------------------------------------------------------------------------
 # Hosts / CSRF
 # ---------------------------------------------------------------------------

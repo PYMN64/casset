@@ -50,6 +50,15 @@
             </form>
           {% elif t.status == "submitted" or t.status == "pending" %}
             <span class="muted small">در صف بررسی — معمولاً ظرف چند ساعت بررسی می‌شود.</span>
+          {% elif t.status == "approved" %}
+            <form method="post" action="/my/tracks/{{ t.id }}/toggle-visibility/" style="display:inline">
+              {% csrf_token %}
+              {% if t.visibility == "private" %}
+                <button class="btn btn--primary" type="submit">انتشار دوباره</button>
+              {% else %}
+                <button class="btn btn--ghost" type="submit" onclick="return confirm('این محتوا از دید عموم مخفی می‌شود. مطمئنی؟')">مخفی کردن از عموم</button>
+              {% endif %}
+            </form>
           {% endif %}
         </div>
 

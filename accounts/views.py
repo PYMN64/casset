@@ -444,20 +444,42 @@ def profile_legacy_redirect(request, username):
     return redirect("public_profile", username=username)
 
 
-def public_profile(request, username):
-    user_obj = get_object_or_404(User, username=username)
-    profile, _ = UserProfile.objects.get_or_create(user=user_obj)
-
-    # Canonical URL: if creator has a public handle, always redirect to /<handle>/
-    # to avoid duplicate profile pages for the same person.
-    if profile.public_handle:
-        return redirect("public_profile_by_handle", handle=profile.public_handle)
+def _public_profile_context(request, user_obj, profile, canonical_handle=False):
+    """Shared context builder for both profile URL styles (/@username/ and
+    /<handle>/). Pulled out once both views needed the same tab data
+    (albums/shows/playlists) added on top of the already-duplicated
+    tracks/stats/suggested-creators query — kept as one function instead of
+    two near-identical copies."""
+    from tracks.models import Album
 
     tracks = Track.objects.filter(
         creator=user_obj,
         status=Track.Status.APPROVED,
         visibility=Track.Visibility.PUBLIC,
-    ).order_by("-created_at")[:50]
+    ).order_by("-created_at")
+
+    music_tracks = [t for t in tracks if t.content_type != Track.ContentType.PODCAST][:50]
+    podcast_tracks = [t for t in tracks if t.content_type == Track.ContentType.PODCAST][:50]
+
+    albums = (
+        Album.objects.filter(creator=user_obj, is_public=True)
+        .exclude(content_type=Album.ContentType.PODCAST)
+        .annotate(track_count=models.Count("tracks"))
+        .order_by("-created_at")[:24]
+    )
+    shows = (
+        Album.objects.filter(creator=user_obj, is_public=True, content_type=Album.ContentType.PODCAST)
+        .annotate(track_count=models.Count("tracks"))
+        .order_by("-created_at")[:24]
+    )
+
+    public_playlists = []
+    if hasattr(user_obj, "playlists"):
+        public_playlists = (
+            user_obj.playlists.filter(is_private=False)
+            .annotate(item_count=models.Count("items"))
+            .order_by("-created_at")[:24]
+        )
 
     total_plays = Track.objects.filter(creator=user_obj).aggregate(
         s=models.Sum("play_count")
@@ -473,21 +495,38 @@ def public_profile(request, username):
         )
     suggested = suggested.order_by("-id")[:6]
 
+    return {
+        "user_obj": user_obj,
+        "profile": profile,
+        "tracks": music_tracks,
+        "podcast_tracks": podcast_tracks,
+        "albums": albums,
+        "shows": shows,
+        "public_playlists": public_playlists,
+        "stats": {
+            "plays": total_plays,
+            "likes": total_likes,
+            "followers": followers_count,
+            "following": following_count,
+        },
+        "suggested_creators": suggested,
+        "canonical_handle": canonical_handle,
+    }
+
+
+def public_profile(request, username):
+    user_obj = get_object_or_404(User, username=username)
+    profile, _ = UserProfile.objects.get_or_create(user=user_obj)
+
+    # Canonical URL: if creator has a public handle, always redirect to /<handle>/
+    # to avoid duplicate profile pages for the same person.
+    if profile.public_handle:
+        return redirect("public_profile_by_handle", handle=profile.public_handle)
+
     return render(
         request,
         "accounts/public_profile_pro.html",
-        {
-            "user_obj": user_obj,
-            "profile": profile,
-            "tracks": tracks,
-            "stats": {
-                "plays": total_plays,
-                "likes": total_likes,
-                "followers": followers_count,
-                "following": following_count,
-            },
-            "suggested_creators": suggested,
-        },
+        _public_profile_context(request, user_obj, profile),
     )
 
 
@@ -496,36 +535,41 @@ def public_profile_by_handle(request, handle):
     profile = get_object_or_404(UserProfile, public_handle__iexact=handle)
     user_obj = profile.user
 
-    tracks = Track.objects.filter(creator=user_obj, status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC).order_by("-created_at")[:50]
-
-    total_plays = Track.objects.filter(creator=user_obj).aggregate(s=models.Sum("play_count"))["s"] or 0
-    total_likes = user_obj.tracks.aggregate(s=models.Count("likes"))["s"] if hasattr(user_obj, "tracks") else 0
-    followers_count = user_obj.followers.count() if hasattr(user_obj, "followers") else 0
-    following_count = user_obj.following.count() if hasattr(user_obj, "following") else 0
-
-    suggested = User.objects.all().exclude(id=user_obj.id)
-    if request.user.is_authenticated and hasattr(request.user, "following"):
-        suggested = suggested.exclude(id__in=request.user.following.values_list("creator_id", flat=True))
-    suggested = suggested.order_by("-id")[:6]
-
-    template = "accounts/public_profile_pro.html"
     return render(
         request,
-        template,
-        {
-            "user_obj": user_obj,
-            "profile": profile,
-            "tracks": tracks,
-            "stats": {
-                "plays": total_plays,
-                "likes": total_likes,
-                "followers": followers_count,
-                "following": following_count,
-            },
-            "suggested_creators": suggested,
-            "canonical_handle": True,
-        },
+        "accounts/public_profile_pro.html",
+        _public_profile_context(request, user_obj, profile, canonical_handle=True),
     )
+
+
+def api_user_connections(request, username):
+    """JSON list of a user's followers or following, for the profile page's
+    follower/following modal (previously the counts weren't clickable at
+    all — this backs the new [data-connections] links in app.js)."""
+    from django.http import JsonResponse
+
+    user_obj = get_object_or_404(User, username=username)
+    kind = request.GET.get("type")
+    if kind not in ("followers", "following"):
+        return JsonResponse({"ok": False, "error": "bad_type"}, status=400)
+
+    if kind == "followers":
+        rows = user_obj.followers.select_related("user__profile").order_by("-created_at")[:200]
+        people = [r.user for r in rows]
+    else:
+        rows = user_obj.following.select_related("creator__profile").order_by("-created_at")[:200]
+        people = [r.creator for r in rows]
+
+    def _person(u):
+        profile = getattr(u, "profile", None)
+        return {
+            "username": u.username,
+            "name": profile.public_name() if profile else u.username,
+            "avatar": profile.avatar.url if profile and profile.avatar else "",
+            "verified": bool(profile and profile.is_verified),
+        }
+
+    return JsonResponse({"ok": True, "people": [_person(u) for u in people]})
 
 
 @login_required

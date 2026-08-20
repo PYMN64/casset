@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Staff • Dashboard{% endblock %}
 {% block content %}
 <div class="container" style="max-width:1100px;">
@@ -16,6 +17,26 @@
     <div class="card" style="padding:14px">
       <div class="muted small">امتیاز معلق (صادرشده − بازخریدشده)</div>
       <div style="font-weight:900;font-size:26px">{{ points_outstanding }}</div>
+    </div>
+  </div>
+
+  <h2 style="margin:20px 0 8px">روند ۳۰ روز اخیر</h2>
+  <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
+    <div class="card chart-card">
+      <div class="muted small">پخش‌های واجد شرایط روزانه</div>
+      <canvas id="chartPlays" height="140"></canvas>
+    </div>
+    <div class="card chart-card">
+      <div class="muted small">درآمد روزانه (تومان)</div>
+      <canvas id="chartRevenue" height="140"></canvas>
+    </div>
+    <div class="card chart-card">
+      <div class="muted small">اقتصاد امتیاز روزانه (صادر / بازخرید)</div>
+      <canvas id="chartPoints" height="140"></canvas>
+    </div>
+    <div class="card chart-card">
+      <div class="muted small">ثبت‌نام کاربر جدید روزانه</div>
+      <canvas id="chartSignups" height="140"></canvas>
     </div>
   </div>
 
@@ -55,4 +76,57 @@
     </a>
   </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script src="{% static 'vendor/chart.umd.min.js' %}"></script>
+<script>
+(function(){
+  const data = JSON.parse('{{ charts_json|escapejs }}');
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue('--accent').trim() || '#ff9338';
+  const purple = css.getPropertyValue('--purple').trim() || '#9a5cff';
+  const text = css.getPropertyValue('--text').trim() || '#f4f2ff';
+  const line = css.getPropertyValue('--line').trim() || 'rgba(154,92,255,.2)';
+
+  Chart.defaults.color = text;
+  Chart.defaults.borderColor = line;
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+
+  function shortLabels(labels){
+    // Show just day/month for a 30-point x-axis instead of full ISO dates.
+    return labels.map(function(d){ var p = d.split('-'); return p[2] + '/' + p[1]; });
+  }
+  function lineChart(canvasId, labels, datasets, opts){
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    new Chart(el.getContext('2d'), {
+      type: 'line',
+      data: { labels: shortLabels(labels), datasets: datasets },
+      options: Object.assign({
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: datasets.length > 1 } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      }, opts || {}),
+    });
+  }
+
+  lineChart('chartPlays', data.plays.labels, [{
+    label: 'پخش واجد شرایط', data: data.plays.values,
+    borderColor: accent, backgroundColor: 'rgba(255,147,56,.15)', fill: true, tension: .3,
+  }]);
+  lineChart('chartRevenue', data.revenue.labels, [{
+    label: 'درآمد', data: data.revenue.values,
+    borderColor: purple, backgroundColor: 'rgba(154,92,255,.15)', fill: true, tension: .3,
+  }]);
+  lineChart('chartPoints', data.points.labels, [
+    { label: 'صادرشده', data: data.points.issued, borderColor: accent, tension: .3 },
+    { label: 'بازخریدشده', data: data.points.redeemed, borderColor: purple, tension: .3 },
+  ]);
+  lineChart('chartSignups', data.signups.labels, [{
+    label: 'ثبت‌نام جدید', data: data.signups.values,
+    borderColor: accent, backgroundColor: 'rgba(255,147,56,.15)', fill: true, tension: .3, stepped: false,
+  }]);
+})();
+</script>
 {% endblock %}

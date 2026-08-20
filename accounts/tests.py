@@ -208,6 +208,65 @@ class PublicProfileViewTests(TestCase):
         resp = self.client.get(reverse("public_profile", args=["publicuser"]))
         self.assertEqual(resp.context["stats"]["likes"], 1)
 
+    def test_podcast_tracks_separated_from_music_tracks(self):
+        from tracks.models import Track
+
+        Track.objects.create(
+            creator=self.user, title="Song", slug="tab-music", status=Track.Status.APPROVED,
+            content_type=Track.ContentType.MUSIC, visibility=Track.Visibility.PUBLIC,
+        )
+        Track.objects.create(
+            creator=self.user, title="Episode", slug="tab-podcast", status=Track.Status.APPROVED,
+            content_type=Track.ContentType.PODCAST, visibility=Track.Visibility.PUBLIC,
+        )
+        resp = self.client.get(reverse("public_profile", args=["publicuser"]))
+        self.assertEqual(len(resp.context["tracks"]), 1)
+        self.assertEqual(len(resp.context["podcast_tracks"]), 1)
+        self.assertEqual(resp.context["tracks"][0].slug, "tab-music")
+        self.assertEqual(resp.context["podcast_tracks"][0].slug, "tab-podcast")
+
+    def test_public_album_listed_private_album_excluded(self):
+        from tracks.models import Album
+
+        Album.objects.create(creator=self.user, title="Public LP", is_public=True)
+        Album.objects.create(creator=self.user, title="Private LP", is_public=False)
+        resp = self.client.get(reverse("public_profile", args=["publicuser"]))
+        titles = [a.title for a in resp.context["albums"]]
+        self.assertIn("Public LP", titles)
+        self.assertNotIn("Private LP", titles)
+
+
+class ApiUserConnectionsTests(TestCase):
+    def setUp(self):
+        self.user = _make_user("connuser")
+        self.follower = _make_user("connfollower")
+
+    def test_bad_type_rejected(self):
+        resp = self.client.get(reverse("api_user_connections", args=["connuser"]), {"type": "bogus"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_unknown_user_404s(self):
+        resp = self.client.get(reverse("api_user_connections", args=["nobody"]), {"type": "followers"})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_followers_list_reflects_real_follow(self):
+        from interactions.models import CreatorFollow
+
+        CreatorFollow.objects.create(user=self.follower, creator=self.user)
+        resp = self.client.get(reverse("api_user_connections", args=["connuser"]), {"type": "followers"})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual([p["username"] for p in data["people"]], ["connfollower"])
+
+    def test_following_list_reflects_real_follow(self):
+        from interactions.models import CreatorFollow
+
+        CreatorFollow.objects.create(user=self.follower, creator=self.user)
+        resp = self.client.get(reverse("api_user_connections", args=["connfollower"]), {"type": "following"})
+        data = resp.json()
+        self.assertEqual([p["username"] for p in data["people"]], ["connuser"])
+
 
 # ---------------------------------------------------------------------------
 # Middleware: OnboardingRequired

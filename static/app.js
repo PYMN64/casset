@@ -273,20 +273,33 @@ function setQueue(items, index) {
   saveQueueState();
 }
 
-function openPlayerBar({ src, title, by, coverHtml, trackId, peaks }) {
+function setCoverEl(el, coverUrl) {
+  if (!el) return;
+  el.innerHTML = "";
+  el.style.backgroundImage = coverUrl ? `url('${coverUrl.replace(/'/g, "%27")}')` : "";
+}
+
+function openPlayerBar({ src, title, by, cover, trackId, peaks }) {
   const bar = document.getElementById("playerbar");
   const audio = getAudioEl();
   if (!audio || !bar) return;
 
   const pbTitle = document.getElementById("pbTitle");
   const pbBy = document.getElementById("pbBy");
-  const pbCover = document.getElementById("pbCover");
   const pbWave = document.getElementById("pbWave");
+  const sidebarNP = document.getElementById("sidebarNowPlaying");
+  const npTitle = document.getElementById("npTitle");
+  const npBy = document.getElementById("npBy");
 
   if (pbTitle) pbTitle.textContent = title || "—";
   if (pbBy) pbBy.textContent = by || "—";
-  if (pbCover) pbCover.innerHTML = coverHtml || "";
+  if (npTitle) npTitle.textContent = title || "—";
+  if (npBy) npBy.textContent = by || "—";
+  if (sidebarNP) sidebarNP.textContent = title || "—";
+  setCoverEl(document.getElementById("pbCover"), cover);
+  setCoverEl(document.getElementById("npCover"), cover);
   if (pbWave) renderWaveform(pbWave, peaks);
+  resetSeekUI();
 
   window.__nowTrackId = trackId || null;
 
@@ -296,14 +309,7 @@ function openPlayerBar({ src, title, by, coverHtml, trackId, peaks }) {
 
   // Media Session
   if ("mediaSession" in navigator) {
-    const artwork = [];
-    try {
-      const tmp = document.createElement("div");
-      tmp.innerHTML = coverHtml || "";
-      const img = tmp.querySelector("img");
-      const srcArt = img ? img.getAttribute("src") : null;
-      if (srcArt) artwork.push({ src: srcArt, sizes: "512x512", type: "image/png" });
-    } catch (_) {}
+    const artwork = cover ? [{ src: cover, sizes: "512x512", type: "image/png" }] : [];
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title: title || "Casset",
@@ -316,6 +322,8 @@ function openPlayerBar({ src, title, by, coverHtml, trackId, peaks }) {
     navigator.mediaSession.setActionHandler("pause", () => audio.pause());
     navigator.mediaSession.setActionHandler("nexttrack", () => queueNext());
     navigator.mediaSession.setActionHandler("previoustrack", () => queuePrev());
+    navigator.mediaSession.setActionHandler("seekbackward", () => skipSeconds(-10));
+    navigator.mediaSession.setActionHandler("seekforward", () => skipSeconds(10));
   }
 }
 
@@ -431,7 +439,7 @@ function buildQueueFromContext(clickedBtn) {
       src: b.dataset.src,
       title: b.dataset.title || "—",
       by: b.dataset.by || "—",
-      coverHtml: b.dataset.cover || "",
+      cover: b.dataset.cover || "",
       trackId: b.dataset.track || null,
       peaks,
     };
@@ -445,6 +453,255 @@ function hookAutoNext() {
   const audio = getAudioEl();
   if (!audio) return;
   audio.addEventListener("ended", () => queueNext());
+}
+
+// ---------- Add to queue (without interrupting current playback) ----------
+function handleAddToQueue(btn) {
+  if (!btn.dataset.src) { showToast("این ترک قابل افزودن به صف نیست", false); return; }
+  let peaks = [];
+  if (btn.dataset.peaks) {
+    try { peaks = JSON.parse(btn.dataset.peaks); } catch (_) { peaks = []; }
+  }
+  const item = {
+    src: btn.dataset.src,
+    title: btn.dataset.title || "—",
+    by: btn.dataset.by || "—",
+    cover: btn.dataset.cover || "",
+    trackId: btn.dataset.track || null,
+    peaks,
+  };
+  if (!window.__queue || !window.__queue.length) {
+    setQueue([item], 0);
+    playAt(0);
+    return;
+  }
+  window.__queue.push(item);
+  window.__queueBase.push(item);
+  updateQueueUI();
+  saveQueueState();
+  showToast("به صف پخش اضافه شد ➕", true);
+}
+
+// ---------- Queue panel: move item up/down (simple, touch-friendly reorder) ----------
+function moveQueueItem(index, dir) {
+  const q = window.__queue;
+  const target = index + dir;
+  if (!q || target < 0 || target >= q.length) return;
+
+  [q[index], q[target]] = [q[target], q[index]];
+  if (window.__qIndex === index) window.__qIndex = target;
+  else if (window.__qIndex === target) window.__qIndex = index;
+
+  // Keep the unshuffled base list in sync so turning shuffle off later
+  // doesn't discard a manual reorder done while shuffle was on.
+  window.__queueBase = q.slice();
+
+  updateQueueUI();
+  saveQueueState();
+}
+
+// ---------- Time formatting / seek / volume / skip / keyboard ----------
+function formatTime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+const VOL_KEY = "casset.volume.v1";
+let __seeking = false;
+
+function getSavedVolume() {
+  let v = 1;
+  try { v = parseFloat(localStorage.getItem(VOL_KEY) || "1"); } catch (_) {}
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+}
+
+function updateVolumeUI(audio) {
+  const icon = document.getElementById("pbVolIcon");
+  const slider = document.getElementById("pbVolume");
+  if (slider && document.activeElement !== slider) slider.value = audio.muted ? 0 : audio.volume;
+  if (icon) {
+    icon.innerHTML = "";
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", (audio.muted || audio.volume === 0) ? "#i-mute" : "#i-volume");
+    icon.appendChild(use);
+  }
+}
+
+function resetSeekUI() {
+  ["pbSeek", "npSeek"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) { el.value = 0; el.style.setProperty("--seek-pct", "0%"); }
+  });
+  ["pbElapsed", "npElapsed", "pbDuration", "npDuration"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = "0:00";
+  });
+}
+
+function skipSeconds(delta) {
+  const audio = getAudioEl();
+  if (!audio || !Number.isFinite(audio.duration)) return;
+  audio.currentTime = Math.min(audio.duration, Math.max(0, audio.currentTime + delta));
+}
+
+function setPlayPauseIcon(paused) {
+  [["pbPlayIcon"], ["npPlayIcon"]].forEach(([id]) => {
+    const ic = document.getElementById(id);
+    if (!ic) return;
+    ic.innerHTML = "";
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", paused ? "#i-play" : "#i-pause");
+    ic.appendChild(use);
+  });
+  const bar = document.getElementById("playerbar");
+  if (bar) bar.classList.toggle("is-playing", !paused);
+}
+
+function togglePlayPause() {
+  const audio = getAudioEl();
+  if (!audio) return;
+  if (audio.paused) audio.play().catch(() => {});
+  else audio.pause();
+}
+
+function hookPlayerControls(audio) {
+  setPlayPauseIcon(audio.paused);
+  audio.addEventListener("play", () => setPlayPauseIcon(false));
+  audio.addEventListener("pause", () => setPlayPauseIcon(true));
+
+  audio.addEventListener("loadedmetadata", () => {
+    const dur = formatTime(audio.duration);
+    ["pbDuration", "npDuration"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = dur;
+    });
+  });
+
+  audio.addEventListener("timeupdate", () => {
+    if (__seeking || !audio.duration) return;
+    const ratio = audio.currentTime / audio.duration;
+    const pct = Math.min(100, Math.max(0, ratio * 100));
+    const elapsed = formatTime(audio.currentTime);
+    ["pbSeek", "npSeek"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) { el.value = Math.round(ratio * 1000); el.style.setProperty("--seek-pct", pct + "%"); }
+    });
+    ["pbElapsed", "npElapsed"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = elapsed;
+    });
+  });
+
+  // Seek sliders (native range: touch drag + keyboard arrows work for free)
+  ["pbSeek", "npSeek"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("pointerdown", () => { __seeking = true; });
+    el.addEventListener("input", () => {
+      if (!audio.duration) return;
+      const ratio = parseInt(el.value, 10) / 1000;
+      el.style.setProperty("--seek-pct", (ratio * 100) + "%");
+      const label = formatTime(ratio * audio.duration);
+      const elapsedId = id === "pbSeek" ? "pbElapsed" : "npElapsed";
+      const elapsedEl = document.getElementById(elapsedId);
+      if (elapsedEl) elapsedEl.textContent = label;
+    });
+    const commit = () => {
+      if (!audio.duration) { __seeking = false; return; }
+      audio.currentTime = (parseInt(el.value, 10) / 1000) * audio.duration;
+      __seeking = false;
+    };
+    el.addEventListener("change", commit);
+    el.addEventListener("pointerup", commit);
+  });
+
+  // Volume
+  audio.volume = getSavedVolume();
+  let __lastVolume = audio.volume || 1;
+  updateVolumeUI(audio);
+  const volSlider = document.getElementById("pbVolume");
+  if (volSlider) {
+    volSlider.value = audio.volume;
+    volSlider.addEventListener("input", () => {
+      const v = parseFloat(volSlider.value);
+      audio.muted = false;
+      audio.volume = v;
+      if (v > 0) __lastVolume = v;
+      try { localStorage.setItem(VOL_KEY, String(v)); } catch (_) {}
+      updateVolumeUI(audio);
+    });
+  }
+  audio.__toggleMute = () => {
+    audio.muted = !audio.muted;
+    if (!audio.muted && audio.volume === 0) audio.volume = __lastVolume || 1;
+    updateVolumeUI(audio);
+  };
+}
+
+function hookNowPlayingView() {
+  const view = document.getElementById("npView");
+  if (!view) return;
+  view.__open = () => { view.style.display = "block"; view.setAttribute("aria-hidden", "false"); document.body.style.overflow = "hidden"; };
+  view.__close = () => { view.style.display = "none"; view.setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; };
+
+  const opener = document.getElementById("pbOpenNP");
+  if (opener) {
+    opener.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); view.__open(); }
+    });
+  }
+}
+
+// ---------- Keyboard shortcuts ----------
+function hookKeyboardShortcuts() {
+  document.addEventListener("keydown", (e) => {
+    const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select" || (document.activeElement && document.activeElement.isContentEditable)) return;
+    const audio = getAudioEl();
+    if (!audio || !document.getElementById("playerbar") || document.getElementById("playerbar").style.display === "none") return;
+
+    switch (e.key) {
+      case " ":
+        e.preventDefault();
+        togglePlayPause();
+        break;
+      case "ArrowRight":
+        e.preventDefault();
+        skipSeconds(5);
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        skipSeconds(-5);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        audio.volume = Math.min(1, audio.volume + 0.1);
+        audio.muted = false;
+        updateVolumeUI(audio);
+        try { localStorage.setItem(VOL_KEY, String(audio.volume)); } catch (_) {}
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        audio.volume = Math.max(0, audio.volume - 0.1);
+        updateVolumeUI(audio);
+        try { localStorage.setItem(VOL_KEY, String(audio.volume)); } catch (_) {}
+        break;
+      case "m":
+      case "M":
+        if (audio.__toggleMute) audio.__toggleMute();
+        break;
+      case "n":
+      case "N":
+        queueNext();
+        break;
+      case "p":
+      case "P":
+        queuePrev();
+        break;
+    }
+  });
 }
 
 // ---------- Like / Follow ----------
@@ -692,6 +949,27 @@ async function handlePlaylistDelete(form) {
   if (row) { row.remove(); } else { window.location.href = "/library/"; }
 }
 
+async function handlePlaylistRename(form) {
+  const pid = form.querySelector('[name="playlist_id"]').value;
+  const name = (form.querySelector('[name="name"]').value || "").trim();
+  if (!pid || !name) return;
+  const data = await postForm("/api/v1/playlist/rename/", { playlist_id: pid, name });
+  if (!data || !data.ok) { showToast("تغییر نام انجام نشد ❌", false); return; }
+  showToast("نام پلی‌لیست ذخیره شد ✅", true);
+  const h1 = document.querySelector("title");
+  if (h1) document.title = `${data.name} • پلی‌لیست • Casset`;
+}
+
+async function handlePlaylistReorder(btn) {
+  const pid = btn.dataset.playlist;
+  const itemId = btn.dataset.item;
+  const direction = btn.dataset.plReorder;
+  if (!pid || !itemId) return;
+  const data = await postForm("/api/v1/playlist/reorder/", { playlist_id: pid, item_id: itemId, direction });
+  if (!data || !data.ok) { showToast("جابه‌جایی انجام نشد ❌", false); return; }
+  if (data.moved) window.location.reload();
+}
+
 async function handlePlaylistRemoveItem(btn) {
   const pid = btn.dataset.playlist;
   const tid = btn.dataset.track;
@@ -834,9 +1112,15 @@ function renderQueuePanel() {
     const active = i === window.__qIndex;
     return `
       <div class="item" data-q-row="1" data-q-index="${i}" style="${active ? "outline:1px solid rgba(255,255,255,.25)" : ""}">
-        <div style="min-width:0">
-          <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.title || "—"}</div>
-          <div class="muted" style="font-size:12px">${it.by || ""}</div>
+        <div style="min-width:0;display:flex;align-items:center;gap:8px">
+          <div class="q-reorder">
+            <button type="button" data-q-up="1" data-q-index="${i}" aria-label="بالا" ${i === 0 ? "disabled" : ""}>▲</button>
+            <button type="button" data-q-down="1" data-q-index="${i}" aria-label="پایین" ${i === q.length - 1 ? "disabled" : ""}>▼</button>
+          </div>
+          <div style="min-width:0">
+            <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.title || "—"}</div>
+            <div class="muted" style="font-size:12px">${it.by || ""}</div>
+          </div>
         </div>
         <a class="btn ${active ? "primary" : ""}" href="#" data-q-play="1" data-q-index="${i}">${active ? "در حال پخش" : "پخش"}</a>
       </div>
@@ -960,24 +1244,62 @@ function cycleSleepTimer() {
 // ---------- Click handler ----------
 document.addEventListener("click", (e) => {
   // Player buttons (support clicks on inner SVG)
-  const pbNextEl = e.target.closest("#pbNext");
+  const pbPlayEl = e.target.closest("#pbPlayPause, #npPlayPause");
+  if (pbPlayEl) { e.preventDefault(); togglePlayPause(); return; }
+  const pbNextEl = e.target.closest("#pbNext, #npNext");
   if (pbNextEl) { e.preventDefault(); queueNext(); return; }
-  const pbPrevEl = e.target.closest("#pbPrev");
+  const pbPrevEl = e.target.closest("#pbPrev, #npPrev");
   if (pbPrevEl) { e.preventDefault(); queuePrev(); return; }
-  const pbShuffleEl = e.target.closest("#pbShuffle");
+  const pbBack10El = e.target.closest("#pbBack10, #npBack10");
+  if (pbBack10El) { e.preventDefault(); skipSeconds(-10); return; }
+  const pbFwd10El = e.target.closest("#pbFwd10, #npFwd10");
+  if (pbFwd10El) { e.preventDefault(); skipSeconds(10); return; }
+  const pbShuffleEl = e.target.closest("#pbShuffle, #npShuffle");
   if (pbShuffleEl) { e.preventDefault(); toggleShuffle(); return; }
-  const pbRepeatEl = e.target.closest("#pbRepeat");
+  const pbRepeatEl = e.target.closest("#pbRepeat, #npRepeat");
   if (pbRepeatEl) { e.preventDefault(); cycleRepeat(); return; }
-  const pbQueueEl = e.target.closest("#pbQueue");
+  const pbQueueEl = e.target.closest("#pbQueue, #npQueue");
   if (pbQueueEl) { e.preventDefault(); qPanelOpen(); return; }
   const pbSpeedEl = e.target.closest("#pbSpeed");
   if (pbSpeedEl) { e.preventDefault(); cycleSpeed(); return; }
   const pbSleepEl = e.target.closest("#pbSleep");
   if (pbSleepEl) { e.preventDefault(); cycleSleepTimer(); return; }
 
+  // Volume popover toggle + outside-click close
+  const volBtnEl = e.target.closest("#pbVolBtn");
+  const volPop = document.getElementById("pbVolPop");
+  if (volBtnEl) {
+    e.preventDefault();
+    if (volPop) volPop.classList.toggle("open");
+    return;
+  }
+  if (volPop && volPop.classList.contains("open") && !e.target.closest(".pb-vol")) {
+    volPop.classList.remove("open");
+  }
+
+  // Now Playing full-screen view
+  const npOpenEl = e.target.closest("#pbOpenNP, #pbExpand");
+  if (npOpenEl) {
+    e.preventDefault();
+    const view = document.getElementById("npView");
+    if (view && view.__open) view.__open();
+    return;
+  }
+  const npCloseEl = e.target.closest("#npClose");
+  if (npCloseEl) {
+    e.preventDefault();
+    const view = document.getElementById("npView");
+    if (view && view.__close) view.__close();
+    return;
+  }
+
   if (e.target && e.target.id === "qClose") { e.preventDefault(); qPanelClose(); return; }
   const qPlay = e.target.closest("[data-q-play]");
   if (qPlay) { e.preventDefault(); const i = parseInt(qPlay.dataset.qIndex || "-1", 10); if (Number.isFinite(i) && i >= 0) playAt(i); return; }
+  const qUp = e.target.closest("[data-q-up]");
+  if (qUp) { e.preventDefault(); const i = parseInt(qUp.dataset.qIndex || "-1", 10); if (Number.isFinite(i)) moveQueueItem(i, -1); return; }
+  const qDown = e.target.closest("[data-q-down]");
+  if (qDown) { e.preventDefault(); const i = parseInt(qDown.dataset.qIndex || "-1", 10); if (Number.isFinite(i)) moveQueueItem(i, 1); return; }
 
   const qPanel = document.getElementById("qPanel");
   if (qPanel && e.target === qPanel) { e.preventDefault(); qPanelClose(); return; }
@@ -991,6 +1313,9 @@ document.addEventListener("click", (e) => {
     playAt(window.__qIndex);
     return;
   }
+
+  const queueAddBtn = e.target.closest("[data-queue]");
+  if (queueAddBtn) { e.preventDefault(); handleAddToQueue(queueAddBtn); return; }
 
   const likeBtn = e.target.closest("[data-like]");
   if (likeBtn) { e.preventDefault(); handleLike(likeBtn); return; }
@@ -1056,6 +1381,9 @@ document.addEventListener("click", (e) => {
 
   const plRemoveBtn = e.target.closest("[data-pl-remove]");
   if (plRemoveBtn) { e.preventDefault(); handlePlaylistRemoveItem(plRemoveBtn); return; }
+
+  const plReorderBtn = e.target.closest("[data-pl-reorder]");
+  if (plReorderBtn) { e.preventDefault(); handlePlaylistReorder(plReorderBtn); return; }
 });
 
 document.addEventListener("submit", (e) => {
@@ -1067,6 +1395,9 @@ document.addEventListener("submit", (e) => {
 
   const plDeleteForm = e.target.closest("[data-pl-delete-form]");
   if (plDeleteForm) { e.preventDefault(); handlePlaylistDelete(plDeleteForm); return; }
+
+  const plRenameForm = e.target.closest("[data-pl-rename-form]");
+  if (plRenameForm) { e.preventDefault(); handlePlaylistRename(plRenameForm); return; }
 });
 
 // ---------- Boot ----------
@@ -1080,7 +1411,10 @@ document.addEventListener("DOMContentLoaded", () => {
     attachCountAfterSeconds(globalAudio, () => window.__nowTrackId, seconds);
     hookResumeAndSpeed(globalAudio, () => window.__nowTrackId);
     hookWaveformAnimation(globalAudio);
+    hookPlayerControls(globalAudio);
   }
+  hookNowPlayingView();
+  hookKeyboardShortcuts();
 
   const pageAudio = document.querySelector("audio[data-track]");
   if (pageAudio) {

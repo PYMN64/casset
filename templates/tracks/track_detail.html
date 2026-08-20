@@ -33,7 +33,7 @@
              data-by="@{{ track.creator.username }}"
              data-track="{{ track.id }}"
              data-peaks="{{ track.waveform_peaks|jsonify }}"
-             data-cover="{% if track.cover %}<img src='{{ track.cover.url }}' />{% endif %}">
+             data-cover="{% if track.cover %}{{ track.cover.url }}{% endif %}">
              پخش در نوار پخش
           </a>
 

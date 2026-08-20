@@ -17,6 +17,128 @@
 > **قانون:** هر Claude که تغییری روی پروژه می‌ده، باید یک entry جدید بالای خط
 > `## [2026-08-17] اسکن کامل پروژه — باگ‌های کریتیکال، Security، تست و نقص‌ها
 
+## [2026-08-20] فاز حرفه‌ای — پلیر/پروفایل/آپلود/ادمین بازبینی جامع — ✅ بسته شد
+
+**نوع:** Feature + Bugfix + Security + Tests
+**انجام‌دهنده:** Claude (session با صاحب پروژه، درخواست صریح بازبینی جامع کل سایت به سطح حرفه‌ای، اجرای پیوسته تا پایان، commit فقط یک‌بار در پایان)
+
+**تصمیم:** صاحب پروژه یک بازبینی end-to-end با تست مرورگری با ۳ نوع اکانت (شنونده عادی، Creator، VIP)
+خواست، با تمرکز روی پلیر حرفه‌ای، پروفایل کاربری مرتب، مدیریت محتوای خودسرویس، آپلود روان، داشبورد
+ادمین گرافیکی، و رفع هر دکمه/امکان نمادین. یک تصمیم صریح از کاربر گرفته شد (`AskUserQuestion`): لاگین
+اجباری برای پخش **اضافه نشد** چون Embed و RSS پادکست ذاتاً باید بدون لاگین کار کنن؛ به‌جاش فقط
+سخت‌سازی‌های امنیتی غیرمخرب (X-Forwarded-For پشت پراکسی قابل‌اعتماد، PlayEvent dedup شامل user) انجام شد.
+
+پیش از کدنویسی، سه Explore agent موازی (پلیر/امنیت پخش، پروفایل/تعامل اجتماعی، آپلود/داشبورد ادمین)
+کل کدبیس مرتبط رو خوندن؛ یافته‌هاشون پایه‌ی موارد #۲۹ تا #۳۴ بخش ۳ شد.
+
+### فاز A — پلیر حرفه‌ای
+`static/app.js`, `static/app.css`, `templates/base.html`. پلیر قبلاً جلوتر از تصور اولیه بود
+(shuffle/repeat/speed/sleep-timer/resume/waveform-seek/queue-panel/playlist-modal/embed-modal همه از
+قبل کار می‌کردن) — چیزی که واقعاً غایب بود اضافه شد: کنترل صدا (volume slider + mute، popover)، اسکرابر
+زمانی native (`<input type=range>`، به‌جای فقط waveform click-only — لمس/کیبورد رایگان می‌گیره)، skip
+±۱۰ ثانیه، shortcutهای صفحه‌کلید کامل (space/arrows/m/n/p با guard روی input focus)، reorder صف با
+دکمه‌های ▲▼ (`moveQueueItem`)، و یک نمای «Now Playing» تمام‌صفحه جدید (`#npView`) با کاور بزرگ —
+بازطراحی بصری با گرادیان/glassmorphism ملایم. **یافته حین کار:** موبایل (که waveform روش مخفیه) قبلاً
+اصلاً هیچ راهی برای seek کردن نداشت — اسکرابر native این رو حل کرد چون همیشه‌نمایانه.
+
+**باگ واقعی کشف‌شده (مورد #۲۹):** نیمی از تمپلیت‌ها `data-cover` رو HTML خام می‌ساختن، نیمی دیگه
+(`discover.html`) فقط URL — `app.js` این مقدار رو `innerHTML` می‌کرد، یعنی پخش از discover کاور
+پلیربار رو به‌صورت متن خام URL نشون می‌داد. قرارداد یکسان شد (فقط URL خام) در ۷ تمپلیت +
+`explore/views.py::api_station`؛ `openPlayerBar` حالا `style.backgroundImage` استفاده می‌کنه، نه
+`innerHTML` (امن‌تر هم هست).
+
+### فاز B — سخت‌سازی امنیت پخش
+`plays/utils.py`, `plays/models.py`, `plays/services.py`, `config/settings/base.py`. طبق تصمیم کاربر
+(بدون login-gate): `TRUST_PROXY_HEADERS` (env، پیش‌فرض خاموش) برای فعال‌سازی امن `X-Forwarded-For` فقط
+پشت یک پراکسی قابل‌اعتماد. **مورد #۳۲:** `PlayEvent` uniqueness از `(track, ip_hash, day_key)` به
+`(track, user, ip_hash, day_key)` تغییر کرد (migration `plays/0003`) — قبلاً دو کاربر متفاوت پشت یک
+IP/NAT در یک روز فقط یک PlayEvent می‌گرفتن (دومی silently drop). `services.py` گیت اول رو با
+`user=listener_user` هم فیلتر می‌کنه تا با uniqueness جدید هماهنگ بمونه. ۵ تست رگرسیون جدید.
+
+### فاز C — پروفایل حرفه‌ای
+`templates/accounts/public_profile_pro.html` (بازنویسی کامل)، `accounts/views.py`, `accounts/urls.py`,
+`static/app.js`, `static/app.css`, `playlists/`. **موارد #۳۰/#۳۱ رفع شدند:** دکمه‌ی ♥ حالا `data-track`
+داره (قبلاً silent no-op)؛ دکمه‌ی ＋صف حالا src/title/by/cover کامل داره + `handleAddToQueue()` جدید در
+app.js (قبلاً هیچ‌جا handler نداشت). اضافه شد: دکمه‌ی اشتراک‌گذاری (الگوی موجود `data-share`)، نمایش
+لینک‌های اجتماعی با آیکون، تب‌بندی واقعی (ترک/پادکست/آلبوم/شو/پلی‌لیست — فقط تب‌هایی که واقعاً محتوا
+دارن، طبق درس نسخه‌ی قبلی حذف‌شده با ۵ تب مرده)، مودال فالوور/فالووینگ (`api_user_connections` جدید در
+accounts)، خودسرویس Unpublish/Publish (`uploads/views.py::toggle_track_visibility` — از
+`Visibility.PRIVATE` موجود استفاده می‌کنه، بدون فیلد/migration جدید). `<style>` inline template به
+`app.css` منتقل شد. Playlist rename (`api_playlist_rename`) + reorder دستی ▲▼
+(`api_playlist_reorder`، فیلد جدید `PlaylistItem.order`، migration `playlists/0002`). **باگ واقعی
+کشف‌شده (مورد #۳۱):** `playlist_detail` فقط owner-only بود با `@login_required` — پلی‌لیست عمومی
+(`is_private=False`) که تازه از تب پروفایل بهش لینک دادم، برای کسی جز صاحبش 404 می‌داد؛ رفع شد با
+همون الگوی دسترسی `track_detail`/`show_detail`.
+
+### فاز D — آپلود حرفه‌ای
+`static/upload.js` (جدید)، `templates/uploads/upload.html`, `static/app.css`. Drag & drop روی input
+واقعی (نه یک مسیر موازی)، اعتبارسنجی کلاینت (پسوند/حجم) پیش از ارسال، تشخیص خودکار مدت‌زمان صوت در
+مرورگر (`HTMLAudioElement.duration` روی فایل انتخاب‌شده)، پیش‌نمایش کاور (`FileReader`)، و progress bar
+واقعی با `XMLHttpRequest.upload.onprogress` (fetch این event رو نداره) — قبلاً فقط دکمه غیرفعال می‌شد
+بدون درصد واقعی. اعتبارسنجی سرور (`clean_audio`/`clean_cover`/`clean_video`) دست‌نخورده و مرجع نهایی
+باقی موند — کلاینت فقط UX رو بهتر می‌کنه.
+
+### فاز E — داشبورد ادمین گرافیکی
+`static/vendor/chart.umd.min.js` (جدید — Chart.js v4.5.1 وندور محلی، بدون CDN، هماهنگ با معماری
+بدون bundler پروژه)، `core/staff_views.py`, `templates/staff/platform_dashboard.html`,
+`templates/staff/creator_detail.html` (بازطراحی کامل — قبلاً رنگ‌های hardcoded روشن `#eee`/`#fafafa`
+داشت که با تم تیره‌ی سایت کاملاً ناهماهنگ بود)، `billing/staff_views.py`, `moderation/views.py`.
+۴ نمودار روند ۳۰روزه در platform_dashboard (پخش واجد شرایط روزانه از `PlayEvent`، درآمد روزانه از
+`Invoice`، اقتصاد امتیاز روزانه از `PointLedger`، ثبت‌نام کاربر جدید) + نمودار عملکرد ترک در
+creator_detail. Pagination (۳۰ در صفحه، Django Paginator) به `users_console`, `creators_console`,
+`report_queue` (+ فیلتر وضعیت), `track_queue`, `staff_payout_queue` اضافه شد — قبلاً همه یا `[:200]`
+بدون صفحه‌بندی بودن یا اصلاً محدودیتی نداشتن. `staff_payout_queue` یک بخش «تاریخچه‌ی اخیر» جدید داره
+(۲۰ تصمیم آخر approve/reject) که قبلاً کاملاً غایب بود — تصمیم‌های قبلی staff هیچ‌جا قابل‌مشاهده نبودن.
+**مورد #۳۴:** `t.publish_at` (فیلد نامعتبر) در creator_detail به `published_at` واقعی اصلاح شد.
+
+### فاز F — پرداخت به جزئیات بصری
+`core/templatetags/thumbnails.py` (بدون تغییر، فقط استفاده‌ی گسترده‌تر)، ۵ تمپلیت
+(`track_list`, `trending`, `library`, `playlist_detail`, `public_profile_pro`) که قبلاً هیچ کاور
+واقعی نشون نمی‌دادن (یا یک دات رنگی ساده، یا هیچ). کلاس مشترک جدید `.row-cover` در `app.css` — کاور
+واقعی (thumbnail 120×120) وقتی موجوده، یک gradient placeholder ملایم (نه جای خالی خام) وقتی نیست.
+
+### فاز G — QA کامل با ۳ نوع اکانت واقعی در مرورگر
+با `seed_demo`: `demo_4` (شنونده عادی، غیر-VIP، غیر-Creator)، `demo_1` (Creator تاییدشده)، `demo_2`
+(VIP، موقتاً از طریق shell اعطا شد برای این تست). روی `track_detail` همه‌ی دکمه‌ها end-to-end تست شدن:
+like/favorite/repost (شمارنده‌ها درست افزایش پیدا کردن)، کامنت add/like/delete، اشتراک‌گذاری، embed
+modal (کد iframe درست)، playlist-add modal، station (صف رادیویی ساخته شد). دانلود VIP برای `demo_2`
+تایید شد (`200 audio/mpeg` با attachment filename درست)؛ برای `demo_4` غایب بود (درست). Creator Studio
+برای `demo_1` با داده‌ی واقعی (موجودی امتیاز، ledger، سوابق payout، آمار ۳۰روزه) بدون خطا رندر شد.
+جستجوی full-text تایید شد. هیچ دکمه‌ی مرده‌ی جدیدی در این پاس پیدا نشد (همه‌ی موارد شناخته‌شده در
+فازهای A-F رفع شده بودن).
+
+### فاز H — تست کامل + تایید Postgres + مستندسازی
+`ruff check .` (۱۱ خطای E402/F841 ناشی از این پاس پیدا و رفع شد — imports جابه‌جا نشده بعد از insert،
+یک متغیر استفاده‌نشده در تست)، `manage.py test` → **۵۰۲ تست سبز روی SQLite** (از ۴۱۳ قبل از فاز، شامل
+تست `soundfile` که قبلاً نصب نبود در این محیط و نصب شد)، `manage.py makemigrations --check` تمیز،
+`manage.py check --deploy` زیر `config.settings.prod` تمیز (فقط W004/W008/W009 مورد‌انتظار با env
+placeholder). **تایید کامل زنده روی PostgreSQL واقعی** (`scripts/local_postgres.py test`، همون الگوی
+فازهای قبلی): **۵۰۳ تست، همه pass** — بدون هیچ باگ کلاس `Sum(boolean)` جدید (دو migration جدید این
+پاس — `plays/0003`, `playlists/0002` — روی Postgres واقعی بدون خطا اعمال و تست شدن).
+
+**فایل‌های عمده تغییرکرده/جدید:** `static/app.js` (بازنویسی گسترده)، `static/app.css` (+۳۰۰ خط)،
+`static/upload.js` (جدید)، `static/vendor/chart.umd.min.js` (جدید، وندور)، `templates/base.html`
+(playerbar بازساخت کامل + Now Playing view)، `templates/accounts/public_profile_pro.html` (بازنویسی
+کامل)، `templates/staff/creator_detail.html` (بازنویسی کامل، تم تیره)، `templates/uploads/upload.html`،
+`accounts/views.py`/`urls.py`، `uploads/views.py`/`urls.py`، `playlists/models.py`/`views.py`/`urls.py`
+(+ migration)، `plays/utils.py`/`models.py`/`services.py` (+ migration)، `core/staff_views.py`،
+`billing/staff_views.py`، `moderation/views.py`، `explore/views.py`، `config/settings/base.py`.
+
+**تایید:**
+- `python manage.py test` → **۵۰۲ تست** روی SQLite، همه pass
+- **تایید زنده روی PostgreSQL واقعی** (`scripts/local_postgres.py test`): **۵۰۳ تست**، همه pass
+- `ruff check .`, `manage.py makemigrations --check`, `manage.py check --deploy` — همه تمیز
+- تایید دستی کامل در مرورگر با ۳ اکانت واقعی متفاوت (شنونده/Creator/VIP): پلیر (volume/seek/skip/
+  keyboard/queue-reorder/Now-Playing — همه با آزمایش JS مستقیم روی DOM تایید شدن، نه فقط بازرسی کد)،
+  پروفایل (تب‌ها، لایک/صف رفع‌شده، مودال فالوور، اشتراک‌گذاری)، آپلود (drag&drop، اعتبارسنجی کلاینت،
+  پیش‌نمایش کاور، آپلود end-to-end با ردیابی XHR واقعی تا redirect نهایی)، پلی‌لیست (rename + reorder با
+  reload واقعی صفحه)، داشبورد ادمین (۴ چارت + چارت creator_detail، pagination) — و دانلود VIP-gated.
+
+**وضعیت CLAUDE.md:** موارد #۲۹ تا #۳۴ بسته شدند ✅. جدول دامنه‌ها (بخش ۴) برای `tracks`, `uploads`,
+`plays`, `moderation`, `billing`, `core`, `playlists` به‌روز شد. بخش ۶: فاز حرفه‌ای ✅ بسته شد.
+
+---
+
 ## [2026-08-20] فاز نهایی — Production، مونتیزیشن واقعی، تجربه رقابتی — ✅ بسته شد
 
 **نوع:** Architecture + Feature + Security + Bugfix + Tests

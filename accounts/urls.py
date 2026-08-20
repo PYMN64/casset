@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     CassetLoginView,
+    api_user_connections,
     creator_apply_view,
     creator_handle_view,
     creator_studio_view,
@@ -32,6 +33,7 @@ urlpatterns = [
     path("register/", register_view, name="register"),
     path("dashboard/", dashboard_view, name="dashboard"),
     path("settings/", settings_view, name="settings"),
+    path("api/v1/connections/<str:username>/", api_user_connections, name="api_user_connections"),
     # New public profile style: /@username/
     path("@<str:username>/", public_profile, name="public_profile"),
     # Legacy: /u/username/ -> redirect

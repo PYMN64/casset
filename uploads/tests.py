@@ -462,6 +462,77 @@ class SubmitTrackViewTests(TestCase):
         self.assertEqual(track.status, Track.Status.SUBMITTED)
 
 
+class ToggleTrackVisibilityViewTests(TestCase):
+    """Self-service unpublish/republish (Track.visibility toggle) — the
+    creator content-management gap flagged in the profile/upload audit:
+    previously there was no way for a creator to take a live track down
+    themselves without contacting staff."""
+
+    def setUp(self):
+        self.user = make_user("visibility_owner")
+        self.other = make_user("visibility_other")
+        self.client.login(username="visibility_owner", password="pass12345")
+
+    def _make_track(self, status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC, creator=None):
+        return Track.objects.create(
+            creator=creator or self.user,
+            title="T",
+            content_type=Track.ContentType.MUSIC,
+            duration_seconds=60,
+            status=status,
+            visibility=visibility,
+        )
+
+    def test_requires_login(self):
+        self.client.logout()
+        track = self._make_track()
+        resp = self.client.post(reverse("toggle_track_visibility", args=[track.id]))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_get_not_allowed(self):
+        track = self._make_track()
+        resp = self.client.get(reverse("toggle_track_visibility", args=[track.id]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_non_owner_gets_404(self):
+        track = self._make_track(creator=self.other)
+        resp = self.client.post(reverse("toggle_track_visibility", args=[track.id]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_public_approved_track_becomes_private(self):
+        track = self._make_track(visibility=Track.Visibility.PUBLIC)
+        resp = self.client.post(reverse("toggle_track_visibility", args=[track.id]))
+        self.assertEqual(resp.status_code, 302)
+        track.refresh_from_db()
+        self.assertEqual(track.visibility, Track.Visibility.PRIVATE)
+
+    def test_private_approved_track_republishes_to_public(self):
+        track = self._make_track(visibility=Track.Visibility.PRIVATE)
+        resp = self.client.post(reverse("toggle_track_visibility", args=[track.id]))
+        self.assertEqual(resp.status_code, 302)
+        track.refresh_from_db()
+        self.assertEqual(track.visibility, Track.Visibility.PUBLIC)
+
+    def test_non_approved_track_rejected(self):
+        track = self._make_track(status=Track.Status.DRAFT, visibility=Track.Visibility.PRIVATE)
+        resp = self.client.post(reverse("toggle_track_visibility", args=[track.id]))
+        self.assertEqual(resp.status_code, 302)
+        track.refresh_from_db()
+        self.assertEqual(track.visibility, Track.Visibility.PRIVATE)
+
+    def test_hidden_track_is_unplayable(self):
+        """Confirms the toggle actually plugs into plays/views.py::_is_playable
+        (visibility=PRIVATE) — not just a cosmetic status flip."""
+        track = self._make_track(visibility=Track.Visibility.PUBLIC)
+        self.client.post(reverse("toggle_track_visibility", args=[track.id]))
+
+        make_user("visibility_listener")
+        self.client.logout()
+        self.client.login(username="visibility_listener", password="pass12345")
+        resp = self.client.post(reverse("api_play"), {"track_id": track.id})
+        self.assertEqual(resp.status_code, 403)
+
+
 @override_settings(MEDIA_ROOT=_MEDIA_ROOT)
 class SubmitTrackAutoApproveTests(TestCase):
     """PlatformSetting.auto_approve_tracks — Phase 3."""
