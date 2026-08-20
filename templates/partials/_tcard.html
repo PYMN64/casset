@@ -1,0 +1,59 @@
+{% load thumbnails casset_urls %}
+{% comment %}
+  Grid card for one track. Used by discover, trending, search and profiles.
+
+  data-* contract (consumed by static/app.js):
+    data-play   + data-src/title/by/track/cover  → play, building a queue
+                  from the surrounding .tcard-grid
+    data-queue  + the same attributes            → append to the queue
+    data-cover  is ALWAYS a bare URL, never markup — app.js assigns it to
+                background-image, so anything else renders as literal text
+                (and used to, on half the site).
+
+  Expects: t (Track)
+{% endcomment %}
+<article class="tcard">
+  <div class="tcard__art"
+       {% if t.cover %}style="background-image:url('{{ t.cover|thumbnail_url:'400x400' }}')"{% endif %}>
+    <span class="kindtag">{{ t.get_content_type_display }}</span>
+    {% if t.audio %}
+      <button class="tcard__play" type="button"
+              aria-label="پخش {{ t.title }}"
+              data-play="1"
+              data-src="{{ t.audio.url }}"
+              data-title="{{ t.title }}"
+              data-by="{{ t.creator.profile.public_name }}"
+              data-track="{{ t.id }}"
+              data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}"
+              {% if t.waveform_peaks %}data-peaks="{{ t.waveform_peaks|jsonify }}"{% endif %}>
+        <svg class="icon"><use href="#i-play"/></svg>
+      </button>
+    {% endif %}
+  </div>
+
+  <a class="tcard__title truncate" href="{% url 'track_detail' t.slug %}">{{ t.title }}</a>
+  <a class="tcard__by truncate" href="{{ t.creator.profile.profile_url }}">
+    {{ t.creator.profile.public_name }}{% if t.creator.profile.is_verified %}<svg class="icon verified-badge"><use href="#i-verified"/></svg>{% endif %}
+  </a>
+
+  {% if t.audio %}
+    <div class="tcard__actions">
+      <button class="iconbtn btn--sm" type="button" aria-label="افزودن به صف"
+              data-queue="1"
+              data-src="{{ t.audio.url }}"
+              data-title="{{ t.title }}"
+              data-by="{{ t.creator.profile.public_name }}"
+              data-track="{{ t.id }}"
+              data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">
+        <svg class="icon"><use href="#i-queue"/></svg>
+      </button>
+      <button class="iconbtn btn--sm" type="button" aria-label="پسندیدن" data-like="1" data-track="{{ t.id }}">
+        <svg class="icon"><use href="#i-heart"/></svg>
+      </button>
+      <button class="iconbtn btn--sm" type="button" aria-label="افزودن به پلی‌لیست"
+              data-pl-open="1" data-track="{{ t.id }}" data-title="{{ t.title }}">
+        <svg class="icon"><use href="#i-plus"/></svg>
+      </button>
+    </div>
+  {% endif %}
+</article>

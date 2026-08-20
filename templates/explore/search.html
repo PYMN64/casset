@@ -1,28 +1,97 @@
 {% extends "base.html" %}
-{% block title %}جستجو • Casset{% endblock %}
+{% load thumbnails %}
+{% block title %}{% if query %}جستجوی «{{ query|truncatechars:24 }}» | کست{% else %}جستجو در کست{% endif %}{% endblock %}
+{% comment %}
+  Search result pages are infinite in number and thin in content — exactly
+  what a crawler should not index. robots.txt disallows /search/ and this
+  canonical points at the bare page so any stray link consolidates there.
+{% endcomment %}
+{% block canonical %}{{ request.scheme }}://{{ request.get_host }}{% url 'search' %}{% endblock %}
+
 {% block content %}
-<div class="grid">
-  <section class="card">
-    <h1>جستجو</h1>
-    <p class="muted small">ترک، سازنده، ژانر</p>
-
-    <div class="stack gap-2">
-      <input id="searchInput" type="search" placeholder="مثلاً: lo-fi یا @artist" autocomplete="off" />
-      <div class="muted small" id="searchHint">شروع کن به تایپ…</div>
-    </div>
-
-    <div class="list" id="searchResults" style="margin-top:12px">
-      <div class="row"><span class="muted">نتایج اینجا نمایش داده می‌شود.</span></div>
-    </div>
-  </section>
-
-  <aside class="card">
-    <h2>میان‌برها</h2>
-    <div class="list">
-      <div class="row"><a class="btn btn--ghost" href="/discover/">کشف</a></div>
-      <div class="row"><a class="btn btn--ghost" href="/tracks/">ترک‌ها</a></div>
-      <div class="row"><a class="btn btn--ghost" href="/library/">کتابخانه</a></div>
-    </div>
-  </aside>
+<div class="page-head">
+  <h1>جستجو</h1>
+  <p>در عنوان آثار، توضیحات و نام سازنده‌ها.</p>
 </div>
+
+<form class="card search-form" method="get" action="{% url 'search' %}" role="search">
+  <div class="search-form__row">
+    <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+    <label class="sr-only" for="searchInput">عبارت جستجو</label>
+    <input class="search-form__input" id="searchInput" type="search" name="q" value="{{ query }}"
+           placeholder="مثلاً: شب‌های تهران، پادکست کارآفرینی…" autocomplete="off" autofocus>
+    <button class="btn btn--primary" type="submit">جستجو</button>
+  </div>
+
+  <div class="cluster mt-3">
+    <button class="pill {% if selected_type == 'all' %}pill--active{% endif %}" type="submit" name="type" value="all">همه</button>
+    {% for t in enabled_types %}
+      <button class="pill {% if selected_type == t %}pill--active{% endif %}" type="submit" name="type" value="{{ t }}">
+        {% if t == 'music' %}موزیک{% elif t == 'podcast' %}پادکست{% elif t == 'book' %}کتاب صوتی{% else %}ویدیو{% endif %}
+      </button>
+    {% endfor %}
+  </div>
+</form>
+
+{% comment %}
+  Recent searches live in localStorage, filled in by casset-ui.js. Nothing
+  about what a person searched for is sent to or stored on the server.
+{% endcomment %}
+<section id="recentSearches" class="hidden mt-4">
+  <div class="section-head">
+    <h2>جستجوهای اخیر</h2>
+    <button class="btn btn--ghost btn--sm" type="button" data-recent-clear>پاک کردن</button>
+  </div>
+  <div class="cluster" data-recent-list></div>
+</section>
+
+{% if query %}
+  {% if creators %}
+    <section>
+      <div class="section-head"><h2>سازنده‌ها</h2></div>
+      <div class="creator-strip">
+        {% for u in creators %}
+          <a class="creator-chip" href="{{ u.profile.profile_url }}">
+            <span class="creator-chip__av"
+                  {% if u.profile.avatar %}style="background-image:url('{{ u.profile.avatar|thumbnail_url:'160x160' }}')"{% endif %}></span>
+            <span class="creator-chip__name">{{ u.profile.public_name }}</span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <section>
+    <div class="section-head">
+      <h2>آثار</h2>
+      <span class="muted t-xs num">{{ tracks|length }} نتیجه</span>
+    </div>
+    {% if tracks %}
+      <div class="card list" data-queue-scope>
+        {% for t in tracks %}{% include "partials/_track_row.html" with t=t %}{% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">
+        <div class="empty__icon"><svg class="icon"><use href="#i-search"/></svg></div>
+        <div class="empty__title">چیزی برای «{{ query }}» پیدا نشد</div>
+        <p class="empty__text">
+          املای عبارت را بررسی کن، یا با یک کلمه‌ی کوتاه‌تر جستجو کن.
+        </p>
+        <a class="btn btn--ghost" href="{% url 'discover' %}">کشف آثار تازه</a>
+      </div>
+    {% endif %}
+  </section>
+{% else %}
+  <div class="empty mt-4">
+    <div class="empty__icon"><svg class="icon"><use href="#i-search"/></svg></div>
+    <div class="empty__title">دنبال چه چیزی می‌گردی؟</div>
+    <p class="empty__text">
+      نام یک اثر، یک سازنده، یا موضوعی که دوست داری بشنوی را بنویس.
+    </p>
+    <div class="cluster cluster--center">
+      <a class="btn btn--ghost btn--sm" href="{% url 'trending' %}">پرطرفدارها</a>
+      <a class="btn btn--ghost btn--sm" href="{% url 'discover' %}">کشف</a>
+    </div>
+  </div>
+{% endif %}
 {% endblock %}

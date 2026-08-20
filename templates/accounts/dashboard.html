@@ -1,56 +1,184 @@
 {% extends "base.html" %}
-{% block title %}Dashboard • Casset{% endblock %}
+{% load casset_urls static %}
+{% block title %}داشبورد من | کست{% endblock %}
 
 {% block content %}
-<div class="grid" style="grid-template-columns: 1.4fr 1fr; align-items:start">
-  <section class="card">
-    <h1 data-i18n="dashboard">داشبورد</h1>
-    <p class="muted small">بازده ۳۰ روز اخیر (از {{ since }})</p>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>داشبورد</h1>
+    <p>۳۰ روز گذشته — از {{ since }}</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost btn--sm" href="{{ profile.profile_url }}">
+      <svg class="icon"><use href="#i-user"/></svg>پروفایل عمومی
+    </a>
+    {% if profile.can_publish %}
+      <a class="btn btn--primary btn--sm" href="{% url 'creator_studio' %}">
+        <svg class="icon"><use href="#i-studio"/></svg>استودیو
+      </a>
+    {% endif %}
+  </div>
+</div>
 
-    <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px">
-      <div class="card" style="padding:14px">
-        <div class="muted small">Points (30d)</div>
-        <div style="font-size:28px;font-weight:900">{{ total_points }}</div>
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-card__top">
+      <span class="stat-card__icon"><svg class="icon"><use href="#i-play"/></svg></span>
+      {% if plays_delta_dir %}
+        <span class="stat-card__delta stat-card__delta--{{ plays_delta_dir }}">
+          {% if plays_delta_dir == "up" %}+{% endif %}{{ plays_delta_pct }}٪
+        </span>
+      {% endif %}
+    </div>
+    <b class="stat-card__value">{{ plays_30d }}</b>
+    <span class="stat-card__label">پخش در ۳۰ روز</span>
+  </div>
+
+  <div class="stat-card stat-card--gold">
+    <div class="stat-card__top">
+      <span class="stat-card__icon"><svg class="icon"><use href="#i-coin"/></svg></span>
+    </div>
+    <b class="stat-card__value">{{ total_points }}</b>
+    <span class="stat-card__label">امتیاز کسب‌شده</span>
+  </div>
+
+  <div class="stat-card stat-card--purple">
+    <div class="stat-card__top">
+      <span class="stat-card__icon"><svg class="icon"><use href="#i-user"/></svg></span>
+    </div>
+    <b class="stat-card__value">{{ followers }}</b>
+    <span class="stat-card__label">دنبال‌کننده</span>
+  </div>
+
+  <div class="stat-card stat-card--good">
+    <div class="stat-card__top">
+      <span class="stat-card__icon"><svg class="icon"><use href="#i-music"/></svg></span>
+    </div>
+    <b class="stat-card__value">{{ track_count }}</b>
+    <span class="stat-card__label">اثر منتشرشده</span>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div>
+    <section class="card chart-card">
+      <div class="section-head mt-0">
+        <h2>روند پخش و امتیاز</h2>
+        <span class="muted t-xs">۳۰ روز اخیر</span>
       </div>
-      <div class="card" style="padding:14px">
-        <div class="muted small">Revenue (30d)</div>
-        <div style="font-size:28px;font-weight:900">{{ total_revenue }}</div>
+      <div class="chart-wrap"><canvas id="trendChart" aria-label="نمودار روند پخش و امتیاز"></canvas></div>
+      <p class="muted t-xs mt-3 mb-0">
+        فقط «پخش معتبر» شمرده می‌شود — پخش‌هایی که سمت سرور تایید شده‌اند.
+      </p>
+    </section>
+
+    <section class="card mt-4">
+      <div class="card__title">تفکیک بر اساس نوع محتوا</div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>نوع</th><th>امتیاز</th><th>درآمد (تومان)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>موزیک</td><td class="num">{{ points_by_type.music|default:0 }}</td><td class="num">{{ revenue_by_type.music|default:0 }}</td></tr>
+            <tr><td>پادکست</td><td class="num">{{ points_by_type.podcast|default:0 }}</td><td class="num">{{ revenue_by_type.podcast|default:0 }}</td></tr>
+            <tr><td>کتاب صوتی</td><td class="num">{{ points_by_type.book|default:0 }}</td><td class="num">{{ revenue_by_type.book|default:0 }}</td></tr>
+            <tr><td>ویدیو</td><td class="num">{{ points_by_type.video|default:0 }}</td><td class="num">{{ revenue_by_type.video|default:0 }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <aside>
+    <div class="wallet-card">
+      <span class="wallet-card__sub">موجودی امتیاز</span>
+      <b class="wallet-card__amount num">{{ profile.points }}</b>
+      <div class="wallet-card__sub">
+        ارزش تقریبی این دوره: <span class="num">{{ total_revenue }}</span> تومان
+      </div>
+      <div class="cluster mt-3">
+        <a class="btn btn--gold btn--sm" href="{% url 'payout' %}">
+          <svg class="icon"><use href="#i-wallet"/></svg>درخواست تسویه
+        </a>
+        <a class="btn btn--ghost btn--sm" href="{% url 'creator_studio' %}">دفتر تراکنش</a>
       </div>
     </div>
 
-    <h2 class="mt">تفکیک پوینت‌ها</h2>
-    <div class="list">
-      <div class="row"><span>موزیک</span><strong>{{ points_by_type.music|default:0 }}</strong></div>
-      <div class="row"><span>پادکست</span><strong>{{ points_by_type.podcast|default:0 }}</strong></div>
-      <div class="row"><span>کتاب</span><strong>{{ points_by_type.book|default:0 }}</strong></div>
-      <div class="row"><span>ویدیو</span><strong>{{ points_by_type.video|default:0 }}</strong></div>
+    <div class="card mt-4">
+      <div class="card__title">میان‌برها</div>
+      <div class="flow">
+        <a class="btn btn--ghost btn--block" href="{% url 'upload_track' %}">
+          <svg class="icon"><use href="#i-upload"/></svg>آپلود اثر جدید
+        </a>
+        <a class="btn btn--ghost btn--block" href="{% url 'my_tracks' %}">
+          <svg class="icon"><use href="#i-list"/></svg>آثار من
+        </a>
+        <a class="btn btn--ghost btn--block" href="{% url 'library' %}">
+          <svg class="icon"><use href="#i-library"/></svg>کتابخانه
+        </a>
+        <a class="btn btn--ghost btn--block" href="{% url 'settings' %}">
+          <svg class="icon"><use href="#i-settings"/></svg>تنظیمات
+        </a>
+      </div>
     </div>
 
-    <h2 class="mt">تفکیک درآمد</h2>
-    <div class="list">
-      <div class="row"><span>موزیک</span><strong>{{ revenue_by_type.music|default:0 }}</strong></div>
-      <div class="row"><span>پادکست</span><strong>{{ revenue_by_type.podcast|default:0 }}</strong></div>
-      <div class="row"><span>کتاب</span><strong>{{ revenue_by_type.book|default:0 }}</strong></div>
-      <div class="row"><span>ویدیو</span><strong>{{ revenue_by_type.video|default:0 }}</strong></div>
-    </div>
-
-    <p class="muted small mt">این داده‌ها فقط برای شما و ادمین قابل مشاهده است.</p>
-  </section>
-
-  <aside class="card">
-    <h2>میانبرها</h2>
-    <div class="list">
-      <div class="row"><a class="btn btn--ghost" href="/upload/">آپلود محتوا</a></div>
-      <div class="row"><a class="btn btn--primary" href="/creator/apply/">کاست بساز پول دربیار</a></div>
-      <div class="row"><a class="btn btn--ghost" href="/library/">کتابخانه</a></div>
-      <div class="row"><a class="btn btn--ghost" href="/settings/">تنظیمات پروفایل</a></div>
-      <div class="row"><a class="btn btn--primary" href="/discover/">کشف</a></div>
-    </div>
-
-    <hr>
-
-    <h3>VIP</h3>
-    <p class="muted small">سقف آپلود رایگان: {{ platform.free_upload_minutes }} دقیقه. (بیشتر = VIP)</p>
+    {% if not profile.is_vip %}
+      <div class="card mt-4">
+        <div class="card__title">کست VIP</div>
+        <p class="muted t-sm lh-body">
+          سقف آپلود رایگان: <span class="num">{{ platform.free_upload_minutes }}</span> دقیقه.
+          با VIP این سقف برداشته می‌شود و دانلود آفلاین فعال می‌گردد.
+        </p>
+        <a class="btn btn--primary btn--block" href="{% url 'vip' %}">مشاهده اشتراک</a>
+      </div>
+    {% endif %}
   </aside>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'vendor/chart.umd.min.js' %}"></script>
+<script id="dashboardData" type="application/json">
+{"labels": {{ chart_labels|jsonify }}, "plays": {{ chart_plays|jsonify }}, "points": {{ chart_points|jsonify }}}
+</script>
+<script>
+/* Chart.js is vendored locally (static/vendor/) — no CDN, so it survives
+   the site's own CSP and works from Iran without a third-party hop. */
+(function () {
+  var canvas = document.getElementById("trendChart");
+  if (!canvas || typeof Chart === "undefined") return;
+  var data = JSON.parse(document.getElementById("dashboardData").textContent);
+  var css = getComputedStyle(document.documentElement);
+  var accent = css.getPropertyValue("--accent").trim();
+  var gold = css.getPropertyValue("--gold").trim();
+  var text = css.getPropertyValue("--text").trim();
+  var line = css.getPropertyValue("--line").trim();
+
+  Chart.defaults.font.family = "Vazirmatn, system-ui, sans-serif";
+  Chart.defaults.color = text;
+
+  new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: data.labels,
+      datasets: [
+        { label: "پخش معتبر", data: data.plays, borderColor: accent, backgroundColor: accent + "22",
+          tension: .35, fill: true, pointRadius: 0, borderWidth: 2 },
+        { label: "امتیاز", data: data.points, borderColor: gold, backgroundColor: "transparent",
+          tension: .35, pointRadius: 0, borderWidth: 2, borderDash: [5, 4] }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 12, padding: 16 } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
+        y: { beginAtZero: true, grid: { color: line }, ticks: { precision: 0 } }
+      }
+    }
+  });
+})();
+</script>
 {% endblock %}

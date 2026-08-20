@@ -438,7 +438,15 @@ function cycleRepeat() {
 
 // ---------- Queue builder (DOM context) ----------
 function buildQueueFromContext(clickedBtn) {
-  const container = clickedBtn.closest(".list") || clickedBtn.closest("section") || document;
+  // Order of preference: the nearest explicit playable collection, then
+  // any list/section wrapper. Without .tcard-grid here, clicking a card
+  // in the discover grid would queue the whole page instead of that row.
+  const container =
+    clickedBtn.closest("[data-queue-scope]") ||
+    clickedBtn.closest(".tcard-grid") ||
+    clickedBtn.closest(".list") ||
+    clickedBtn.closest("section") ||
+    document;
   const buttons = Array.from(container.querySelectorAll("[data-play]")).filter(b => b.dataset && b.dataset.src);
   const finalButtons = buttons.length > 1 ? buttons : Array.from(document.querySelectorAll("[data-play]")).filter(b => b.dataset && b.dataset.src);
 

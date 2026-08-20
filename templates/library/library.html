@@ -1,72 +1,86 @@
 {% extends "base.html" %}
 {% load thumbnails %}
-{% block title %}کتابخانه • Casset{% endblock %}
+{% block title %}کتابخانهٔ من | کست{% endblock %}
+
 {% block content %}
-<div class="grid">
-  <section class="card">
-    <h1>پلی‌لیست‌های من</h1>
-    <p class="muted small">پلی‌لیست بساز و ترک‌های موردعلاقه‌ات را دسته‌بندی کن.</p>
+<div class="page-head">
+  <h1>کتابخانه من</h1>
+  <p>پلی‌لیست‌ها و آثاری که پسندیده‌ای، یک‌جا.</p>
+</div>
 
-    <form class="row" id="plCreateForm" data-pl-create-form="1" style="gap:10px;flex-wrap:wrap">
-      {% csrf_token %}
-      <input name="name" id="plCreateName" placeholder="نام پلی‌لیست جدید…" maxlength="80" required style="flex:1;min-width:220px" />
-      <button class="btn btn--primary" type="submit">ساخت</button>
-    </form>
+<div class="tabs" data-tab-group>
+  <button class="tabs__tab tabs__tab--active" type="button" data-tab="playlists" aria-selected="true">پلی‌لیست‌ها</button>
+  <button class="tabs__tab" type="button" data-tab="liked" aria-selected="false">پسندیده‌ها</button>
+</div>
 
-    <div class="list" id="plList" style="margin-top:12px">
-      {% for p in playlists %}
-        <div class="row" data-pl-row="{{ p.id }}">
-          <div style="min-width:0">
-            <a href="{% url 'playlist_detail' playlist_id=p.id %}" style="font-weight:900">{{ p.name }}</a>
-            <div class="muted small">{{ p.item_count }} ترک</div>
-          </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <a class="btn btn--ghost" href="{% url 'playlist_detail' playlist_id=p.id %}">باز کردن</a>
-            <form method="post" action="/api/v1/playlist/delete/" data-pl-delete-form="1" data-playlist="{{ p.id }}" style="margin:0">
+<!-- ================= Playlists ================= -->
+<section data-tab-panel="playlists" id="playlists">
+  <form class="card cluster cluster--gap-3" id="plCreateForm" data-pl-create-form="1">
+    {% csrf_token %}
+    <label class="sr-only" for="plCreateName">نام پلی‌لیست جدید</label>
+    <input class="flex-1" name="name" id="plCreateName" placeholder="نام پلی‌لیست جدید…" maxlength="80" required>
+    <button class="btn btn--primary" type="submit">
+      <svg class="icon"><use href="#i-plus"/></svg>ساخت پلی‌لیست
+    </button>
+  </form>
+
+  <div class="card-grid mt-4" id="plList">
+    {% for p in playlists %}
+      <div class="pl-card" data-pl-row="{{ p.id }}">
+        <a class="pl-card__cover" href="{% url 'playlist_detail' playlist_id=p.id %}"
+           {% if p.cover_track and p.cover_track.cover %}style="background-image:url('{{ p.cover_track.cover|thumbnail_url:'400x400' }}')"{% endif %}
+           aria-hidden="true">
+          {% if not p.cover_track or not p.cover_track.cover %}
+            <svg class="icon"><use href="#i-playlist"/></svg>
+          {% endif %}
+        </a>
+        <a class="pl-card__title truncate" href="{% url 'playlist_detail' playlist_id=p.id %}">{{ p.name }}</a>
+        <div class="cluster cluster--between">
+          <span class="muted t-xs num">{{ p.item_count }} اثر</span>
+          <span class="cluster">
+            {% if p.is_private %}
+              <span class="status status--muted"><svg class="icon" style="width:12px;height:12px"><use href="#i-lock"/></svg>خصوصی</span>
+            {% endif %}
+            <form method="post" action="{% url 'api_playlist_delete' %}" data-pl-delete-form="1" data-playlist="{{ p.id }}">
               {% csrf_token %}
               <input type="hidden" name="playlist_id" value="{{ p.id }}">
-              <button class="btn btn--ghost" type="submit">حذف</button>
+              <button class="iconbtn btn--sm iconbtn--danger" type="submit" aria-label="حذف پلی‌لیست"
+                      data-confirm="پلی‌لیست «{{ p.name }}» و همه‌ی آیتم‌هایش حذف می‌شوند. این عمل برگشت‌پذیر نیست."
+                      data-confirm-title="حذف پلی‌لیست">
+                <svg class="icon"><use href="#i-trash"/></svg>
+              </button>
             </form>
-          </div>
+          </span>
         </div>
-      {% empty %}
-        <div class="row" style="display:block">
-          <p class="muted">هنوز پلی‌لیستی نساختی.</p>
-        </div>
-      {% endfor %}
-    </div>
+      </div>
+    {% empty %}
+      <div class="empty empty--full">
+        <div class="empty__icon"><svg class="icon"><use href="#i-playlist"/></svg></div>
+        <div class="empty__title">هنوز پلی‌لیستی نساخته‌ای</div>
+        <p class="empty__text">
+          پلی‌لیست بساز تا آثار موردعلاقه‌ات دسته‌بندی شوند — و اگر عمومی‌اش کنی،
+          می‌توانی لینکش را با بقیه به اشتراک بگذاری.
+        </p>
+      </div>
+    {% endfor %}
+  </div>
+</section>
 
-    <h2 class="mt">ترک‌های لایک‌شده</h2>
-    <div class="list">
-      {% for t in liked_tracks %}
-        <div class="row">
-          <div style="display:flex;gap:12px;align-items:center;min-width:0">
-          <div class="row-cover" style="{% if t.cover %}background-image:url('{{ t.cover|thumbnail_url:"120x120" }}');{% endif %}"></div>
-          <div style="min-width:0">
-            <a href="{% url 'track_detail' slug=t.slug %}" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              {{ t.title }}
-            </a>
-            <div class="muted small">@{{ t.creator.username }} • {{ t.play_count }} پخش</div>
-          </div>
-          </div>
-          {% if t.audio %}
-            <a class="btn btn--primary" href="#"
-               data-play="1" data-src="{{ t.audio.url }}" data-title="{{ t.title }}"
-               data-by="@{{ t.creator.username }}" data-track="{{ t.id }}"
-               data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">
-               پخش
-            </a>
-          {% endif %}
-        </div>
-      {% empty %}
-        <div class="row"><span class="muted">هنوز چیزی لایک نکردی.</span></div>
-      {% endfor %}
+<!-- ================= Liked ================= -->
+<section data-tab-panel="liked" class="hidden">
+  {% if liked_tracks %}
+    <div class="card list" data-queue-scope>
+      {% for t in liked_tracks %}{% include "partials/_track_row.html" with t=t %}{% endfor %}
     </div>
-  </section>
-
-  <aside class="card">
-    <h2>راهنما</h2>
-    <p class="muted small">برای افزودن ترک به پلی‌لیست، داخل صفحه‌ی هر ترک روی «＋ پلی‌لیست» بزن.</p>
-  </aside>
-</div>
+  {% else %}
+    <div class="empty">
+      <div class="empty__icon"><svg class="icon"><use href="#i-heart"/></svg></div>
+      <div class="empty__title">هنوز چیزی نپسندیده‌ای</div>
+      <p class="empty__text">
+        روی هر اثری که دوست داشتی قلب را بزن؛ اینجا جمع می‌شوند و همیشه در دسترسند.
+      </p>
+      <a class="btn btn--primary" href="{% url 'discover' %}">شروع کشف</a>
+    </div>
+  {% endif %}
+</section>
 {% endblock %}

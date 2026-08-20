@@ -451,33 +451,6 @@
   }
 
   /* ------------------------------------------------------------------
-     Share button — the Web Share sheet where it exists, clipboard where
-     it does not. Never leaves the user with a dead button.
-     ------------------------------------------------------------------ */
-  function initShare() {
-    d.addEventListener("click", function (e) {
-      var btn = e.target.closest("[data-share]");
-      if (!btn) return;
-      e.preventDefault();
-      var url = btn.getAttribute("data-share") || window.location.href;
-      if (url.indexOf("http") !== 0) url = window.location.origin + url;
-      var title = btn.getAttribute("data-share-title") || d.title;
-
-      if (navigator.share) {
-        navigator.share({ title: title, url: url }).catch(function () {});
-        return;
-      }
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(function () {
-          if (window.showToast) window.showToast("لینک کپی شد");
-        }).catch(function () {
-          if (window.showToast) window.showToast("کپی نشد", false);
-        });
-      }
-    });
-  }
-
-  /* ------------------------------------------------------------------
      Service worker.
      ------------------------------------------------------------------ */
   function initServiceWorker() {
@@ -555,7 +528,6 @@
     initRecentSearches();
     initDragReorder();
     initImagePreview();
-    initShare();
     initAutoSubmit();
     initInstallPrompt();
     initServiceWorker();

@@ -1,173 +1,281 @@
 {% extends "base.html" %}
-{% load casset_urls %}
-{% block title %}{{ track.title }} • Casset{% endblock %}
-{% block meta %}
-<meta name="description" content="{{ track.description|default:track.title|truncatechars:160 }}" />
-<meta property="og:site_name" content="Casset" />
-<meta property="og:type" content="music.song" />
-<meta property="og:title" content="{{ track.title }} — @{{ track.creator.username }}" />
-<meta property="og:description" content="{{ track.description|default:track.title|truncatechars:160 }}" />
-<meta property="og:url" content="{{ request.build_absolute_uri }}" />
-{% if track.cover %}<meta property="og:image" content="{% abs_url track.cover.url %}" />{% endif %}
-<meta name="twitter:card" content="{% if track.cover %}summary_large_image{% else %}summary{% endif %}" />
-<meta name="twitter:title" content="{{ track.title }} — @{{ track.creator.username }}" />
-<meta name="twitter:description" content="{{ track.description|default:track.title|truncatechars:160 }}" />
+{% load casset_urls thumbnails %}
+
+{% block title %}{{ track.title }} — {{ track.creator.profile.public_name }} | کست{% endblock %}
+{% block meta_description %}{{ track.description|default:track.title|truncatechars:150 }}{% endblock %}
+{% block og_type %}music.song{% endblock %}
+{% block og_title %}{{ track.title }} — {{ track.creator.profile.public_name }}{% endblock %}
+{% block og_description %}{{ track.description|default:track.title|truncatechars:150 }}{% endblock %}
+{% block og_image %}{% if track.cover %}{% abs_url track.cover.url %}{% else %}{{ request.scheme }}://{{ request.get_host }}{{ block.super }}{% endif %}{% endblock %}
+{% block twitter_card %}{% if track.cover %}summary_large_image{% else %}summary{% endif %}{% endblock %}
+{% block twitter_title %}{{ track.title }} — {{ track.creator.profile.public_name }}{% endblock %}
+{% block twitter_description %}{{ track.description|default:track.title|truncatechars:150 }}{% endblock %}
+
+{% block head %}
+{% comment %}
+  Structured data. Google renders these as rich results for audio; without
+  them a track page is just another blue link. PodcastEpisode and
+  MusicRecording are different schema types, so the type is chosen from the
+  track's own content_type rather than guessed.
+{% endcomment %}
+<script type="application/ld+json">
+{{ jsonld|safe }}
+</script>
 {% endblock %}
+
 {% block content %}
-<div class="grid">
-  <section class="card">
-    <h1>{{ track.title }}</h1>
-    <p class="muted small">
-      از <a href="/artist/{{ track.creator.username }}/"><u>@{{ track.creator.username }}</u></a>
-      • {{ track.play_count }} پخش
-      {% if track.album %}• از مجموعه‌ی <a href="{% url 'show_detail' track.album_id %}">{{ track.album.title }}</a>{% endif %}
-    </p>
+<div class="grid-2">
+  <div>
+    <!-- ============ Hero ============ -->
+    <section class="card track-hero">
+      <div class="track-hero__art"
+           {% if track.cover %}style="background-image:url('{{ track.cover|thumbnail_url:'600x600' }}')"{% endif %}
+           aria-hidden="true"></div>
 
-    {% if track.audio %}
-      <div class="list">
-        <div class="row" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
-          <a class="btn btn--primary" href="#"
-             data-play="1"
-             data-src="{{ track.audio.url }}"
-             data-title="{{ track.title }}"
-             data-by="@{{ track.creator.username }}"
-             data-track="{{ track.id }}"
-             data-peaks="{{ track.waveform_peaks|jsonify }}"
-             data-cover="{% if track.cover %}{{ track.cover.url }}{% endif %}">
-             پخش در نوار پخش
+      <div class="track-hero__meta">
+        <div class="cluster mb-2">
+          <span class="status status--info">{{ track.get_content_type_display }}</span>
+          {% if track.explicit %}<span class="status status--bad">محتوای بزرگسال</span>{% endif %}
+          {% for g in track.genres.all %}<span class="status status--muted">{{ g.name }}</span>{% endfor %}
+        </div>
+
+        <h1 class="t-2xl w-900 lh-tight mb-2">{{ track.title }}</h1>
+
+        <div class="cluster muted t-sm mb-4">
+          <a class="w-700" href="{{ track.creator.profile.profile_url }}">
+            {{ track.creator.profile.public_name }}
+            {% if track.creator.profile.is_verified %}<svg class="icon verified-badge"><use href="#i-verified"/></svg>{% endif %}
           </a>
-
-          <a class="btn btn--ghost" href="#"
-             data-like="1"
-             data-track="{{ track.id }}">
-             ♥ لایک <span class="muted" id="likeCount">{{ track.like_count }}</span>
-          </a>
-
-          <a class="btn btn--ghost{% if is_favorited %} primary{% endif %}" href="#"
-             data-favorite="1"
-             data-track="{{ track.id }}"
-             aria-pressed="{% if is_favorited %}true{% else %}false{% endif %}">
-             ★ علاقه‌مندی <span class="muted" id="favoriteCount">{{ favorite_count }}</span>
-          </a>
-
-          {% if request.user.is_authenticated and request.user.id != track.creator_id %}
-          <a class="btn btn--ghost{% if is_reposted %} primary{% endif %}" href="#"
-             data-repost="1"
-             data-track="{{ track.id }}"
-             aria-pressed="{% if is_reposted %}true{% else %}false{% endif %}">
-             🔁 بازنشر <span class="muted" id="repostCount">{{ repost_count }}</span>
-          </a>
-          {% endif %}
-
-          <a class="btn btn--ghost" href="#"
-             data-pl-open="1"
-             data-track="{{ track.id }}"
-             data-title="{{ track.title }}">
-             ＋ پلی‌لیست
-          </a>
-
-          <a class="btn btn--ghost" href="#"
-             data-share="1"
-             data-url="{{ request.build_absolute_uri }}"
-             data-title="{{ track.title }}">
-             ↗ اشتراک‌گذاری
-          </a>
-
-          <a class="btn btn--ghost" href="#" data-embed-open="1" data-slug="{{ track.slug }}">
-             &lt;/&gt; جاسازی (Embed)
-          </a>
-
-          {% if can_download %}
-            <a class="btn btn--ghost" href="/download/{{ track.id }}/">دانلود</a>
+          <span aria-hidden="true">·</span>
+          <span class="num">{{ track.play_count }} پخش</span>
+          <span aria-hidden="true">·</span>
+          <span class="num">{{ track.duration_display }}</span>
+          {% if track.album %}
+            <span aria-hidden="true">·</span>
+            <a href="{% url 'show_detail' track.album_id %}">{{ track.album.title }}</a>
           {% endif %}
         </div>
 
-        <div class="row" style="display:block">
-          <audio controls preload="none" style="width:100%" data-track="{{ track.id }}">
-            <source src="{{ track.audio.url }}" type="audio/mpeg">
-          </audio>
-        </div>
-      </div>
-    {% else %}
-      <div class="row"><span class="muted">فایل صوتی موجود نیست.</span></div>
-    {% endif %}
+        {% if track.audio %}
+          {% comment %}
+            One player, not two. This page used to render a custom play
+            button AND a raw <audio controls> element, giving the visitor
+            two competing transports for the same file. The global
+            playerbar is the player; everything here feeds it.
+          {% endcomment %}
+          <div class="cluster cluster--gap-3">
+            <button class="btn btn--primary btn--lg" type="button"
+                    data-play="1"
+                    data-src="{{ track.audio.url }}"
+                    data-title="{{ track.title }}"
+                    data-by="{{ track.creator.profile.public_name }}"
+                    data-track="{{ track.id }}"
+                    data-peaks="{{ track.waveform_peaks|jsonify }}"
+                    data-cover="{% if track.cover %}{{ track.cover.url }}{% endif %}">
+              <svg class="icon"><use href="#i-play"/></svg>پخش
+            </button>
 
-    {% if track.description %}
-      <h2 style="margin-top:14px">درباره</h2>
-      <p class="muted">{{ track.description }}</p>
-    {% endif %}
+            <button class="iconbtn{% if is_liked %} iconbtn--primary{% endif %}" type="button"
+                    data-like="1" data-track="{{ track.id }}"
+                    aria-pressed="{% if is_liked %}true{% else %}false{% endif %}"
+                    aria-label="پسندیدن">
+              <svg class="icon"><use href="#i-heart"/></svg>
+              <span class="num" id="likeCount">{{ track.like_count }}</span>
+            </button>
 
-    {% if track.allow_comments %}
-    <section id="comments" style="margin-top:20px">
-      <h2>نظرات <span class="muted small">(<span id="commentCount">{{ comment_count }}</span>)</span></h2>
+            <button class="iconbtn" type="button"
+                    data-pl-open="1" data-track="{{ track.id }}" data-title="{{ track.title }}"
+                    aria-label="افزودن به پلی‌لیست">
+              <svg class="icon"><use href="#i-plus"/></svg>
+            </button>
 
-      {% if request.user.is_authenticated %}
-        <form class="list" id="commentForm" data-comment-form="1" data-track="{{ track.id }}">
-          <textarea name="body" class="input" rows="3" maxlength="1500"
-                    placeholder="نظرت را بنویس..." required></textarea>
-          <div class="row" style="justify-content:flex-end">
-            <button class="btn btn--primary" type="submit">ارسال نظر</button>
-          </div>
-        </form>
-      {% else %}
-        <p class="muted small"><a href="/login/?next={{ request.path }}">وارد شو</a> تا بتوانی نظر بدهی.</p>
-      {% endif %}
+            <button class="iconbtn" type="button"
+                    data-share="1" data-url="{{ request.build_absolute_uri }}" data-title="{{ track.title }}"
+                    aria-label="اشتراک‌گذاری">
+              <svg class="icon"><use href="#i-share"/></svg>
+            </button>
 
-      <div class="list" id="commentList">
-        {% for c in comments %}
-          <div class="row" data-comment-row="{{ c.id }}" style="align-items:flex-start;gap:10px">
-            <div style="min-width:0;flex:1">
-              <div style="font-weight:900">@{{ c.author.username }}</div>
-              <div class="muted small">{{ c.body }}</div>
-              <div class="row" style="justify-content:flex-start;gap:8px;margin-top:4px">
-                <a href="#" class="btn btn--ghost" data-comment-like="1" data-comment="{{ c.id }}">
-                  ♥ <span class="commentLikeCount">{{ c.like_count }}</span>
-                </a>
-                {% if request.user.is_authenticated %}
-                  {% if c.author_id == request.user.id or request.user.is_staff %}
-                    <a href="#" class="btn btn--ghost" data-comment-delete="1" data-comment="{{ c.id }}">حذف</a>
-                  {% else %}
-                    <a href="#" class="btn btn--ghost" data-comment-report="1" data-comment="{{ c.id }}">گزارش</a>
-                  {% endif %}
-                  {% if track.creator_id == request.user.id and c.author_id != request.user.id %}
-                    <a href="#" class="btn btn--ghost" data-block="1" data-username="{{ c.author.username }}">
-                      بلاک @{{ c.author.username }}
-                    </a>
-                  {% endif %}
+            {% comment %}
+              Secondary actions collapse into one menu. Seven side-by-side
+              icon buttons is fine on a desktop and unusable on a phone.
+            {% endcomment %}
+            <div class="menu">
+              <button class="iconbtn" type="button" data-menu-toggle aria-haspopup="true"
+                      aria-expanded="false" aria-label="گزینه‌های بیشتر">
+                <svg class="icon"><use href="#i-more"/></svg>
+              </button>
+              <div class="menu__panel" role="menu">
+                <button class="menu__item" type="button" role="menuitem"
+                        data-queue="1"
+                        data-src="{{ track.audio.url }}"
+                        data-title="{{ track.title }}"
+                        data-by="{{ track.creator.profile.public_name }}"
+                        data-track="{{ track.id }}"
+                        data-cover="{% if track.cover %}{{ track.cover.url }}{% endif %}">
+                  <svg class="icon"><use href="#i-queue"/></svg>افزودن به صف پخش
+                </button>
+
+                <button class="menu__item" type="button" role="menuitem"
+                        data-favorite="1" data-track="{{ track.id }}"
+                        aria-pressed="{% if is_favorited %}true{% else %}false{% endif %}">
+                  <svg class="icon"><use href="#i-bookmark"/></svg>
+                  علاقه‌مندی <span class="muted num" id="favoriteCount">({{ favorite_count }})</span>
+                </button>
+
+                {% if request.user.is_authenticated and request.user.id != track.creator_id %}
+                  <button class="menu__item" type="button" role="menuitem"
+                          data-repost="1" data-track="{{ track.id }}"
+                          aria-pressed="{% if is_reposted %}true{% else %}false{% endif %}">
+                    <svg class="icon"><use href="#i-repost"/></svg>
+                    بازنشر <span class="muted num" id="repostCount">({{ repost_count }})</span>
+                  </button>
                 {% endif %}
+
+                <button class="menu__item" type="button" role="menuitem"
+                        data-embed-open="1" data-slug="{{ track.slug }}">
+                  <svg class="icon"><use href="#i-code"/></svg>کد جاسازی
+                </button>
+
+                {% if can_download %}
+                  <a class="menu__item" role="menuitem" href="{% url 'download_track' track.id %}">
+                    <svg class="icon"><use href="#i-download"/></svg>دانلود فایل
+                  </a>
+                {% elif request.user.is_authenticated %}
+                  <a class="menu__item" role="menuitem" href="{% url 'vip' %}">
+                    <svg class="icon"><use href="#i-download"/></svg>دانلود (نیازمند VIP)
+                  </a>
+                {% endif %}
+
+                <button class="menu__item" type="button" role="menuitem"
+                        data-station="1" data-station-user="{{ track.creator.username }}"
+                        data-station-exclude="{{ track.id }}">
+                  <svg class="icon"><use href="#i-shuffle"/></svg>رادیوی این سازنده
+                </button>
               </div>
             </div>
           </div>
-        {% empty %}
-          <p class="muted small" id="commentEmptyHint">هنوز نظری ثبت نشده. اولین نفر باش.</p>
-        {% endfor %}
+        {% else %}
+          <div class="notice notice--warn">
+            <svg class="icon"><use href="#i-alert"/></svg>
+            <div>فایل صوتی این اثر در دسترس نیست.</div>
+          </div>
+        {% endif %}
       </div>
     </section>
-    {% endif %}
-  </section>
 
-  <aside class="card">
-    <h2>سازنده</h2>
-    <div class="list">
-      <div class="row">
-        <div style="min-width:0">
-          <div style="font-weight:900">
-            {{ track.creator.get_full_name|default:track.creator.username }}
-            {% if track.creator.profile.is_verified %}<span class="verified-badge" title="Creator تاییدشده">✔</span>{% endif %}
-          </div>
-          <div class="muted small">@{{ track.creator.username }}</div>
+    <!-- ============ Description ============ -->
+    {% if track.description %}
+      <section class="card mt-4">
+        <div class="card__title">درباره این اثر</div>
+        <p class="muted lh-body mb-0">{{ track.description|linebreaksbr }}</p>
+      </section>
+    {% endif %}
+
+    <!-- ============ Comments ============ -->
+    {% if track.allow_comments %}
+      <section class="card mt-4" id="comments">
+        <div class="card__title">
+          نظرات <span class="muted t-xs w-400">(<span id="commentCount" class="num">{{ comment_count }}</span>)</span>
         </div>
-        <a class="btn btn--ghost" href="/artist/{{ track.creator.username }}/">مشاهده پروفایل</a>
+
+        {% if request.user.is_authenticated %}
+          <form id="commentForm" data-comment-form="1" data-track="{{ track.id }}" class="mb-4">
+            <textarea name="body" class="input" rows="3" maxlength="1500"
+                      placeholder="نظرت را بنویس…" aria-label="متن نظر" required></textarea>
+            <div class="cluster cluster--end mt-2">
+              <button class="btn btn--primary btn--sm" type="submit">ارسال نظر</button>
+            </div>
+          </form>
+        {% else %}
+          <div class="notice mb-4">
+            <svg class="icon"><use href="#i-info"/></svg>
+            <div><a class="text-accent w-700" href="{% url 'login' %}?next={{ request.path|urlencode }}">وارد شو</a> تا بتوانی نظر بدهی.</div>
+          </div>
+        {% endif %}
+
+        <div class="list" id="commentList">
+          {% for c in comments %}
+            <div class="comment" data-comment-row="{{ c.id }}">
+              <span class="comment__avatar" aria-hidden="true"
+                    {% if c.author.profile.avatar %}style="background-image:url('{{ c.author.profile.avatar|thumbnail_url:'80x80' }}')"{% endif %}></span>
+              <div class="comment__body">
+                <a class="comment__author" href="{{ c.author.profile.profile_url }}">{{ c.author.profile.public_name }}</a>
+                <p class="comment__text">{{ c.body }}</p>
+                <div class="comment__actions">
+                  <button class="iconbtn btn--sm" type="button" data-comment-like="1" data-comment="{{ c.id }}" aria-label="پسندیدن نظر">
+                    <svg class="icon"><use href="#i-heart"/></svg>
+                    <span class="commentLikeCount num">{{ c.like_count }}</span>
+                  </button>
+                  {% if request.user.is_authenticated %}
+                    {% if c.author_id == request.user.id or request.user.is_staff %}
+                      <button class="iconbtn btn--sm iconbtn--danger" type="button"
+                              data-comment-delete="1" data-comment="{{ c.id }}"
+                              data-confirm="این نظر برای همیشه حذف می‌شود. مطمئنی؟"
+                              data-confirm-title="حذف نظر" aria-label="حذف نظر">
+                        <svg class="icon"><use href="#i-trash"/></svg>
+                      </button>
+                    {% else %}
+                      <button class="iconbtn btn--sm" type="button" data-comment-report="1" data-comment="{{ c.id }}" aria-label="گزارش نظر">
+                        <svg class="icon"><use href="#i-alert"/></svg>
+                      </button>
+                    {% endif %}
+                    {% if track.creator_id == request.user.id and c.author_id != request.user.id %}
+                      <button class="iconbtn btn--sm" type="button" data-block="1" data-username="{{ c.author.username }}"
+                              aria-label="بلاک این کاربر">
+                        <svg class="icon"><use href="#i-shield"/></svg>
+                      </button>
+                    {% endif %}
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <p class="muted t-sm" id="commentEmptyHint">هنوز نظری ثبت نشده. اولین نفر باش.</p>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+  </div>
+
+  <!-- ============ Sidebar ============ -->
+  <aside>
+    <div class="card">
+      <div class="card__title">سازنده</div>
+      <div class="creator-box">
+        <span class="creator-box__av" aria-hidden="true"
+              {% if track.creator.profile.avatar %}style="background-image:url('{{ track.creator.profile.avatar|thumbnail_url:'160x160' }}')"{% endif %}></span>
+        <div class="flex-1">
+          <a class="w-800 t-sm" href="{{ track.creator.profile.profile_url }}">
+            {{ track.creator.profile.public_name }}
+            {% if track.creator.profile.is_verified %}<svg class="icon verified-badge"><use href="#i-verified"/></svg>{% endif %}
+          </a>
+          <div class="muted t-xs num">{{ track.creator.profile.follower_count }} دنبال‌کننده</div>
+        </div>
+      </div>
+
+      <div class="cluster mt-3">
+        {% if request.user.is_authenticated and request.user.id != track.creator_id %}
+          <button class="btn btn--purple btn--sm" type="button" data-follow="1" data-creator="{{ track.creator.username }}">
+            دنبال کردن
+          </button>
+        {% endif %}
+        <a class="btn btn--ghost btn--sm" href="{{ track.creator.profile.profile_url }}">صفحه سازنده</a>
       </div>
 
       {% if track.audio %}
-        <div class="row" style="justify-content:flex-start">
-          <a class="btn btn--primary" href="#" data-station="1" data-station-user="{{ track.creator.username }}" data-station-exclude="{{ track.id }}">
-            📻 رادیوی این سازنده
-          </a>
-        </div>
+        <button class="btn btn--ghost btn--block mt-3" type="button"
+                data-station="1" data-station-user="{{ track.creator.username }}" data-station-exclude="{{ track.id }}">
+          <svg class="icon"><use href="#i-shuffle"/></svg>رادیوی این سازنده
+        </button>
       {% endif %}
     </div>
+
+    {% if more_from_creator %}
+      <div class="card mt-4" data-queue-scope>
+        <div class="card__title">آثار دیگر این سازنده</div>
+        {% for t in more_from_creator %}{% include "partials/_track_row.html" with t=t %}{% endfor %}
+      </div>
+    {% endif %}
   </aside>
 </div>
 {% endblock %}

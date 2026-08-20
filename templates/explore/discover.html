@@ -1,211 +1,123 @@
 {% extends "base.html" %}
 {% load thumbnails %}
-{% block title %}Discover • Casset{% endblock %}
+
+{% block title %}{% if request.user.is_authenticated %}کشف | کست{% else %}کست — موسیقی و پادکست فارسی، مستقیم از هنرمند{% endif %}{% endblock %}
+{% block meta_description %}کشف موسیقی، پادکست و کتاب صوتی فارسی در کست — منتشرشده مستقیم توسط خود هنرمندها، با آمار پخش قابل‌اعتماد.{% endblock %}
+{% block og_title %}کست — موسیقی و پادکست فارسی، مستقیم از هنرمند{% endblock %}
 
 {% block content %}
 {% if not request.user.is_authenticated %}
-<section class="hero-anon">
-  <div class="hero-anon__inner">
-    <h1>موزیک و پادکست فارسی، منتشرشده توسط خودشون</h1>
-    <p class="muted">
-      کاست جایی است که خواننده‌ها و پادکسترهای ایرانی مستقیم برای شنونده‌های واقعی منتشر می‌کنند —
+  <section class="hero">
+    <h1>موزیک و پادکست فارسی، <em>مستقیم از خود هنرمند</em></h1>
+    <p>
+      کست جایی است که خواننده‌ها و پادکسترهای ایرانی بدون واسطه منتشر می‌کنند —
       با آمار پخش قابل‌اعتماد، نه عددهای ساختگی.
     </p>
-    <div class="row row-wrap" style="justify-content:flex-start;gap:10px">
-      <a class="btn btn--primary" href="{% url 'register' %}">ساخت اکانت رایگان</a>
-      <a class="btn btn--ghost" href="{% url 'creator_apply' %}">می‌خوام منتشر کنم</a>
+    <div class="hero__actions">
+      <a class="btn btn--primary btn--lg" href="{% url 'register' %}">ساخت حساب رایگان</a>
+      <a class="btn btn--ghost btn--lg" href="{% url 'creator_apply' %}">
+        <svg class="icon"><use href="#i-mic"/></svg>می‌خواهم منتشر کنم
+      </a>
     </div>
-  </div>
-</section>
+  </section>
 {% endif %}
 
-<section class="card">
-  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap">
-    <div>
-      <h1 data-i18n="discover">کشف</h1>
-      <p class="muted small">ترندهای قابل پخش + پین‌های تبلیغاتی + پیشنهادات سبک شما</p>
-    </div>
+<div class="cluster cluster--between mb-4">
+  <h1 class="t-2xl w-900 mb-0">{% if request.user.is_authenticated %}کشف{% else %}تازه‌ها{% endif %}</h1>
+  <div class="cluster">
+    <a class="pill {% if selected_type == 'all' %}pill--active{% endif %}" href="{% url 'discover' %}">همه</a>
+    {% for t in enabled_types %}
+      <a class="pill {% if selected_type == t %}pill--active{% endif %}" href="{% url 'discover' %}?type={{ t }}">
+        <svg class="icon" style="width:14px;height:14px">
+          <use href="{% if t == 'music' %}#i-music{% elif t == 'podcast' %}#i-mic{% elif t == 'book' %}#i-book{% else %}#i-video{% endif %}"/>
+        </svg>
+        {% if t == 'music' %}موزیک{% elif t == 'podcast' %}پادکست{% elif t == 'book' %}کتاب صوتی{% else %}ویدیو{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</div>
 
-    <div class="chips" style="display:flex;gap:8px;flex-wrap:wrap">
-      <a class="chip {% if selected_type == 'all' %}chip--active{% endif %}" href="/discover/">همه</a>
-      {% for t in enabled_types %}
-        <a class="chip {% if selected_type == t %}chip--active{% endif %}" href="/discover/?type={{ t }}">
-          {% if t == 'music' %}موزیک{% elif t == 'podcast' %}پادکست{% elif t == 'book' %}کتاب{% else %}ویدیو{% endif %}
+{% if suggested_creators %}
+  <section>
+    <div class="section-head">
+      <h2>سازنده‌ها</h2>
+      <a class="section-head__link" href="{% url 'trending' %}">پرطرفدارها</a>
+    </div>
+    <div class="creator-strip">
+      {% for u in suggested_creators %}
+        <a class="creator-chip" href="{{ u.profile.profile_url }}">
+          <span class="creator-chip__av"
+                {% if u.profile.avatar %}style="background-image:url('{{ u.profile.avatar|thumbnail_url:'160x160' }}')"{% endif %}></span>
+          <span class="creator-chip__name">{{ u.profile.public_name }}</span>
         </a>
       {% endfor %}
     </div>
+  </section>
+{% endif %}
+
+{% if followed_feed %}
+  <section>
+    <div class="section-head">
+      <h2>تازه از کسانی که دنبال می‌کنی</h2>
+    </div>
+    <div class="tcard-grid">
+      {% for t in followed_feed %}{% include "partials/_tcard.html" with t=t %}{% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+{% if pinned %}
+  <section>
+    <div class="section-head">
+      <h2>انتخاب سردبیر</h2>
+    </div>
+    <div class="tcard-grid">
+      {% for p in pinned %}{% include "partials/_tcard.html" with t=p.track %}{% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+<section>
+  <div class="section-head">
+    <h2>پرطرفدار این هفته</h2>
+    <a class="section-head__link" href="{% url 'trending' %}">مشاهده همه</a>
   </div>
+  {% if trending_tracks %}
+    <div class="tcard-grid">
+      {% for t in trending_tracks %}{% include "partials/_tcard.html" with t=t %}{% endfor %}
+    </div>
+  {% else %}
+    <div class="empty">
+      <div class="empty__icon"><svg class="icon"><use href="#i-trend"/></svg></div>
+      <div class="empty__title">هنوز چیزی اینجا نیست</div>
+      <p class="empty__text">
+        اولین اثرهای کست همین روزها منتشر می‌شوند. اگر خودت اثری داری، تو می‌توانی اولین نفر باشی.
+      </p>
+      <a class="btn btn--primary" href="{% url 'creator_apply' %}">شروع انتشار</a>
+    </div>
+  {% endif %}
 </section>
 
-<div class="grid" style="grid-template-columns: 1.6fr 1fr; align-items:start">
-  <main class="card">
-
-    {% if followed_feed %}
-      <h2 class="mt">تازه از افرادی که دنبال می‌کنی</h2>
-      <div class="list">
-        {% for t in followed_feed %}
-          <div class="row">
-            <div style="display:flex;gap:12px;align-items:center;min-width:0">
-              <div style="width:42px;height:42px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.06);flex:0 0 auto">
-                {% if t.cover %}<img src="{{ t.cover|thumbnail_url:"300x300" }}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">{% endif %}
-              </div>
-              <div style="min-width:0">
-                <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</a>
-                <div class="muted small">@{{ t.creator.username }} • {{ t.play_count }} plays</div>
-              </div>
-            </div>
-
-            {% if t.audio %}
-              <button class="btn btn--primary" type="button"
-                data-play="1"
-                data-src="{{ t.audio.url }}"
-                data-title="{{ t.title }}"
-                data-by="@{{ t.creator.username }}"
-                data-track="{{ t.id }}"
-                data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">پخش</button>
-            {% endif %}
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-
-    {% if pinned %}
-      <h2 class="mt">پین‌شده‌ها</h2>
-      <div class="list">
-        {% for p in pinned %}
-          {% with t=p.track %}
-          <div class="row">
-            <div style="display:flex;gap:12px;align-items:center;min-width:0">
-              <div style="width:42px;height:42px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.06);flex:0 0 auto">
-                {% if t.cover %}<img src="{{ t.cover|thumbnail_url:"300x300" }}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">{% endif %}
-              </div>
-              <div style="min-width:0">
-                <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</a>
-                <div class="muted small">@{{ t.creator.username }} • {{ t.play_count }} plays</div>
-              </div>
-            </div>
-
-            {% if t.audio %}
-              <button class="btn btn--primary" type="button"
-                data-play="1"
-                data-src="{{ t.audio.url }}"
-                data-title="{{ t.title }}"
-                data-by="@{{ t.creator.username }}"
-                data-track="{{ t.id }}"
-                data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">
-                پخش
-              </button>
-            {% endif %}
-          </div>
-          {% endwith %}
-        {% endfor %}
-      </div>
-    {% endif %}
-
-    <h2 class="mt">ترند این هفته</h2>
-    <div class="list">
-      {% for t in trending_tracks %}
-        <div class="row">
-          <div style="display:flex;gap:12px;align-items:center;min-width:0">
-            <div style="width:42px;height:42px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.06);flex:0 0 auto">
-              {% if t.cover %}<img src="{{ t.cover|thumbnail_url:"300x300" }}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">{% endif %}
-            </div>
-            <div style="min-width:0">
-              <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</a>
-              <div class="muted small">@{{ t.creator.username }} • {{ t.play_count }} plays</div>
-            </div>
-          </div>
-
-          {% if t.audio %}
-            <div style="display:flex;gap:8px;align-items:center">
-              <button class="btn btn--primary" type="button"
-                data-play="1"
-                data-src="{{ t.audio.url }}"
-                data-title="{{ t.title }}"
-                data-by="@{{ t.creator.username }}"
-                data-track="{{ t.id }}"
-                data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">پخش</button>
-              <button class="btn btn--ghost" type="button" data-queue="1"
-                data-src="{{ t.audio.url }}"
-                data-title="{{ t.title }}"
-                data-by="@{{ t.creator.username }}"
-                data-track="{{ t.id }}"
-                data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">+ صف</button>
-            </div>
-          {% endif %}
-        </div>
-      {% empty %}
-        <div class="row"><span class="muted">فعلاً ترندی نداریم.</span></div>
-      {% endfor %}
+{% if recommended %}
+  <section>
+    <div class="section-head">
+      <h2>پیشنهاد برای تو</h2>
+      <span class="muted t-xs">بر اساس آخرین پخش‌ها و ژانرهایت</span>
     </div>
-
-  </main>
-
-  <aside class="card">
-    <h3>افراد پیشنهادی برای دنبال کردن</h3>
-    <div class="suggested">
-      {% for u in suggested_creators %}
-        <div class="suggest-row">
-          <a href="/@{{ u.username }}/">@{{ u.username }}</a>
-          {% if request.user.is_authenticated and request.user.id != u.id %}
-            <button class="btn btn--ghost btn--sm" data-follow="1" data-creator="{{ u.username }}">Follow</button>
-          {% endif %}
-        </div>
-      {% empty %}
-        <div class="muted small">فعلاً پیشنهادی نداریم.</div>
-      {% endfor %}
+    <div class="tcard-grid">
+      {% for t in recommended %}{% include "partials/_tcard.html" with t=t %}{% endfor %}
     </div>
+  </section>
+{% endif %}
 
-    <hr>
-
-    <h3>پیشنهاد برای شما</h3>
-    <p class="muted small">بدون ML سنگین؛ بر اساس آخرین پلی‌ها و ژانرها</p>
-    <div class="list">
-      {% for t in recommended %}
-        <div class="row">
-          <div style="min-width:0">
-            <a href="/t/{{ t.slug }}/" style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</a>
-            <div class="muted small">@{{ t.creator.username }}</div>
-          </div>
-          {% if t.audio %}
-            <button class="btn btn--ghost" type="button"
-              data-play="1"
-              data-src="{{ t.audio.url }}"
-              data-title="{{ t.title }}"
-              data-by="@{{ t.creator.username }}"
-              data-track="{{ t.id }}"
-              data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">پخش</button>
-          {% endif %}
-        </div>
-      {% endfor %}
+{% if most_viewed %}
+  <section>
+    <div class="section-head">
+      <h2>پربازدیدترین‌ها</h2>
     </div>
-
-    <hr>
-
-    <h3>پربازدیدترین‌ها</h3>
-    <div class="list">
-      {% for t in most_viewed %}
-        <div class="row">
-          <div style="min-width:0">
-            <a href="/t/{{ t.slug }}/" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</a>
-            <div class="muted small">{{ t.play_count }} plays</div>
-          </div>
-        </div>
-      {% endfor %}
+    <div class="card list" data-queue-scope>
+      {% for t in most_viewed %}{% include "partials/_track_row.html" with t=t rank=forloop.counter %}{% endfor %}
     </div>
-
-    <hr>
-
-    <div class="list">
-      <div class="row"><a class="btn btn--ghost" href="/search/">جستجو</a></div>
-      <div class="row"><a class="btn btn--ghost" href="/library/">کتابخانه</a></div>
-      <div class="row"><a class="btn btn--primary" href="/upload/">آپلود</a></div>
-    </div>
-  </aside>
-</div>
-
-<style>
-.chip{padding:8px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
-.chip--active{border-color:rgba(255,147,56,.85);box-shadow:0 0 0 2px rgba(255,147,56,.12) inset}
-</style>
+  </section>
+{% endif %}
 {% endblock %}

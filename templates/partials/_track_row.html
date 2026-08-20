@@ -1,0 +1,58 @@
+{% load thumbnails casset_urls %}
+{% comment %}
+  List row for one track: cover, title, creator, stats, actions.
+  Used by trending, library, playlists, profile lists and search results.
+
+  Expects: t (Track). Optional: rank (int), show_stats (bool, default on).
+{% endcomment %}
+<div class="track-line">
+  {% if rank %}
+    <span class="rank rank--{{ rank }}">{{ rank }}</span>
+  {% endif %}
+
+  <span class="row-cover"
+        {% if t.cover %}style="background-image:url('{{ t.cover|thumbnail_url:'160x160' }}')"{% endif %}
+        aria-hidden="true"></span>
+
+  <div class="track-line__meta">
+    <a class="track-line__title truncate" href="{% url 'track_detail' t.slug %}">{{ t.title }}</a>
+    <div class="track-line__sub truncate">
+      <a href="{{ t.creator.profile.profile_url }}">{{ t.creator.profile.public_name }}</a>
+      <span aria-hidden="true">·</span>
+      <span>{{ t.get_content_type_display }}</span>
+      {% if t.duration_seconds %}<span aria-hidden="true">·</span><span class="num">{{ t.duration_display }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="track-line__stats muted t-xs">
+    <span class="num" title="پخش">{{ t.play_count }} پخش</span>
+  </div>
+
+  <div class="track-line__actions">
+    {% if t.audio %}
+      <button class="iconbtn iconbtn--primary" type="button" aria-label="پخش {{ t.title }}"
+              data-play="1"
+              data-src="{{ t.audio.url }}"
+              data-title="{{ t.title }}"
+              data-by="{{ t.creator.profile.public_name }}"
+              data-track="{{ t.id }}"
+              data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}"
+              {% if t.waveform_peaks %}data-peaks="{{ t.waveform_peaks|jsonify }}"{% endif %}>
+        <svg class="icon"><use href="#i-play"/></svg>
+      </button>
+      <button class="iconbtn" type="button" aria-label="افزودن به صف"
+              data-queue="1"
+              data-src="{{ t.audio.url }}"
+              data-title="{{ t.title }}"
+              data-by="{{ t.creator.profile.public_name }}"
+              data-track="{{ t.id }}"
+              data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">
+        <svg class="icon"><use href="#i-queue"/></svg>
+      </button>
+      <button class="iconbtn" type="button" aria-label="افزودن به پلی‌لیست"
+              data-pl-open="1" data-track="{{ t.id }}" data-title="{{ t.title }}">
+        <svg class="icon"><use href="#i-plus"/></svg>
+      </button>
+    {% endif %}
+  </div>
+</div>

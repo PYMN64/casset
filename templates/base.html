@@ -38,9 +38,13 @@
   <meta name="apple-mobile-web-app-title" content="کست">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  {% comment %}
+    Vazirmatn is self-hosted (static/css/fonts.css). Preloading only the
+    Arabic subset: it is the one every page of a Persian site needs, and
+    preloading all three would compete with the CSS for bandwidth.
+  {% endcomment %}
+  <link rel="preload" href="{% static 'fonts/vazirmatn-arabic.woff2' %}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{% static 'css/fonts.css' %}" />
 
   {# Load order matters: app.css owns the tokens + base layer, casset-ui.css
      the component layer built on them, cassette.css the player identity. #}

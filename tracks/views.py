@@ -6,6 +6,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_POST
 
 from accounts.models import UserProfile
+from core.structured_data import build_track_jsonld
 
 from .forms import AlbumForm
 from .models import Album, Genre, Track
@@ -75,14 +76,29 @@ def track_detail(request, slug):
 
     is_favorited = False
     is_reposted = False
+    is_liked = False
     can_download = False
     if request.user.is_authenticated:
         is_favorited = track.favorited_by.filter(user=request.user).exists()
         is_reposted = track.reposts.filter(user=request.user).exists()
+        is_liked = track.likes.filter(user=request.user).exists()
         # Regression fix: this context key was referenced by the template's
         # {% if can_download %} but never set, so the download button (and
         # the whole point of the VIP download_track view) never rendered.
         can_download = bool(track.audio) and request.user.profile.has_vip()
+
+    # Sidebar: keep the listener on this creator instead of dead-ending the
+    # page. Same visibility filter the profile page uses.
+    more_from_creator = list(
+        Track.objects.filter(
+            creator_id=track.creator_id,
+            status=Track.Status.APPROVED,
+            visibility=Track.Visibility.PUBLIC,
+        )
+        .exclude(pk=track.pk)
+        .select_related("creator__profile")
+        .order_by("-play_count")[:5]
+    )
 
     return render(request, "tracks/track_detail.html", {
         "track": track,
@@ -92,7 +108,10 @@ def track_detail(request, slug):
         "is_favorited": is_favorited,
         "repost_count": track.reposts.count(),
         "is_reposted": is_reposted,
+        "is_liked": is_liked,
         "can_download": can_download,
+        "more_from_creator": more_from_creator,
+        "jsonld": build_track_jsonld(request, track),
     })
 
 

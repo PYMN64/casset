@@ -129,6 +129,23 @@ class Track(models.Model):
     def audio_src(self):
         return self.audio.url if self.audio else ""
 
+    @property
+    def duration_display(self) -> str:
+        """m:ss, or h:mm:ss for anything past an hour.
+
+        Formatted here rather than in each template so an audiobook chapter
+        and a three-minute song read the same way everywhere, and so the
+        zero case renders as an em dash instead of a misleading "0:00".
+        """
+        total = int(self.duration_seconds or 0)
+        if total <= 0:
+            return "—"
+        hours, remainder = divmod(total, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes}:{seconds:02d}"
+
 
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
     reject_reason = models.CharField(max_length=240, blank=True)

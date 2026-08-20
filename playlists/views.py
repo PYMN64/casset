@@ -13,11 +13,27 @@ from .models import Playlist, PlaylistItem
 
 @login_required
 def library_view(request):
-    playlists = (
+    playlists = list(
         Playlist.objects.filter(owner=request.user)
         .annotate(item_count=Count("items"))
         .order_by("-created_at")
     )
+
+    # Cover artwork per playlist: the artwork of its first item. Fetched in
+    # one query for the whole page rather than one per playlist — a library
+    # with 30 playlists would otherwise fire 30 extra queries just to draw
+    # thumbnails.
+    if playlists:
+        first_items = (
+            PlaylistItem.objects.filter(playlist__in=playlists)
+            .select_related("track")
+            .order_by("playlist_id", "order", "-created_at")
+        )
+        cover_by_playlist = {}
+        for item in first_items:
+            cover_by_playlist.setdefault(item.playlist_id, item.track)
+        for pl in playlists:
+            pl.cover_track = cover_by_playlist.get(pl.id)
 
     liked_track_ids = (
         TrackLike.objects.filter(user=request.user)
@@ -26,13 +42,14 @@ def library_view(request):
     )
     liked_tracks = (
         Track.objects.filter(id__in=list(liked_track_ids), status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC)
-        .select_related("creator")
+        .select_related("creator", "creator__profile")
         .prefetch_related("genres")
     )
 
     return render(request, "library/library.html", {
         "playlists": playlists,
         "liked_tracks": liked_tracks,
+        "nav_active": "library",
     })
 
 
@@ -47,11 +64,20 @@ def playlist_detail(request, playlist_id: int):
         raise Http404
     items = (
         PlaylistItem.objects.filter(playlist=pl)
-        .select_related("track", "track__creator")
+        .select_related("track", "track__creator", "track__creator__profile")
         .prefetch_related("track__genres")
         .order_by("order", "-created_at")
     )
-    return render(request, "playlists/playlist_detail.html", {"pl": pl, "items": items, "is_owner": is_owner})
+    items = list(items)
+    total_seconds = sum((it.track.duration_seconds or 0) for it in items)
+    return render(request, "playlists/playlist_detail.html", {
+        "pl": pl,
+        "items": items,
+        "is_owner": is_owner,
+        "total_seconds": total_seconds,
+        "total_minutes": total_seconds // 60,
+        "nav_active": "library",
+    })
 
 
 @require_POST

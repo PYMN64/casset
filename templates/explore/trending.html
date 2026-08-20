@@ -1,46 +1,44 @@
 {% extends "base.html" %}
-{% load thumbnails %}
-{% block title %}Trending • Casset{% endblock %}
+{% block title %}پرطرفدارهای کست{% endblock %}
+{% block meta_description %}پرپخش‌ترین موسیقی، پادکست و کتاب صوتی فارسی این هفته در کست.{% endblock %}
+{% block og_title %}پرطرفدارهای کست{% endblock %}
+
 {% block content %}
-<div class="grid">
-  <section class="card">
-    <h1>Trending</h1>
-    <p class="muted small">پر پخش‌ترین‌ها در بازه اخیر</p>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>پرطرفدارها</h1>
+    <p>پرپخش‌ترین آثار در بازه‌ی اخیر — بر اساس پخش معتبر، نه بازدید صفحه.</p>
+  </div>
+  <div class="cluster">
+    <a class="pill {% if not selected_type or selected_type == 'all' %}pill--active{% endif %}" href="{% url 'trending' %}">همه</a>
+    {% for t in enabled_types %}
+      <a class="pill {% if selected_type == t %}pill--active{% endif %}" href="{% url 'trending' %}?type={{ t }}">
+        {% if t == 'music' %}موزیک{% elif t == 'podcast' %}پادکست{% elif t == 'book' %}کتاب صوتی{% else %}ویدیو{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</div>
 
-    <div class="list">
-      {% for t in tracks %}
-        <div class="row">
-          <div style="display:flex;gap:12px;align-items:center;min-width:0">
-          <div class="row-cover" style="{% if t.cover %}background-image:url('{{ t.cover|thumbnail_url:"120x120" }}');{% endif %}"></div>
-          <div style="min-width:0">
-            <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              {{ forloop.counter }}. {{ t.title }}
-            </a>
-            <div class="muted small">@{{ t.creator.username }} • {{ t.play_count }} plays</div>
-          </div>
-          </div>
-
-          {% if t.audio %}
-            <a class="btn btn--primary" href="#"
-               data-play="1"
-               data-src="{{ t.audio.url }}"
-               data-title="{{ t.title }}"
-               data-by="@{{ t.creator.username }}"
-               data-track="{{ t.id }}"
-               data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">
-               Play
-            </a>
-          {% endif %}
-        </div>
-      {% empty %}
-        <div class="row"><span class="muted">Trending خالیه.</span></div>
-      {% endfor %}
-    </div>
+{% if tracks %}
+  <section class="card list" data-queue-scope>
+    {% for t in tracks %}{% include "partials/_track_row.html" with t=t rank=forloop.counter %}{% endfor %}
   </section>
 
-  <aside class="card">
-    <h2>Tips</h2>
-    <p class="muted small">پخش بعد از 59 ثانیه ثبت می‌شود.</p>
-  </aside>
-</div>
+  <div class="notice mt-4">
+    <svg class="icon"><use href="#i-shield"/></svg>
+    <div>
+      رتبه‌بندی بر پایه‌ی <b>پخش معتبر</b> است: پخشی که سمت سرور تایید شده باشد.
+      همین است که این فهرست را قابل‌اعتماد نگه می‌دارد.
+    </div>
+  </div>
+{% else %}
+  <div class="empty">
+    <div class="empty__icon"><svg class="icon"><use href="#i-trend"/></svg></div>
+    <div class="empty__title">هنوز رتبه‌بندی نداریم</div>
+    <p class="empty__text">
+      وقتی آثار بیشتری پخش شوند، پرطرفدارهای هفته اینجا ظاهر می‌شوند.
+    </p>
+    <a class="btn btn--primary" href="{% url 'discover' %}">کشف آثار تازه</a>
+  </div>
+{% endif %}
 {% endblock %}

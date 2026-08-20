@@ -20,6 +20,48 @@ User = get_user_model()
 _MAX_RESULTS = 10
 
 
+def search_track_queryset(query: str, *, content_type: str = "all", limit: int = 40):
+    """Full-text search returning real Track objects.
+
+    Separate from `search_tracks` on purpose: that one returns `.values()`
+    dicts shaped for the JSON autocomplete API and must keep doing so,
+    while the search *page* renders the same card partials as the rest of
+    the site and therefore needs model instances.
+
+    Same Postgres/SQLite branch as the rest of this module — see the module
+    docstring for why the backend check lives at query time.
+    """
+    base = Track.objects.filter(
+        status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
+    ).select_related("creator", "creator__profile")
+
+    if content_type == "book":
+        base = base.filter(content_type__in=["book", "audiobook"])
+    elif content_type and content_type != "all":
+        base = base.filter(content_type=content_type)
+
+    if not query:
+        return base.none()
+
+    if connection.vendor == "postgresql":
+        from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
+
+        vector = SearchVector("title", weight="A") + SearchVector("description", weight="B")
+        search_query = SearchQuery(query)
+        return (
+            base.annotate(rank=SearchRank(vector, search_query))
+            .filter(rank__gt=0)
+            .order_by("-rank", "-play_count")[:limit]
+        )
+
+    from django.db.models import Q
+
+    return (
+        base.filter(Q(title__icontains=query) | Q(description__icontains=query))
+        .order_by("-play_count")[:limit]
+    )
+
+
 def search_tracks(query: str):
     base = Track.objects.filter(
         status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,

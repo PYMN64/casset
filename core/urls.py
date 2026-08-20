@@ -17,6 +17,9 @@ urlpatterns = [
     # Legal pages. Required by the sign-up consent checkbox and by every
     # payment provider's onboarding review, so they are real routes rather
     # than links to nowhere.
+    # Served from the service-worker cache when the network is gone
+    # (static/sw.js falls back to this for any navigation it cannot fetch).
+    path("offline/", TemplateView.as_view(template_name="core/offline.html"), name="offline"),
     path("terms/", TemplateView.as_view(template_name="legal/terms.html"), name="terms"),
     path("privacy/", TemplateView.as_view(template_name="legal/privacy.html"), name="privacy"),
 ]

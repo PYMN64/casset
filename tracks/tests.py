@@ -269,9 +269,13 @@ class TrackDetailOpenGraphTests(TestCase):
         self.assertContains(resp, 'property="og:description"')
         self.assertContains(resp, "توضیحات ترک")
 
-    def test_no_og_image_without_cover(self):
+    def test_og_image_falls_back_to_site_card_without_cover(self):
+        """A track with no artwork still shares with the branded default
+        card. A link preview with no image at all reads as broken, which
+        is worse than a generic one."""
         resp = self.client.get(reverse("track_detail", args=[self.track.slug]))
-        self.assertNotContains(resp, 'property="og:image"')
+        self.assertContains(resp, 'property="og:image"')
+        self.assertContains(resp, "og-default.png")
 
     def test_og_image_present_with_cover(self):
         self.track.cover = _make_image_file()

@@ -45,7 +45,8 @@ class LibraryViewTests(TestCase):
         resp = self.client.get(reverse("library"))
         found = [p for p in resp.context["playlists"] if p.id == pl.id][0]
         self.assertEqual(found.item_count, 1)
-        self.assertContains(resp, "1 ترک")
+        # The count must actually reach the page, not just the context.
+        self.assertContains(resp, "1 اثر")
 
     def test_only_shows_own_playlists(self):
         other = make_user("lib_other")

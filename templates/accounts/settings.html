@@ -1,102 +1,243 @@
 {% extends "base.html" %}
-{% block title %}Settings • Casset{% endblock %}
+{% load thumbnails %}
+{% block title %}تنظیمات حساب | کست{% endblock %}
+
 {% block content %}
-<div class="grid">
-  <section class="card">
-    <h1 data-i18n="settings">تنظیمات</h1>
-    <p class="muted small">پروفایل، عکس‌ها و بیو</p>
+<div class="page-head">
+  <h1>تنظیمات حساب</h1>
+  <p>پروفایل عمومی، اعلان‌ها، امنیت و حساب.</p>
+</div>
 
-    <form method="post" enctype="multipart/form-data" class="stack gap-2">
-      {% csrf_token %}
-      <div class="row row-top" style="gap:12px;flex-wrap:wrap">
-        <div style="min-width:240px;flex:1">
-          <div class="muted small">نام</div>
-          {{ form.first_name }}
-        </div>
-        <div style="min-width:240px;flex:1">
-          <div class="muted small">نام خانوادگی</div>
-          {{ form.last_name }}
-        </div>
+<div class="tabs" data-tab-group>
+  <button class="tabs__tab tabs__tab--active" type="button" data-tab="profile" aria-selected="true">پروفایل عمومی</button>
+  <button class="tabs__tab" type="button" data-tab="notifications" aria-selected="false">اعلان‌ها</button>
+  <button class="tabs__tab" type="button" data-tab="security" aria-selected="false">امنیت</button>
+  <button class="tabs__tab" type="button" data-tab="danger" aria-selected="false">منطقه خطر</button>
+</div>
+
+<!-- ================= Public profile ================= -->
+<section data-tab-panel="profile">
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="section" value="profile">
+
+    <div class="card">
+      <div class="card__title">هویت</div>
+      <div class="grid-3">
+        {% include "partials/_field.html" with field=form.first_name %}
+        {% include "partials/_field.html" with field=form.last_name %}
+        {% include "partials/_field.html" with field=form.display_name hint="نامی که روی آثارت دیده می‌شود" %}
       </div>
+      {% include "partials/_field.html" with field=form.email %}
+      {% include "partials/_field.html" with field=form.bio hint="حداکثر ۱۶۰ کاراکتر" %}
+    </div>
 
-
-      <div class="row row-top" style="gap:12px;flex-wrap:wrap">
-        <div style="min-width:240px;flex:1">
-          <div class="muted small">نام نمایشی</div>
-          {{ form.display_name }}
-        </div>
-        <div style="min-width:240px;flex:1">
-          <div class="muted small">ایمیل</div>
-          {{ form.email }}
-        </div>
-      </div>
-
-      <div class="row row-top">
-        <div style="min-width:0;flex:1">
-          <div class="muted small">Avatar</div>
+    <div class="card mt-4">
+      <div class="card__title">تصاویر</div>
+      <p class="card__sub">تصویر پروفایل مربع و کاور افقی بهترین نتیجه را می‌دهد.</p>
+      <div class="grid-3">
+        <div>
+          <div class="form-field__label">تصویر پروفایل</div>
+          <div class="avatar-preview cover-preview--visible" data-preview-for="{{ form.avatar.id_for_label }}"
+               {% if profile.avatar %}style="background-image:url('{{ profile.avatar|thumbnail_url:'240x240' }}')"{% endif %}></div>
           {{ form.avatar }}
-          <div class="muted small" style="margin-top:6px">پیشنهاد: مربع، حداقل 400×400</div>
+          <div class="form-field__hint">مربع، حداقل ۴۰۰×۴۰۰ پیکسل</div>
+          {% if form.avatar.errors %}<div class="form-field__error">{{ form.avatar.errors }}</div>{% endif %}
         </div>
-
-        <div style="min-width:0;flex:1">
-          <div class="muted small">Cover</div>
+        <div>
+          <div class="form-field__label">کاور صفحه</div>
+          <div class="cover-preview cover-preview--wide cover-preview--visible" data-preview-for="{{ form.cover.id_for_label }}"
+               {% if profile.cover %}style="background-image:url('{{ profile.cover|thumbnail_url:'800x340' }}')"{% endif %}></div>
           {{ form.cover }}
-          <div class="muted small" style="margin-top:6px">پیشنهاد: 1200×500</div>
+          <div class="form-field__hint">افقی، پیشنهادی ۱۲۰۰×۵۰۰ پیکسل</div>
+          {% if form.cover.errors %}<div class="form-field__error">{{ form.cover.errors }}</div>{% endif %}
         </div>
-      </div>
-
-      <div>
-        <div class="muted small">Bio</div>
-        {{ form.bio }}
-      </div>
-
-      <hr>
-      <h2 style="margin:0">لینک‌ها</h2>
-      <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
-        <div>
-          <div class="muted small">وبسایت</div>
-          {{ form.website_url }}
-        </div>
-        <div>
-          <div class="muted small">اینستاگرام</div>
-          {{ form.instagram_url }}
-        </div>
-        <div>
-          <div class="muted small">تلگرام</div>
-          {{ form.telegram_url }}
-        </div>
-        <div>
-          <div class="muted small">یوتیوب</div>
-          {{ form.youtube_url }}
-        </div>
-        <div>
-          <div class="muted small">توییتر / X</div>
-          {{ form.twitter_url }}
-        </div>
-      </div>
-
-      <div class="row" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
-        <button class="btn btn--primary" type="submit">Save</button>
-        <a class="btn btn--ghost" href="{% if profile.public_handle %}/{{ profile.public_handle }}/{% else %}/@{{ request.user.username }}/{% endif %}">View profile</a>
-      </div>
-    </form>
-  </section>
-
-  <aside class="card">
-    <h2>Stats</h2>
-    <div class="list">
-      <div class="row">
-        <span class="muted">Points</span>
-        <span style="font-weight:900">{{ profile.points }}</span>
-      </div>
-      <div class="row">
-        <span class="muted">Followers</span>
-        <span style="font-weight:900">{{ profile.follower_count }}</span>
       </div>
     </div>
-    <p class="muted small" style="margin-top:10px">
-      Points فعلاً پایه است؛ در milestone بعدی رتبه/Level و Badge اضافه می‌کنیم.
+
+    <div class="card mt-4">
+      <div class="card__title">شبکه‌های اجتماعی</div>
+      <div class="grid-3">
+        {% include "partials/_field.html" with field=form.website_url %}
+        {% include "partials/_field.html" with field=form.instagram_url %}
+        {% include "partials/_field.html" with field=form.telegram_url %}
+        {% include "partials/_field.html" with field=form.youtube_url %}
+        {% include "partials/_field.html" with field=form.twitter_url %}
+      </div>
+    </div>
+
+    <div class="cluster cluster--start mt-4">
+      <button class="btn btn--primary" type="submit">ذخیره تغییرات</button>
+      <a class="btn btn--ghost" href="{{ profile.profile_url }}">مشاهده پروفایل عمومی</a>
+    </div>
+  </form>
+</section>
+
+<!-- ================= Notifications ================= -->
+<section data-tab-panel="notifications" class="hidden" id="notifications">
+  <form method="post" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="section" value="notifications">
+
+    <div class="card">
+      <div class="card__title">چه اعلان‌هایی دریافت کنم؟</div>
+      <p class="card__sub">
+        خاموش‌کردن هر گزینه، اعلان را واقعاً متوقف می‌کند — فقط مخفی نمی‌شود.
+      </p>
+
+      {% for row in notif_form.rows %}
+        <div class="setting-row">
+          <div class="setting-row__text">
+            <b>{{ row.label }}</b>
+            <span>{{ row.hint }}</span>
+          </div>
+          <label class="switch" aria-label="{{ row.label }}">
+            <input type="checkbox" name="{{ row.field.name }}" {% if row.field.value %}checked{% endif %}>
+            <span class="switch__knob" aria-hidden="true"></span>
+          </label>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="notice mt-4">
+      <svg class="icon"><use href="#i-info"/></svg>
+      <div>
+        اعلان‌های تایید یا رد اثر همیشه ارسال می‌شوند — این‌ها نتیجه‌ی بررسی هستند،
+        نه اعلان اجتماعی.
+      </div>
+    </div>
+
+    <div class="cluster cluster--start mt-4">
+      <button class="btn btn--primary" type="submit">ذخیره تنظیمات اعلان</button>
+    </div>
+  </form>
+</section>
+
+<!-- ================= Security ================= -->
+<section data-tab-panel="security" class="hidden">
+  <div class="card">
+    <div class="card__title">روش‌های ورود</div>
+
+    <div class="setting-row">
+      <div class="setting-row__text">
+        <b>شماره موبایل</b>
+        <span>
+          {% if profile.phone_verified %}
+            تایید شده — <span dir="ltr" class="num">{{ profile.phone_number }}</span>
+          {% else %}
+            تایید نشده. برای انتشار اثر لازم است.
+          {% endif %}
+        </span>
+      </div>
+      {% if profile.phone_verified %}
+        <span class="status status--good"><svg class="icon" style="width:13px;height:13px"><use href="#i-check"/></svg>تایید شده</span>
+      {% else %}
+        <a class="btn btn--primary btn--sm" href="{% url 'account_phone_start' %}">تایید شماره</a>
+      {% endif %}
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-row__text">
+        <b>ایمیل</b>
+        <span>{{ request.user.email|default:"ثبت نشده" }}</span>
+      </div>
+      {% if profile.email_verified %}
+        <span class="status status--good">تایید شده</span>
+      {% else %}
+        <span class="status status--muted">تایید نشده</span>
+      {% endif %}
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-row__text">
+        <b>رمز عبور</b>
+        <span>
+          {% if has_usable_password %}
+            آخرین تغییر از طریق همین بخش انجام می‌شود.
+          {% else %}
+            این حساب با {% if profile.auth_provider == "google" %}گوگل{% else %}پیامک{% endif %} ساخته شده و رمز عبور ندارد.
+          {% endif %}
+        </span>
+      </div>
+      {% if has_usable_password %}
+        <a class="btn btn--ghost btn--sm" href="{% url 'password_change' %}">تغییر رمز</a>
+      {% else %}
+        <a class="btn btn--ghost btn--sm" href="{% url 'password_reset' %}">تعیین رمز</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card mt-4">
+    <div class="card__title">انتشاردهنده</div>
+    <div class="setting-row">
+      <div class="setting-row__text">
+        <b>یوزرنیم عمومی</b>
+        <span>
+          {% if profile.public_handle %}
+            <span dir="ltr">casset.ir/{{ profile.public_handle }}</span> — قابل تغییر نیست
+          {% else %}
+            هنوز انتخاب نشده
+          {% endif %}
+        </span>
+      </div>
+      {% if not profile.public_handle %}
+        <a class="btn btn--ghost btn--sm" href="{% url 'creator_apply' %}">انتخاب یوزرنیم</a>
+      {% endif %}
+    </div>
+    <div class="setting-row">
+      <div class="setting-row__text">
+        <b>وضعیت انتشار</b>
+        <span>
+          {% if profile.can_publish %}می‌توانی اثر منتشر کنی.{% else %}هنوز شرایط انتشار کامل نیست.{% endif %}
+        </span>
+      </div>
+      {% if profile.can_publish %}
+        <span class="status status--good">فعال</span>
+      {% else %}
+        <a class="btn btn--ghost btn--sm" href="{% url 'creator_apply' %}">تکمیل</a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- ================= Danger zone ================= -->
+<section data-tab-panel="danger" class="hidden" id="danger">
+  <div class="card card--danger">
+    <div class="card__title">غیرفعال‌سازی حساب</div>
+    <p class="muted t-sm lh-body">
+      با غیرفعال‌سازی، همه‌ی آثارت از نمایش عمومی خارج می‌شوند و امکان ورود
+      نخواهی داشت. سوابق مالی و حسابرسی طبق قانون نگهداری می‌شوند و حذف
+      نمی‌شوند — این عمل حذف کامل داده نیست.
     </p>
-  </aside>
-</div>
+
+    <form method="post" action="{% url 'deactivate_account' %}" class="mt-4">
+      {% csrf_token %}
+      <div class="form-field">
+        <label class="form-field__label" for="confirmUsername">
+          برای تایید، نام کاربری خودت را دقیقاً بنویس:
+          <b dir="ltr">{{ profile.public_handle|default:request.user.username }}</b>
+        </label>
+        <input type="text" id="confirmUsername" name="confirm" dir="ltr" autocomplete="off" required>
+      </div>
+      <button class="btn btn--danger" type="submit"
+              data-confirm="حساب تو غیرفعال می‌شود و آثارت از دید عموم خارج می‌شوند. برای بازگشت باید با پشتیبانی تماس بگیری."
+              data-confirm-title="غیرفعال‌سازی حساب">
+        <svg class="icon"><use href="#i-alert"/></svg>غیرفعال‌سازی حساب من
+      </button>
+    </form>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Open the tab named in the URL fragment, so a redirect back to
+   #notifications after saving lands the user where they were. */
+(function () {
+  var hash = (window.location.hash || "").replace("#", "");
+  if (!hash) return;
+  var tab = document.querySelector('[data-tab="' + hash + '"]');
+  if (tab) tab.click();
+})();
+</script>
 {% endblock %}

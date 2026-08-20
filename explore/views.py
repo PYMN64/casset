@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
@@ -191,7 +191,43 @@ def discover_view(request):
 
 
 def search_view(request):
-    return render(request, "explore/search.html")
+    """Server-rendered results.
+
+    The page used to render nothing at all server-side and rely entirely on
+    a JS fetch, which meant no result was ever in the HTML — bad for a
+    slow connection and invisible to anything without JavaScript. The live
+    JS layer still enhances it; this is the floor beneath it.
+    """
+    setting = PlatformSetting.get_solo()
+    enabled_types = [
+        t for t in ["music", "podcast", "book", "video"]
+        if setting.is_content_type_enabled(t)
+    ]
+    selected_type = (request.GET.get("type") or "all").lower()
+    if selected_type not in ["all"] + enabled_types:
+        selected_type = "all"
+
+    query = (request.GET.get("q") or "").strip()
+    tracks, creators = [], []
+    if query:
+        tracks = list(services.search_track_queryset(query, content_type=selected_type))
+        creators = list(
+            User.objects.filter(
+                profile__public_handle__isnull=False, is_active=True,
+            ).filter(
+                Q(profile__display_name__icontains=query)
+                | Q(profile__public_handle__icontains=query)
+            ).select_related("profile")[:8]
+        )
+
+    return render(request, "explore/search.html", {
+        "query": query,
+        "tracks": tracks,
+        "creators": creators,
+        "enabled_types": enabled_types,
+        "selected_type": selected_type,
+        "nav_active": "search",
+    })
 
 
 @require_GET
@@ -239,6 +275,18 @@ def api_station(request, username):
 
 def trending_view(request):
     since = (date.today() - timedelta(days=7)).isoformat()
+    setting = PlatformSetting.get_solo()
+
+    # Content-type filter, matching discover_view. This page previously had
+    # none at all, so a podcast listener had to scroll past every song to
+    # find the chart that applied to them.
+    enabled_types = [
+        t for t in ["music", "podcast", "book", "video"]
+        if setting.is_content_type_enabled(t)
+    ]
+    selected_type = (request.GET.get("type") or "all").lower()
+    if selected_type not in ["all"] + enabled_types:
+        selected_type = "all"
 
     # Same qualified-plays basis as discover_view — see the comment there.
     trending_ids = (
@@ -250,10 +298,27 @@ def trending_view(request):
     trending_map = {row["track_id"]: row["c"] for row in trending_ids}
 
     tracks_qs = (
-        Track.objects.filter(id__in=list(trending_map.keys()), status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC)
-        .select_related("creator")
+        Track.objects.filter(
+            id__in=list(trending_map.keys()),
+            status=Track.Status.APPROVED,
+            visibility=Track.Visibility.PUBLIC,
+        )
+        .select_related("creator", "creator__profile")
         .prefetch_related("genres")
     )
+    if selected_type == "book":
+        tracks_qs = tracks_qs.filter(content_type__in=["book", "audiobook"])
+    elif selected_type != "all":
+        tracks_qs = tracks_qs.filter(content_type=selected_type)
+
     trending_tracks = sorted(tracks_qs, key=lambda t: trending_map.get(t.id, 0), reverse=True)
 
-    return render(request, "explore/trending.html", {"trending_tracks": trending_tracks})
+    return render(request, "explore/trending.html", {
+        # `tracks` is the name the template (and _track_row.html) uses;
+        # `trending_tracks` is kept for any caller that still expects it.
+        "tracks": trending_tracks,
+        "trending_tracks": trending_tracks,
+        "enabled_types": enabled_types,
+        "selected_type": selected_type,
+        "nav_active": "trending",
+    })

@@ -988,6 +988,7 @@ def dashboard_view(request):
         created_at__date__lt=since_date,
     ).count()
     cur_plays = sum(plays_series)
+    delta_pct = _pct_delta(cur_plays, prev_plays)
 
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
@@ -1006,12 +1007,27 @@ def dashboard_view(request):
             "chart_plays": plays_series,
             "chart_points": points_series,
             "plays_30d": cur_plays,
-            "plays_delta_pct": _pct_delta(cur_plays, prev_plays),
+            "plays_delta_pct": delta_pct,
+            # A direction string, not a None check: Django's template `if`
+            # has no usable None literal, so the comparison has to happen
+            # here where it can be expressed correctly.
+            "plays_delta_dir": _delta_direction(delta_pct),
             "followers": profile.follower_count,
             "track_count": Track.objects.filter(creator=request.user).count(),
             "nav_active": "dashboard",
         },
     )
+
+
+def _delta_direction(pct):
+    """"up" / "down" / "flat", or "" when there is no comparable period."""
+    if pct is None:
+        return ""
+    if pct > 0:
+        return "up"
+    if pct < 0:
+        return "down"
+    return "flat"
 
 
 def _pct_delta(current: int, previous: int):
