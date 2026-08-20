@@ -246,8 +246,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ---------------------------------------------------------------------------
 
 LOGIN_URL = "login"
-LOGIN_REDIRECT_URL = "track_list"
-LOGOUT_REDIRECT_URL = "track_list"
+# Discover, not the flat track list: signing in should land a listener on
+# the page the product is actually built around.
+LOGIN_REDIRECT_URL = "discover"
+LOGOUT_REDIRECT_URL = "discover"
 
 # ---------------------------------------------------------------------------
 # Cache — Redis if available, in-memory fallback
