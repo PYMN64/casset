@@ -1,123 +1,201 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Upload • Casset{% endblock %}
+{% block title %}آپلود اثر جدید | کست{% endblock %}
+
 {% block content %}
-<div class="grid">
-  <section class="card">
-    <h1 data-i18n="upload">آپلود</h1>
-    <p class="muted small">
-      نوع محتوا را انتخاب کن. (سقف رایگان: {{ setting.free_upload_minutes }} دقیقه)
-    </p>
-
-    {% if form.non_field_errors %}
-      <div class="alert">{{ form.non_field_errors }}</div>
-    {% endif %}
-
-    <form method="post" enctype="multipart/form-data" class="stack gap-2" id="uploadForm">
-      {% csrf_token %}
-
-      <label class="muted small">Content type</label>
-      {{ form.content_type }}
-
-      <label class="muted small">Title</label>
-      {{ form.title }}
-
-      <label class="muted small">Description</label>
-      {{ form.description }}
-
-      <div class="row row-wrap">
-        <div style="min-width:180px">
-          <label class="muted small">Language (optional)</label>
-          {{ form.language }}
-        </div>
-        <div style="min-width:180px">
-          <label class="muted small">Explicit</label>
-          {{ form.explicit }}
-        </div>
-        <div style="min-width:200px">
-          <label class="muted small">Visibility</label>
-          {{ form.visibility }}
-        </div>
-      </div>
-
-      <label class="muted small">Album (optional)</label>
-      {{ form.album }}
-
-      <label class="muted small">Genres</label>
-      {{ form.genres }}
-
-      <label class="muted small">Tags</label>
-      {{ form.tags_text }}
-
-      <div class="row row-wrap">
-        <div style="min-width:180px">
-          <label class="muted small">Duration (minutes)</label>
-          {{ form.duration_minutes }}
-          <div class="muted small">فایل صوتی را انتخاب کن تا مدت‌زمان خودکار شناسایی شود؛ در صورت نیاز دستی ویرایش کن.</div>
-        </div>
-        <div style="min-width:180px">
-          <label class="muted small">Allow comments</label>
-          {{ form.allow_comments }}
-        </div>
-      </div>
-
-      <div id="audioBox">
-        <label class="muted small">Audio file</label>
-        {{ form.audio }}
-        {% if form.audio.errors %}<div class="err">{{ form.audio.errors }}</div>{% endif %}
-      </div>
-
-      <div id="videoBox" style="display:none">
-        <label class="muted small">Video file</label>
-        {{ form.video }}
-        {% if form.video.errors %}<div class="err">{{ form.video.errors }}</div>{% endif %}
-      </div>
-
-      <label class="muted small">Cover</label>
-      {{ form.cover }}
-      {% if form.cover.errors %}<div class="err">{{ form.cover.errors }}</div>{% endif %}
-
-      <div class="row row-wrap">
-        <button class="btn btn--primary" type="submit" id="uploadSubmitBtn">ذخیره پیش‌نویس</button>
-        <a class="btn btn--ghost" href="/my/tracks/">My Tracks</a>
-      </div>
-      <div id="uploadProgress" class="muted small" style="display:none;margin-top:10px">
-        <div class="upload-progress-track"><div id="uploadProgressBar" class="upload-progress-bar"></div></div>
-        <div id="uploadProgressLabel">در حال آپلود…</div>
-      </div>
-    </form>
-  </section>
-
-  <aside class="card">
-    <h2>Note</h2>
-    <ul class="muted small">
-      <li>بعد از ذخیره، محتوا به‌صورت پیش‌نویس ذخیره می‌شود. از صفحه «ترک‌های من» آن را برای بررسی ارسال کن.</li>
-      <li>برای پخش و امتیازدهی، کاربران باید وارد حساب شوند.</li>
-      <li>امتیاز سازنده وقتی ثبت می‌شود که شنونده حداقل {{ setting.playback_point_percent }}٪ از محتوا را پخش کند.</li>
-    </ul>
-  </aside>
+<div class="page-head">
+  <h1>آپلود اثر جدید</h1>
+  <p>ابتدا پیش‌نویس ذخیره می‌شود؛ انتشار بعد از بررسی انجام می‌گیرد.</p>
 </div>
 
+{% if not request.user.profile.can_publish %}
+  <div class="notice notice--warn mb-4">
+    <svg class="icon"><use href="#i-alert"/></svg>
+    <div>
+      <b>هنوز نمی‌توانی منتشر کنی.</b>
+      می‌توانی همین حالا پیش‌نویس بسازی، ولی برای ارسال به بررسی باید شماره موبایلت را
+      تایید کنی و یک یوزرنیم عمومی انتخاب کنی.
+      <div class="mt-2"><a class="btn btn--primary btn--sm" href="{% url 'creator_apply' %}">تکمیل مراحل انتشار</a></div>
+    </div>
+  </div>
+{% endif %}
+
+{% if form.non_field_errors %}
+  <div class="notice notice--bad mb-4" role="alert">
+    <svg class="icon"><use href="#i-alert"/></svg>
+    <div>{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
+  </div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" id="uploadForm" novalidate>
+  {% csrf_token %}
+
+  <div class="grid-2">
+    <div>
+      <!-- ============ 1. Type ============ -->
+      <section class="card upload-step">
+        <div class="upload-step__head">
+          <span class="upload-step__num">۱</span>
+          <div>
+            <div class="card__title mb-0">نوع محتوا</div>
+            <span class="muted t-xs">تعیین می‌کند اثرت کجای کست دیده شود.</span>
+          </div>
+        </div>
+        {% include "partials/_field.html" with field=form.content_type %}
+      </section>
+
+      <!-- ============ 2. File ============ -->
+      <section class="card upload-step mt-4">
+        <div class="upload-step__head">
+          <span class="upload-step__num">۲</span>
+          <div>
+            <div class="card__title mb-0">فایل اثر</div>
+            <span class="muted t-xs">
+              سقف رایگان: <span class="num">{{ setting.free_upload_minutes }}</span> دقیقه در مجموع.
+            </span>
+          </div>
+        </div>
+
+        <div id="audioBox">
+          <div class="form-field__label">فایل صوتی</div>
+          {{ form.audio }}
+          {% if form.audio.errors %}<div class="form-field__error">{{ form.audio.errors }}</div>{% endif %}
+        </div>
+
+        <div id="videoBox" class="hidden">
+          <div class="form-field__label">فایل ویدیو</div>
+          {{ form.video }}
+          {% if form.video.errors %}<div class="form-field__error">{{ form.video.errors }}</div>{% endif %}
+        </div>
+
+        <div class="grid-3 mt-3">
+          <div class="form-field">
+            <label class="form-field__label" for="{{ form.duration_minutes.id_for_label }}">مدت‌زمان (دقیقه)</label>
+            {{ form.duration_minutes }}
+            <div class="form-field__hint">پس از انتخاب فایل، خودکار پر می‌شود.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 3. Metadata ============ -->
+      <section class="card upload-step mt-4">
+        <div class="upload-step__head">
+          <span class="upload-step__num">۳</span>
+          <div>
+            <div class="card__title mb-0">اطلاعات اثر</div>
+            <span class="muted t-xs">عنوان و توضیح خوب، بیشترین تاثیر را در دیده‌شدن دارد.</span>
+          </div>
+        </div>
+
+        {% include "partials/_field.html" with field=form.title %}
+        {% include "partials/_field.html" with field=form.description hint="در چند خط بگو این اثر درباره چیست." %}
+
+        <div class="form-field">
+          <div class="form-field__label">تصویر کاور</div>
+          <div class="cover-preview cover-preview--visible" data-preview-for="{{ form.cover.id_for_label }}"></div>
+          {{ form.cover }}
+          <div class="form-field__hint">مربع، حداقل ۶۰۰×۶۰۰ پیکسل.</div>
+          {% if form.cover.errors %}<div class="form-field__error">{{ form.cover.errors }}</div>{% endif %}
+        </div>
+
+        <div class="grid-3">
+          {% include "partials/_field.html" with field=form.album %}
+          {% include "partials/_field.html" with field=form.genres %}
+          {% include "partials/_field.html" with field=form.language %}
+        </div>
+        {% include "partials/_field.html" with field=form.tags_text hint="با ویرگول جدا کن." %}
+      </section>
+
+      <!-- ============ 4. Publish ============ -->
+      <section class="card upload-step mt-4">
+        <div class="upload-step__head">
+          <span class="upload-step__num">۴</span>
+          <div>
+            <div class="card__title mb-0">انتشار</div>
+            <span class="muted t-xs">همیشه می‌توانی بعداً تغییرش بدهی.</span>
+          </div>
+        </div>
+
+        {% include "partials/_field.html" with field=form.visibility %}
+
+        <div class="setting-row">
+          <div class="setting-row__text">
+            <b>اجازه نظر دادن</b>
+            <span>شنونده‌ها بتوانند زیر این اثر نظر بگذارند.</span>
+          </div>
+          <label class="switch" aria-label="اجازه نظر دادن">
+            {{ form.allow_comments }}
+            <span class="switch__knob" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-row__text">
+            <b>محتوای بزرگسال</b>
+            <span>اگر اثر شامل زبان یا محتوای نامناسب برای همه سنین است.</span>
+          </div>
+          <label class="switch" aria-label="محتوای بزرگسال">
+            {{ form.explicit }}
+            <span class="switch__knob" aria-hidden="true"></span>
+          </label>
+        </div>
+      </section>
+
+      <div class="cluster cluster--start mt-4">
+        <button class="btn btn--primary btn--lg" type="submit" id="uploadSubmitBtn">
+          <svg class="icon"><use href="#i-upload"/></svg>ذخیره پیش‌نویس
+        </button>
+        <a class="btn btn--ghost" href="{% url 'my_tracks' %}">آثار من</a>
+      </div>
+
+      <div id="uploadProgress" class="mt-4 hidden" aria-live="polite">
+        <div class="upload-progress-track"><div id="uploadProgressBar" class="upload-progress-bar"></div></div>
+        <div id="uploadProgressLabel" class="muted t-xs">در حال آپلود…</div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="card">
+        <div class="card__title">چطور منتشر می‌شود</div>
+        <ol class="steps-list t-sm">
+          <li>فایل و اطلاعات را ذخیره می‌کنی — اثر به‌صورت <b>پیش‌نویس</b> می‌ماند.</li>
+          <li>از «آثار من» آن را برای <b>بررسی</b> می‌فرستی.</li>
+          <li>پس از تایید، اثر عمومی می‌شود و آمارش شروع می‌شود.</li>
+        </ol>
+      </div>
+
+      <div class="card mt-4">
+        <div class="card__title">امتیاز چطور ثبت می‌شود</div>
+        <p class="muted t-sm lh-body mb-0">
+          امتیاز وقتی برای تو ثبت می‌شود که شنونده حداقل
+          <b class="num">{{ setting.playback_point_percent }}٪</b> اثر را پخش کند —
+          و پخش باید سمت سرور معتبر تشخیص داده شود. عدد کوچک‌تر، ولی واقعی.
+        </p>
+      </div>
+    </aside>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
 <script>
-(function(){
-  const ct = document.getElementById("id_content_type");
-  const audioBox = document.getElementById("audioBox");
-  const videoBox = document.getElementById("videoBox");
-  function sync(){
-    const v = ct ? ct.value : "music";
-    if(v === "video"){
-      videoBox.style.display = "";
-      audioBox.style.display = "none";
-    }else{
-      videoBox.style.display = "none";
-      audioBox.style.display = "";
-    }
+/* Audio and video are mutually exclusive inputs on one form; show only the
+   one that matches the selected content type so a creator cannot attach
+   the wrong kind of file and find out at validation time. */
+(function () {
+  var select = document.getElementById("id_content_type");
+  var audioBox = document.getElementById("audioBox");
+  var videoBox = document.getElementById("videoBox");
+  if (!select || !audioBox || !videoBox) return;
+
+  function sync() {
+    var isVideo = select.value === "video";
+    videoBox.classList.toggle("hidden", !isVideo);
+    audioBox.classList.toggle("hidden", isVideo);
   }
-  if(ct){ ct.addEventListener("change", sync); }
+  select.addEventListener("change", sync);
   sync();
 })();
 </script>
-{% endblock %}
-{% block scripts %}
 <script src="{% static 'upload.js' %}"></script>
 {% endblock %}

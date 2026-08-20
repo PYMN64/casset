@@ -92,7 +92,10 @@ class PlaylistDetailViewTests(TestCase):
         resp = self.client.get(reverse("playlist_detail", args=[self.pl.id]))
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(resp.context["is_owner"])
-        self.assertContains(resp, "<h1>My Mix</h1>", html=False)
+        # A non-owner gets a static heading, never the rename input or the
+        # per-row remove buttons.
+        self.assertContains(resp, "My Mix")
+        self.assertNotContains(resp, "data-pl-rename-form")
         self.assertNotContains(resp, "data-pl-remove")
 
     def test_playlist_name_renders(self):

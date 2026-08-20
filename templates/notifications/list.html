@@ -1,86 +1,89 @@
 {% extends "base.html" %}
-{% block title %}اعلان‌ها • Casset{% endblock %}
+{% load thumbnails %}
+{% block title %}اعلان‌ها | کست{% endblock %}
 
 {% block content %}
-<div class="grid" style="grid-template-columns: 1.4fr .8fr;">
-  <section class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-      <div>
-        <h1>اعلان‌ها</h1>
-        <p class="muted small">
-          {% if unread_count %}
-            {{ unread_count }} اعلان خوانده‌نشده
-          {% else %}
-            همه اعلان‌ها خوانده شده‌اند
-          {% endif %}
-        </p>
-      </div>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>اعلان‌ها</h1>
+    <p>
       {% if unread_count %}
-        <form method="post" action="{% url 'api_notifications_read' %}">
-          {% csrf_token %}
-          <button class="btn btn--ghost" type="submit">علامت‌گذاری همه به‌عنوان خوانده‌شده</button>
-        </form>
+        <span class="num">{{ unread_count }}</span> اعلان خوانده‌نشده
+      {% else %}
+        همه اعلان‌ها خوانده شده‌اند.
       {% endif %}
-    </div>
-
-    <div class="list" style="margin-top:14px">
-      {% for n in notifications %}
-        <div class="row notif-row {% if not n.is_read %}notif-row--unread{% endif %}">
-          <div style="min-width:0;flex:1">
-            <div class="notif-text">{{ n.persian_text }}</div>
-            <div class="muted small">{{ n.created_at|timesince }} پیش</div>
-          </div>
-
-          <div class="row row-wrap" style="flex:0 0 auto">
-            {% if n.track %}
-              <a class="btn btn--ghost" href="/t/{{ n.track.slug }}/">مشاهده</a>
-            {% elif n.actor %}
-              <a class="btn btn--ghost" href="/@{{ n.actor.username }}/">پروفایل</a>
-            {% endif %}
-
-            {% if not n.is_read %}
-              <form method="post" action="{% url 'api_notifications_read' %}" style="display:inline">
-                {% csrf_token %}
-                <input type="hidden" name="notification_id" value="{{ n.id }}">
-                <button class="btn btn--ghost" type="submit" title="خوانده شد">✓</button>
-              </form>
-            {% endif %}
-          </div>
-        </div>
-      {% empty %}
-        <div class="row">
-          <span class="muted">هنوز اعلانی نداری.</span>
-        </div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <aside class="card">
-    <h2>درباره اعلان‌ها</h2>
-    <p class="muted small">
-      وقتی کسی ترک تو را لایک کند، کامنت بگذارد، یا تو را دنبال کند، اینجا خبردار می‌شوی.
     </p>
-    <p class="muted small">
-      همچنین وقتی ترکی تأیید یا رد شود، و وقتی ترک‌هایت به مایل‌ستون‌های پخش برسند.
-    </p>
-  </aside>
+  </div>
+  <div class="cluster">
+    {% if unread_count %}
+      {% comment %}
+        Posts normally without JavaScript; app.js upgrades it to a fetch so
+        the page does not reload just to clear a badge.
+      {% endcomment %}
+      <form method="post" action="{% url 'api_notifications_read' %}" data-notif-read-all="1">
+        {% csrf_token %}
+        <button class="btn btn--ghost btn--sm" type="submit">
+          <svg class="icon"><use href="#i-check"/></svg>خواندن همه
+        </button>
+      </form>
+    {% endif %}
+    <a class="btn btn--ghost btn--sm" href="{% url 'settings' %}#notifications">
+      <svg class="icon"><use href="#i-settings"/></svg>تنظیمات اعلان
+    </a>
+  </div>
 </div>
 
-<style>
-  .notif-row{
-    align-items:flex-start;
-    gap:12px;
-    padding:12px;
-    border-radius:12px;
-  }
-  .notif-row--unread{
-    background: rgba(255,147,56,.08);
-    border-inline-start: 3px solid rgba(255,147,56,.75);
-  }
-  .notif-text{
-    font-weight:600;
-    line-height:1.7;
-    word-break: break-word;
-  }
-</style>
+{% if notifications %}
+  <div class="card" id="notifList">
+    {% for n in notifications %}
+      <div class="notif {% if not n.is_read %}notif--unread{% endif %}" data-notif-row="{{ n.id }}">
+        <span class="notif__icon notif__icon--{{ n.verb }}" aria-hidden="true">
+          <svg class="icon">
+            <use href="{% if n.verb == 'new_follower' %}#i-user
+              {% elif n.verb == 'track_liked' or n.verb == 'comment_liked' %}#i-heart-filled
+              {% elif n.verb == 'track_comment' %}#i-comment
+              {% elif n.verb == 'track_approved' %}#i-check-circle
+              {% elif n.verb == 'track_rejected' %}#i-alert
+              {% elif n.verb == 'milestone_plays' %}#i-trend
+              {% elif n.verb == 'track_reposted' %}#i-repost
+              {% else %}#i-bell{% endif %}"/>
+          </svg>
+        </span>
+
+        <div class="notif__body">
+          <div class="notif__text">{{ n.persian_text }}</div>
+          <div class="muted t-xs">{{ n.created_at|timesince }} پیش</div>
+        </div>
+
+        <div class="notif__actions">
+          {% if n.track %}
+            <a class="btn btn--ghost btn--sm" href="{% url 'track_detail' n.track.slug %}">مشاهده</a>
+          {% elif n.actor %}
+            <a class="btn btn--ghost btn--sm" href="{{ n.actor.profile.profile_url }}">پروفایل</a>
+          {% endif %}
+
+          {% if not n.is_read %}
+            <form method="post" action="{% url 'api_notifications_read' %}" data-notif-read="1" data-notif="{{ n.id }}">
+              {% csrf_token %}
+              <input type="hidden" name="notification_id" value="{{ n.id }}">
+              <button class="iconbtn btn--sm" type="submit" aria-label="علامت‌گذاری به‌عنوان خوانده‌شده">
+                <svg class="icon"><use href="#i-check"/></svg>
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty">
+    <div class="empty__icon"><svg class="icon"><use href="#i-bell"/></svg></div>
+    <div class="empty__title">هنوز اعلانی نداری</div>
+    <p class="empty__text">
+      وقتی کسی اثرت را بپسندد، کامنت بگذارد، تو را دنبال کند، یا اثری که فرستادی
+      تایید شود، همین‌جا خبردار می‌شوی.
+    </p>
+    <a class="btn btn--primary" href="{% url 'discover' %}">کشف آثار</a>
+  </div>
+{% endif %}
 {% endblock %}

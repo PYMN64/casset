@@ -87,8 +87,18 @@ def mark_read(request):
     else:
         updated = Notification.mark_all_read(request.user)
 
+    unread = Notification.unread_count(request.user)
+
+    # A plain form POST (no JavaScript) must land back on the page, not on
+    # a screenful of raw JSON — which is exactly what this endpoint used to
+    # return to the notification list's own non-AJAX form.
+    if request.headers.get("X-Requested-With") != "XMLHttpRequest":
+        from django.shortcuts import redirect
+
+        return redirect("notification_list")
+
     return JsonResponse({
         "ok": True,
         "updated": updated,
-        "unread_count": Notification.unread_count(request.user),
+        "unread_count": unread,
     })

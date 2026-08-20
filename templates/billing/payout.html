@@ -1,34 +1,111 @@
 {% extends "base.html" %}
-{% block title %}Payout • Casset{% endblock %}
+{% block title %}برداشت و تسویهٔ حساب | کست{% endblock %}
+
 {% block content %}
-<div class="card">
-  <h1>درخواست برداشت</h1>
-  <p class="muted small">این بخش برای آماده‌سازی درآمد است؛ فعلاً اتصال بانکی فعال نیست.</p>
+<div class="page-head">
+  <h1>برداشت و تسویه</h1>
+  <p>تبدیل امتیازهای کسب‌شده به پرداخت نقدی.</p>
+</div>
 
-  <div class="item">
-    <div class="muted">امتیاز فعلی:</div>
-    <div style="font-weight:900">{{ profile.points }}</div>
+{% comment %}
+  Bank transfer is not live yet. Saying so plainly, once, at the top is
+  the honest design: a half-working form with no explanation reads as a
+  bug and costs more trust than the missing feature does.
+{% endcomment %}
+<div class="notice notice--warn mb-4">
+  <svg class="icon"><use href="#i-clock"/></svg>
+  <div>
+    <b>واریز بانکی هنوز فعال نشده است.</b>
+    می‌توانی همین حالا درخواست تسویه ثبت کنی — درخواستت در صف بررسی قرار می‌گیرد و
+    به‌محض فعال‌شدن اتصال بانکی، به‌ترتیب ثبت پردازش می‌شود. تا آن لحظه هیچ مبلغی
+    از حسابت کسر نمی‌شود.
   </div>
+</div>
 
-  <form method="post" action="/payout/request/" class="row row-wrap" style="margin-top:12px">
-    {% csrf_token %}
-    <input type="number" name="amount" placeholder="مبلغ برداشت" min="1" style="min-width:220px" required>
-    <button class="btn btn--primary" type="submit">ثبت درخواست</button>
-  </form>
+<div class="grid-2">
+  <div>
+    <section class="card">
+      <div class="card__title">ثبت درخواست تسویه</div>
+      <p class="card__sub">
+        ارزش هر امتیاز بسته به نوع محتوا متفاوت است و در داشبورد به تفکیک نمایش
+        داده می‌شود. پس از تایید درخواست، امتیاز معادل از موجودی‌ات کسر و در دفتر
+        تراکنش ثبت می‌شود — بدون دستکاری مستقیم موجودی.
+      </p>
 
-  <h2 style="margin-top:18px">سوابق</h2>
-  <div class="list">
-    {% for p in payouts %}
-      <div class="item" style="justify-content:space-between">
-        <div>
-          <div style="font-weight:800">{{ p.amount }}</div>
-          <div class="muted small">{{ p.created_at }}</div>
+      <form method="post" action="{% url 'create_payout_request' %}" novalidate>
+        {% csrf_token %}
+        <div class="form-field">
+          <label class="form-field__label" for="payoutAmount">مبلغ درخواستی (تومان)</label>
+          <input type="number" id="payoutAmount" name="amount" min="1" step="1000"
+                 inputmode="numeric" dir="ltr" placeholder="500000" required>
+          <div class="form-field__hint">
+            موجودی فعلی امتیاز: <b class="num">{{ profile.points }}</b>
+          </div>
         </div>
-        <div class="muted">{{ p.status }}</div>
-      </div>
-    {% empty %}
-      <div class="item"><span class="muted">هنوز درخواستی ثبت نکردی.</span></div>
-    {% endfor %}
+
+        <button class="btn btn--primary" type="submit"
+                data-confirm="درخواست تسویه ثبت می‌شود و تا زمان بررسی قابل لغو نیست. ادامه می‌دهی؟"
+                data-confirm-title="ثبت درخواست تسویه">
+          <svg class="icon"><use href="#i-wallet"/></svg>ثبت درخواست
+        </button>
+      </form>
+    </section>
+
+    <section class="card mt-4">
+      <div class="card__title">سوابق درخواست‌ها</div>
+      {% if payouts %}
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>تاریخ</th><th>مبلغ</th><th>امتیاز</th><th>وضعیت</th></tr>
+            </thead>
+            <tbody>
+              {% for p in payouts %}
+                <tr>
+                  <td class="num">{{ p.created_at|date:"Y/m/d" }}</td>
+                  <td class="num">{{ p.amount }}</td>
+                  <td class="num">{{ p.points }}</td>
+                  <td>
+                    {% if p.status == "approved" %}
+                      <span class="status status--good">تاییدشده</span>
+                    {% elif p.status == "rejected" %}
+                      <span class="status status--bad">رد شده</span>
+                    {% else %}
+                      <span class="status status--warn">در انتظار بررسی</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty">
+          <div class="empty__icon"><svg class="icon"><use href="#i-wallet"/></svg></div>
+          <div class="empty__title">هنوز درخواستی ثبت نکرده‌ای</div>
+          <p class="empty__text">اولین درخواست تسویه‌ات اینجا و در استودیو ثبت می‌شود.</p>
+        </div>
+      {% endif %}
+    </section>
   </div>
+
+  <aside>
+    <div class="wallet-card">
+      <span class="wallet-card__sub">موجودی امتیاز</span>
+      <b class="wallet-card__amount num">{{ profile.points }}</b>
+      <div class="wallet-card__sub">قابل درخواست پس از تایید بررسی</div>
+    </div>
+
+    <div class="card mt-4">
+      <div class="card__title">چطور کار می‌کند</div>
+      <ol class="steps-list t-sm">
+        <li>امتیاز از پخش‌های معتبر آثارت جمع می‌شود.</li>
+        <li>درخواست تسویه ثبت می‌کنی.</li>
+        <li>تیم کست درخواست را بررسی می‌کند.</li>
+        <li>پس از تایید، امتیاز معادل از موجودی کسر و در دفتر تراکنش ثبت می‌شود.</li>
+      </ol>
+      <a class="btn btn--ghost btn--block" href="{% url 'creator_studio' %}">مشاهده دفتر تراکنش</a>
+    </div>
+  </aside>
 </div>
 {% endblock %}

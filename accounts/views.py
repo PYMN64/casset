@@ -15,6 +15,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from core.structured_data import build_profile_jsonld
 from tracks.models import Track
 
 from . import oauth
@@ -758,6 +759,10 @@ def _public_profile_context(request, user_obj, profile, canonical_handle=False):
         "suggested_creators": suggested,
         "canonical_handle": canonical_handle,
         "is_owner": request.user.is_authenticated and request.user.id == user_obj.id,
+        "jsonld": build_profile_jsonld(
+            request, user_obj, profile,
+            {"followers": followers_count, "following": following_count},
+        ),
     }
 
 

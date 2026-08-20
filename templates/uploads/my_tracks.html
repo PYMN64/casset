@@ -1,78 +1,110 @@
 {% extends "base.html" %}
-{% block title %}My Tracks • Casset{% endblock %}
+{% load thumbnails %}
+{% block title %}آثار من | کست{% endblock %}
+
 {% block content %}
-<div class="card">
-  <h1>ترک‌های من</h1>
-  <p class="muted small">هر ترک یکی از این مراحل را طی می‌کند: <b>پیش‌نویس</b> ← <b>در صف بررسی</b> ← <b>منتشرشده</b> (یا رد شده، با دلیل مشخص)</p>
-
-  <div class="item">
-    <a class="btn primary" href="/upload/">Upload new</a>
-    <a class="btn" href="/tracks/">Browse</a>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>آثار من</h1>
+    <p>هر اثر این مسیر را طی می‌کند: پیش‌نویس ← در صف بررسی ← منتشرشده.</p>
   </div>
+  <a class="btn btn--primary btn--sm" href="{% url 'upload_track' %}">
+    <svg class="icon"><use href="#i-upload"/></svg>آپلود اثر جدید
+  </a>
+</div>
 
-  <div class="list">
+{% if tracks %}
+  <div class="card">
     {% for t in tracks %}
-      <div class="item" style="flex-direction:column;align-items:stretch">
-        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
-          {% if t.status == "approved" and t.visibility != "private" %}
-            <a href="/t/{{ t.slug }}/" style="font-weight:900">{{ t.title }}</a>
-          {% else %}
-            <span style="font-weight:900">{{ t.title }}</span>
+      <article class="mytrack">
+        <span class="row-cover"
+              {% if t.cover %}style="background-image:url('{{ t.cover|thumbnail_url:'160x160' }}')"{% endif %}
+              aria-hidden="true"></span>
+
+        <div class="mytrack__meta">
+          <div class="cluster cluster--gap-3">
+            {% if t.status == "approved" and t.visibility != "private" %}
+              <a class="w-800 t-sm" href="{% url 'track_detail' t.slug %}">{{ t.title }}</a>
+            {% else %}
+              <span class="w-800 t-sm">{{ t.title }}</span>
+            {% endif %}
+
+            {% if t.status == "approved" %}
+              {% if t.visibility == "private" %}
+                <span class="status status--muted"><svg class="icon icon--xs"><use href="#i-lock"/></svg>مخفی از عموم</span>
+              {% else %}
+                <span class="status status--good">منتشرشده</span>
+              {% endif %}
+            {% elif t.status == "submitted" or t.status == "pending" %}
+              <span class="status status--warn"><svg class="icon icon--xs"><use href="#i-clock"/></svg>در صف بررسی</span>
+            {% elif t.status == "rejected" %}
+              <span class="status status--bad">رد شده</span>
+            {% elif t.status == "takedown" or t.status == "blocked" %}
+              <span class="status status--bad">{{ t.get_status_display }}</span>
+            {% else %}
+              <span class="status status--muted">پیش‌نویس</span>
+            {% endif %}
+          </div>
+
+          <div class="muted t-xs mt-1">
+            {{ t.get_content_type_display }} ·
+            <span class="num">{{ t.duration_display }}</span> ·
+            <span class="num">{{ t.play_count }}</span> پخش ·
+            <span class="num">{{ t.like_count }}</span> پسند
+          </div>
+
+          {% if t.status == "rejected" and t.reject_reason %}
+            <div class="notice notice--bad mt-2">
+              <svg class="icon"><use href="#i-alert"/></svg>
+              <div><b>دلیل رد:</b> {{ t.reject_reason }}</div>
+            </div>
+          {% elif t.status == "submitted" or t.status == "pending" %}
+            <div class="muted t-xs mt-1">معمولاً ظرف چند ساعت بررسی می‌شود.</div>
           {% endif %}
-          <span class="muted" style="font-size:12px;display:flex;align-items:center;gap:8px">
-            <span style="padding:3px 10px;border-radius:999px;font-weight:700;
-              {% if t.status == "approved" %}background:rgba(74,222,128,.15);color:#4ade80
-              {% elif t.status == "rejected" or t.status == "takedown" or t.status == "blocked" %}background:rgba(255,107,107,.15);color:#ff6b6b
-              {% elif t.status == "submitted" or t.status == "pending" %}background:rgba(255,147,56,.15);color:#ff9338
-              {% else %}background:rgba(255,255,255,.08);color:var(--text){% endif %}">
-              {% if t.status == "draft" %}پیش‌نویس
-              {% elif t.status == "submitted" or t.status == "pending" %}در صف بررسی
-              {% elif t.status == "approved" %}منتشرشده
-              {% elif t.status == "rejected" %}رد شده
-              {% elif t.status == "takedown" %}جمع‌آوری شده
-              {% elif t.status == "blocked" %}مسدود
-              {% else %}{{ t.get_status_display }}{% endif %}
-            </span>
-            • {{ t.get_visibility_display }}
-          </span>
+
+          {% if t.genres.all %}
+            <div class="cluster mt-2">
+              {% for g in t.genres.all %}<span class="status status--muted">{{ g.name }}</span>{% endfor %}
+            </div>
+          {% endif %}
         </div>
 
-        {% if t.status == "rejected" and t.reject_reason %}
-          <div class="muted" style="font-size:12px">دلیل رد: {{ t.reject_reason }}</div>
-        {% endif %}
+        <div class="mytrack__actions">
+          <a class="btn btn--ghost btn--sm" href="{% url 'edit_track' t.id %}">
+            <svg class="icon"><use href="#i-edit"/></svg>ویرایش
+          </a>
 
-        <div class="row row-wrap" style="margin-top:8px">
-          <a class="btn btn--ghost" href="/my/tracks/{{ t.id }}/edit/">Edit</a>
-          {% if t.status == "draft" or t.status == "rejected" or t.status == "pending" %}
-            <form method="post" action="/my/tracks/{{ t.id }}/submit/" style="display:inline">
+          {% if t.status == "draft" or t.status == "rejected" %}
+            <form method="post" action="{% url 'submit_track' t.id %}">
               {% csrf_token %}
-              <button class="btn btn--primary" type="submit">ارسال برای بررسی</button>
+              <button class="btn btn--primary btn--sm" type="submit">ارسال برای بررسی</button>
             </form>
-          {% elif t.status == "submitted" or t.status == "pending" %}
-            <span class="muted small">در صف بررسی — معمولاً ظرف چند ساعت بررسی می‌شود.</span>
           {% elif t.status == "approved" %}
-            <form method="post" action="/my/tracks/{{ t.id }}/toggle-visibility/" style="display:inline">
+            <form method="post" action="{% url 'toggle_track_visibility' t.id %}">
               {% csrf_token %}
               {% if t.visibility == "private" %}
-                <button class="btn btn--primary" type="submit">انتشار دوباره</button>
+                <button class="btn btn--primary btn--sm" type="submit">انتشار دوباره</button>
               {% else %}
-                <button class="btn btn--ghost" type="submit" onclick="return confirm('این محتوا از دید عموم مخفی می‌شود. مطمئنی؟')">مخفی کردن از عموم</button>
+                <button class="btn btn--ghost btn--sm" type="submit"
+                        data-confirm="این اثر از دید عموم مخفی می‌شود. آمار و نظرها باقی می‌مانند و هر وقت خواستی می‌توانی دوباره منتشرش کنی."
+                        data-confirm-title="مخفی‌کردن اثر">
+                  <svg class="icon"><use href="#i-eye-off"/></svg>مخفی کردن
+                </button>
               {% endif %}
             </form>
           {% endif %}
         </div>
-
-        <div class="muted" style="font-size:12px">
-          {% for g in t.genres.all %}
-            <span style="border:1px solid rgba(255,122,24,.2);padding:2px 8px;border-radius:999px;margin-left:6px;display:inline-block">{{ g.name }}</span>
-          {% empty %}
-            <span>—</span>
-          {% endfor %}
-        </div>
-      </div>
-    {% empty %}
-      <div class="item"><span class="muted">هنوز چیزی آپلود نکردی.</span></div>
+      </article>
     {% endfor %}
   </div>
-</div>
+{% else %}
+  <div class="empty">
+    <div class="empty__icon"><svg class="icon"><use href="#i-upload"/></svg></div>
+    <div class="empty__title">هنوز چیزی آپلود نکرده‌ای</div>
+    <p class="empty__text">
+      اولین اثرت را آپلود کن. تا وقتی خودت نفرستی، هیچ‌کس آن را نمی‌بیند.
+    </p>
+    <a class="btn btn--primary" href="{% url 'upload_track' %}">آپلود اولین اثر</a>
+  </div>
+{% endif %}
 {% endblock %}

@@ -28,7 +28,7 @@
     <a class="pill {% if selected_type == 'all' %}pill--active{% endif %}" href="{% url 'discover' %}">همه</a>
     {% for t in enabled_types %}
       <a class="pill {% if selected_type == t %}pill--active{% endif %}" href="{% url 'discover' %}?type={{ t }}">
-        <svg class="icon" style="width:14px;height:14px">
+        <svg class="icon icon--xs">
           <use href="{% if t == 'music' %}#i-music{% elif t == 'podcast' %}#i-mic{% elif t == 'book' %}#i-book{% else %}#i-video{% endif %}"/>
         </svg>
         {% if t == 'music' %}موزیک{% elif t == 'podcast' %}پادکست{% elif t == 'book' %}کتاب صوتی{% else %}ویدیو{% endif %}

@@ -130,7 +130,7 @@
         </span>
       </div>
       {% if profile.phone_verified %}
-        <span class="status status--good"><svg class="icon" style="width:13px;height:13px"><use href="#i-check"/></svg>تایید شده</span>
+        <span class="status status--good"><svg class="icon icon--xs"><use href="#i-check"/></svg>تایید شده</span>
       {% else %}
         <a class="btn btn--primary btn--sm" href="{% url 'account_phone_start' %}">تایید شماره</a>
       {% endif %}

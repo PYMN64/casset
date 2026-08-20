@@ -39,7 +39,7 @@
           <span class="muted t-xs num">{{ p.item_count }} اثر</span>
           <span class="cluster">
             {% if p.is_private %}
-              <span class="status status--muted"><svg class="icon" style="width:12px;height:12px"><use href="#i-lock"/></svg>خصوصی</span>
+              <span class="status status--muted"><svg class="icon icon--xs"><use href="#i-lock"/></svg>خصوصی</span>
             {% endif %}
             <form method="post" action="{% url 'api_playlist_delete' %}" data-pl-delete-form="1" data-playlist="{{ p.id }}">
               {% csrf_token %}

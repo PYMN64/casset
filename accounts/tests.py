@@ -211,9 +211,12 @@ class PublicProfileViewTests(TestCase):
         self.assertContains(resp, 'property="og:title"')
         self.assertContains(resp, "publicuser")
 
-    def test_no_og_image_without_avatar(self):
-        resp = self.client.get(reverse("public_profile", args=["publicuser"]))
-        self.assertNotContains(resp, 'property="og:image"')
+    def test_og_image_falls_back_to_site_card_without_avatar(self):
+        """A profile with no artwork still shares with the branded default
+        card — a preview with no image reads as a broken link."""
+        resp = self.client.get(reverse("public_profile", args=[self.user.username]))
+        self.assertContains(resp, 'property="og:image"')
+        self.assertContains(resp, "og-default.png")
 
     def test_404_for_unknown_user(self):
         resp = self.client.get(reverse("public_profile", args=["doesnotexist"]))

@@ -1,81 +1,164 @@
 {% extends "base.html" %}
 {% load thumbnails %}
-{% block title %}{{ pl.name }} • پلی‌لیست • Casset{% endblock %}
+{% block title %}{{ pl.name }} — پلی‌لیست | کست{% endblock %}
+{% block meta_description %}{{ pl.description|default:pl.name }} — پلی‌لیستی در کست با {{ items|length }} اثر.{% endblock %}
+{% block og_title %}{{ pl.name }} — پلی‌لیست در کست{% endblock %}
+
 {% block content %}
-<div class="grid">
-  <section class="card">
+<section class="card playlist-hero">
+  <div class="playlist-hero__cover"
+       {% if items.0.track.cover %}style="background-image:url('{{ items.0.track.cover|thumbnail_url:'600x600' }}')"{% endif %}
+       aria-hidden="true">
+    {% if not items.0.track.cover %}<svg class="icon"><use href="#i-playlist"/></svg>{% endif %}
+  </div>
+
+  <div class="playlist-hero__meta">
+    <div class="cluster mb-2">
+      <span class="status status--info">پلی‌لیست</span>
+      {% if pl.is_private %}
+        <span class="status status--muted"><svg class="icon icon--xs"><use href="#i-lock"/></svg>خصوصی</span>
+      {% else %}
+        <span class="status status--good">عمومی</span>
+      {% endif %}
+    </div>
+
     {% if is_owner %}
-      <form method="post" action="{% url 'api_playlist_rename' %}" data-pl-rename-form="1" class="row" style="gap:8px;margin-bottom:6px">
+      <form method="post" action="{% url 'api_playlist_rename' %}" data-pl-rename-form="1" class="cluster mb-2">
         {% csrf_token %}
         <input type="hidden" name="playlist_id" value="{{ pl.id }}">
-        <input type="text" name="name" value="{{ pl.name }}" maxlength="80" style="font-size:20px;font-weight:900" aria-label="نام پلی‌لیست">
-        <button class="btn btn--ghost" type="submit">ذخیره نام</button>
+        <label class="sr-only" for="plNameInput">نام پلی‌لیست</label>
+        <input class="playlist-hero__name" id="plNameInput" type="text" name="name" value="{{ pl.name }}" maxlength="80">
+        <button class="btn btn--ghost btn--sm" type="submit">ذخیره نام</button>
       </form>
     {% else %}
-      <h1>{{ pl.name }}</h1>
+      <h1 class="t-2xl w-900 mb-2">{{ pl.name }}</h1>
     {% endif %}
-    <p class="muted small">{{ items|length }} ترک{% if pl.description %} • {{ pl.description }}{% endif %}{% if pl.is_private %} • خصوصی{% else %} • عمومی{% endif %}</p>
 
-    <div class="list" id="plItemList">
-      {% for it in items %}
-        <div class="row" data-pl-item-row="{{ it.id }}">
-          <div style="display:flex;align-items:center;gap:10px;min-width:0">
-            {% if is_owner %}
-              <div class="q-reorder">
-                <button type="button" data-pl-reorder="up" data-item="{{ it.id }}" data-playlist="{{ pl.id }}" aria-label="بالا" {% if forloop.first %}disabled{% endif %}>▲</button>
-                <button type="button" data-pl-reorder="down" data-item="{{ it.id }}" data-playlist="{{ pl.id }}" aria-label="پایین" {% if forloop.last %}disabled{% endif %}>▼</button>
-              </div>
-            {% endif %}
-            <div class="row-cover" style="{% if it.track.cover %}background-image:url('{{ it.track.cover|thumbnail_url:"120x120" }}');{% endif %}"></div>
-            <div style="min-width:0">
-              <a href="{% url 'track_detail' slug=it.track.slug %}" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                {{ it.track.title }}
-              </a>
-              <div class="muted small">@{{ it.track.creator.username }} • {{ it.track.play_count }} پخش</div>
-            </div>
-          </div>
-
-          <div class="row row-wrap" style="justify-content:flex-start;gap:8px;width:auto">
-            {% if it.track.audio %}
-              <a class="btn btn--primary" href="#"
-                 data-play="1"
-                 data-src="{{ it.track.audio.url }}"
-                 data-title="{{ it.track.title }}"
-                 data-by="@{{ it.track.creator.username }}"
-                 data-track="{{ it.track.id }}"
-                 data-cover="{% if it.track.cover %}{{ it.track.cover.url }}{% endif %}">
-                 پخش
-              </a>
-            {% endif %}
-            {% if is_owner %}
-              <a class="btn btn--ghost" href="#" data-pl-remove="1" data-playlist="{{ pl.id }}" data-track="{{ it.track.id }}" data-row="{{ it.id }}">
-                حذف
-              </a>
-            {% endif %}
-          </div>
-        </div>
-      {% empty %}
-        <div class="row" style="display:block">
-          <p class="muted">این پلی‌لیست هنوز خالی است.</p>
-          {% if is_owner %}<p class="muted small">از صفحه‌ی هر ترک، روی «＋ پلی‌لیست» بزن تا اینجا اضافه بشه.</p>{% endif %}
-          <a class="btn btn--primary" href="{% url 'discover' %}" style="margin-top:8px">رفتن به کشف موزیک و پادکست</a>
-        </div>
-      {% endfor %}
+    <div class="cluster muted t-sm mb-4">
+      <a href="{{ pl.owner.profile.profile_url }}">{{ pl.owner.profile.public_name }}</a>
+      <span aria-hidden="true">·</span>
+      <span class="num">{{ items|length }} اثر</span>
+      {% if total_minutes %}<span aria-hidden="true">·</span><span class="num">{{ total_minutes }} دقیقه</span>{% endif %}
     </div>
-  </section>
 
-  {% if is_owner %}
-    <aside class="card">
-      <h2>عملیات</h2>
-      <div class="list">
-        <div class="row"><a class="btn btn--ghost" href="{% url 'library' %}">بازگشت به کتابخانه</a></div>
-        <form class="row" method="post" action="/api/v1/playlist/delete/" data-pl-delete-form="1" data-playlist="{{ pl.id }}">
+    {% if pl.description %}<p class="muted t-sm lh-body">{{ pl.description }}</p>{% endif %}
+
+    <div class="cluster">
+      {% if items %}
+        <button class="btn btn--primary" type="button" id="playAllBtn">
+          <svg class="icon"><use href="#i-play"/></svg>پخش همه
+        </button>
+      {% endif %}
+      {% if not pl.is_private %}
+        <button class="btn btn--ghost" type="button"
+                data-share="1" data-url="{{ request.build_absolute_uri }}" data-title="{{ pl.name }}">
+          <svg class="icon"><use href="#i-share"/></svg>اشتراک‌گذاری
+        </button>
+      {% endif %}
+      {% if is_owner %}
+        <form method="post" action="{% url 'api_playlist_delete' %}" data-pl-delete-form="1" data-playlist="{{ pl.id }}">
           {% csrf_token %}
           <input type="hidden" name="playlist_id" value="{{ pl.id }}">
-          <button class="btn" type="submit" style="color:#ff6b6b">حذف کل پلی‌لیست</button>
+          <button class="btn btn--danger" type="submit"
+                  data-confirm="پلی‌لیست «{{ pl.name }}» و همه‌ی آیتم‌هایش حذف می‌شوند. این عمل برگشت‌پذیر نیست."
+                  data-confirm-title="حذف پلی‌لیست">
+            <svg class="icon"><use href="#i-trash"/></svg>حذف پلی‌لیست
+          </button>
         </form>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% if items %}
+  {% comment %}
+    Drag to reorder on a pointer device, ▲▼ everywhere else. The arrows are
+    not a fallback bolted on afterwards — they are how this works on a
+    touchscreen and with a keyboard, so they stay visible.
+  {% endcomment %}
+  <div class="card list mt-4" id="plItemList" data-queue-scope
+       {% if is_owner %}data-reorder-list data-reorder-url="{% url 'api_playlist_reorder' %}"{% endif %}>
+    {% for it in items %}
+      <div class="track-line" data-pl-item-row="{{ it.id }}"
+           {% if is_owner %}data-reorder-item="{{ it.id }}" draggable="true"{% endif %}>
+        {% if is_owner %}
+          <span class="drag-handle" aria-hidden="true"><svg class="icon"><use href="#i-drag"/></svg></span>
+          <span class="reorder-arrows">
+            <button class="iconbtn btn--sm" type="button" data-pl-reorder="up" data-item="{{ it.id }}"
+                    data-playlist="{{ pl.id }}" aria-label="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}>
+              <svg class="icon icon--xs"><use href="#i-up"/></svg>
+            </button>
+            <button class="iconbtn btn--sm" type="button" data-pl-reorder="down" data-item="{{ it.id }}"
+                    data-playlist="{{ pl.id }}" aria-label="جابه‌جایی به پایین" {% if forloop.last %}disabled{% endif %}>
+              <svg class="icon icon--xs"><use href="#i-down"/></svg>
+            </button>
+          </span>
+        {% endif %}
+
+        <span class="row-cover"
+              {% if it.track.cover %}style="background-image:url('{{ it.track.cover|thumbnail_url:'160x160' }}')"{% endif %}
+              aria-hidden="true"></span>
+
+        <div class="track-line__meta">
+          <a class="track-line__title truncate" href="{% url 'track_detail' slug=it.track.slug %}">{{ it.track.title }}</a>
+          <div class="track-line__sub truncate">
+            <a href="{{ it.track.creator.profile.profile_url }}">{{ it.track.creator.profile.public_name }}</a>
+            <span aria-hidden="true">·</span><span class="num">{{ it.track.duration_display }}</span>
+          </div>
+        </div>
+
+        <div class="track-line__stats muted t-xs"><span class="num">{{ it.track.play_count }} پخش</span></div>
+
+        <div class="track-line__actions">
+          {% if it.track.audio %}
+            <button class="iconbtn iconbtn--primary" type="button" aria-label="پخش {{ it.track.title }}"
+                    data-play="1"
+                    data-src="{{ it.track.audio.url }}"
+                    data-title="{{ it.track.title }}"
+                    data-by="{{ it.track.creator.profile.public_name }}"
+                    data-track="{{ it.track.id }}"
+                    data-cover="{% if it.track.cover %}{{ it.track.cover.url }}{% endif %}">
+              <svg class="icon"><use href="#i-play"/></svg>
+            </button>
+          {% endif %}
+          {% if is_owner %}
+            <button class="iconbtn iconbtn--danger" type="button" aria-label="حذف از پلی‌لیست"
+                    data-pl-remove="1" data-playlist="{{ pl.id }}" data-track="{{ it.track.id }}" data-row="{{ it.id }}">
+              <svg class="icon"><use href="#i-trash"/></svg>
+            </button>
+          {% endif %}
+        </div>
       </div>
-    </aside>
-  {% endif %}
-</div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty mt-4">
+    <div class="empty__icon"><svg class="icon"><use href="#i-playlist"/></svg></div>
+    <div class="empty__title">این پلی‌لیست هنوز خالی است</div>
+    <p class="empty__text">
+      {% if is_owner %}
+        از صفحه‌ی هر اثر یا از دکمه‌ی ＋ روی کارت‌ها، آثار را به این پلی‌لیست اضافه کن.
+      {% else %}
+        صاحب این پلی‌لیست هنوز چیزی به آن اضافه نکرده است.
+      {% endif %}
+    </p>
+    <a class="btn btn--primary" href="{% url 'discover' %}">کشف آثار</a>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* "Play all" just clicks the first row's play button, which lets app.js
+   build the queue from the surrounding list exactly as it does for a
+   normal click — no second, divergent queue-building path. */
+(function () {
+  var btn = document.getElementById("playAllBtn");
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    var first = document.querySelector("#plItemList [data-play]");
+    if (first) first.click();
+  });
+})();
+</script>
 {% endblock %}

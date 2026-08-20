@@ -448,7 +448,10 @@ class NotificationAPITests(TestCase):
         self.assertEqual(len(data["notifications"]), 1)
 
     def test_mark_all_read(self):
-        resp = self.client.post(reverse("api_notifications_read"))
+        resp = self.client.post(
+            reverse("api_notifications_read"),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["unread_count"], 0)
 
@@ -457,8 +460,23 @@ class NotificationAPITests(TestCase):
         resp = self.client.post(
             reverse("api_notifications_read"),
             {"notification_id": notif.pk},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
         self.assertEqual(resp.status_code, 200)
+        notif.refresh_from_db()
+        self.assertTrue(notif.is_read)
+
+    def test_plain_form_post_redirects_instead_of_returning_json(self):
+        """Without JavaScript the notification list posts this form
+        directly; returning JSON would drop the user on a page of raw
+        machine output."""
+        notif = Notification.objects.filter(recipient=self.user).first()
+        resp = self.client.post(
+            reverse("api_notifications_read"),
+            {"notification_id": notif.pk},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, reverse("notification_list"))
         notif.refresh_from_db()
         self.assertTrue(notif.is_read)
 

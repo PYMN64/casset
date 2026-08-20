@@ -18,7 +18,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import PlatformSetting
-from core.test_utils import make_user
+from core.test_utils import make_publisher, make_user
 from tracks.models import Track
 
 _MEDIA_ROOT = tempfile.mkdtemp(prefix="casset-uploads-tests-")
@@ -396,7 +396,9 @@ class EditTrackViewTests(TestCase):
 @override_settings(MEDIA_ROOT=_MEDIA_ROOT)
 class SubmitTrackViewTests(TestCase):
     def setUp(self):
-        self.user = make_user("submitter1")
+        # Submitting for review requires publisher eligibility (verified
+        # phone + public handle) — see uploads.views.submit_track.
+        self.user = make_publisher("submitter1")
         self.other = make_user("submitter2")
         self.client.login(username="submitter1", password="pass12345")
 
@@ -538,7 +540,7 @@ class SubmitTrackAutoApproveTests(TestCase):
     """PlatformSetting.auto_approve_tracks — Phase 3."""
 
     def setUp(self):
-        self.user = make_user("autosubmitter")
+        self.user = make_publisher("autosubmitter")
         self.client.login(username="autosubmitter", password="pass12345")
         self.track = Track.objects.create(
             creator=self.user, title="T", content_type=Track.ContentType.MUSIC,
@@ -589,3 +591,52 @@ class SubmitTrackAutoApproveTests(TestCase):
                 recipient=self.user, verb="track_approved", track=self.track
             ).exists()
         )
+
+
+class PublisherGateTests(TestCase):
+    """Submitting for review is gated on publisher eligibility.
+
+    Product rule: choosing a public handle is what makes an account a
+    publisher, and a publisher must have a verified phone number. Drafting
+    stays open to everyone — only the step that puts content in front of
+    the public is gated.
+    """
+
+    def setUp(self):
+        self.user = make_user("gate_user")
+        self.client.login(username="gate_user", password="pass12345")
+        self.track = Track.objects.create(
+            creator=self.user, title="Draft", content_type=Track.ContentType.MUSIC,
+            duration_seconds=60, status=Track.Status.DRAFT,
+        )
+
+    def test_upload_page_still_open_to_non_publisher(self):
+        """Drafting must not be blocked — only publishing is."""
+        resp = self.client.get(reverse("upload_track"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_submit_blocked_without_phone_or_handle(self):
+        resp = self.client.post(reverse("submit_track", args=[self.track.id]))
+        self.assertRedirects(resp, reverse("creator_apply"))
+        self.track.refresh_from_db()
+        self.assertEqual(self.track.status, Track.Status.DRAFT)
+
+    def test_submit_blocked_with_handle_but_unverified_phone(self):
+        profile = self.user.profile
+        profile.public_handle = "gateuser"
+        profile.save(update_fields=["public_handle"])
+        resp = self.client.post(reverse("submit_track", args=[self.track.id]))
+        self.assertRedirects(resp, reverse("creator_apply"))
+        self.track.refresh_from_db()
+        self.assertEqual(self.track.status, Track.Status.DRAFT)
+
+    def test_submit_allowed_once_both_requirements_met(self):
+        profile = self.user.profile
+        profile.public_handle = "gateuser"
+        profile.phone_number = "09120000042"
+        profile.phone_verified_at = timezone.now()
+        profile.save(update_fields=["public_handle", "phone_number", "phone_verified_at"])
+        resp = self.client.post(reverse("submit_track", args=[self.track.id]))
+        self.assertRedirects(resp, reverse("my_tracks"))
+        self.track.refresh_from_db()
+        self.assertEqual(self.track.status, Track.Status.SUBMITTED)

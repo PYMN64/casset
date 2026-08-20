@@ -1,87 +1,116 @@
 {% extends "base.html" %}
-{% block title %}VIP • Casset{% endblock %}
+{% block title %}اشتراک ویژهٔ VIP | کست{% endblock %}
+{% block meta_description %}اشتراک ویژه کست — دانلود آفلاین، بدون محدودیت آپلود، و حمایت مستقیم از سازنده‌ها.{% endblock %}
+
 {% block content %}
-<div class="grid" style="grid-template-columns: 1.3fr 1fr;">
-  <section class="card">
-    <h1>VIP</h1>
-    <p class="muted">دانلود + تجربه بهتر</p>
+<div class="page-head text-center">
+  <h1>کست VIP</h1>
+  <p>پشتیبانی مستقیم از سازنده‌ها، و چند امکان اضافه برای خودت.</p>
+</div>
 
-    <div class="list">
-      <div class="item">
-        <span>دانلود ترک‌ها</span>
-        <span class="muted">✅ برای VIP</span>
-      </div>
-      <div class="item">
-        <span>بدون محدودیت</span>
-        <span class="muted">✅</span>
-      </div>
-      <div class="item">
-        <span>کیفیت بهتر (فاز بعد)</span>
-        <span class="muted">⏳</span>
-      </div>
-    </div>
-
-    <h2 class="mt">پلن‌ها</h2>
-    <div class="list">
-      {% for plan in plans %}
-        <div class="row" style="justify-content:space-between">
-          <div>
-            <div style="font-weight:900">{{ plan.title }}{% if plan.is_featured %} ⭐{% endif %}</div>
-            <div class="muted small">{{ plan.duration_days }} روز{% if plan.description %} • {{ plan.description }}{% endif %}</div>
-          </div>
-          <div class="row row-wrap" style="align-items:center">
-            <span style="font-weight:800">{{ plan.price }}</span>
-            <a class="btn btn--primary" href="/vip/pay/{{ plan.id }}/">خرید</a>
-            {% if debug %}
-              <a class="btn" href="/vip/activate-dev/{{ plan.id }}/">فعال‌سازی (Dev only)</a>
-            {% endif %}
-          </div>
-        </div>
-      {% empty %}
-        <div class="row"><span class="muted">هنوز پلنی تعریف نشده.</span></div>
-      {% endfor %}
-    </div>
-
-    {% if elig %}
-      <h2 class="mt">پیشرفت</h2>
-      <div class="row" style="display:block">
-        <div class="muted small">پیشرفت کلی: {{ elig.progress_pct }}%</div>
-        <div style="height:10px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;margin-top:8px">
-          <div style="height:10px;width:{{ elig.progress_pct }}%;background:rgba(255,255,255,.35)"></div>
-        </div>
-      </div>
-    {% endif %}
-
-    <div class="item" style="justify-content:flex-start;gap:10px;margin-top:12px">
-      <a class="btn" href="/tracks/">Browse</a>
-    </div>
-  </section>
-
-  <aside class="card">
-    <h2>Status</h2>
-    <div class="list">
-      <div class="item">
-        <span>VIP Active</span>
-        <span class="muted">
-          {% if profile.has_vip %}YES{% else %}NO{% endif %}
-        </span>
-      </div>
-      <div class="item">
-        <span>Until</span>
-        <span class="muted">{{ profile.vip_until|default:"—" }}</span>
-      </div>
-      {% if active_invoice %}
-        <div class="item">
-          <span>Plan</span>
-          <span class="muted">{{ active_invoice.plan.title }}</span>
-        </div>
-        <div class="item">
-          <span>Invoice valid until</span>
-          <span class="muted small">{{ active_invoice.valid_until }}</span>
-        </div>
+{% if profile.has_vip %}
+  <div class="notice notice--good mb-5">
+    <svg class="icon"><use href="#i-check-circle"/></svg>
+    <div>
+      <b>اشتراک VIP تو فعال است.</b>
+      {% if active_invoice and active_invoice.valid_until %}
+        تا {{ active_invoice.valid_until|date:"Y/m/d" }}
+        {% if active_invoice.plan %}— پلن {{ active_invoice.plan.title }}{% endif %}
       {% endif %}
     </div>
-    <p class="muted small" style="margin-top:10px">پرداخت از طریق زرین‌پال انجام می‌شود.</p>
-  </aside>
+  </div>
+{% endif %}
+
+<!-- ============ What you get ============ -->
+<div class="grid-3 mb-5">
+  <div class="card">
+    <span class="stat-card__icon mb-3"><svg class="icon"><use href="#i-download"/></svg></span>
+    <div class="card__title">دانلود آفلاین</div>
+    <p class="muted t-sm lh-body mb-0">آثار را دانلود کن و بدون اینترنت گوش بده.</p>
+  </div>
+  <div class="card">
+    <span class="stat-card__icon stat-card__icon--purple mb-3"><svg class="icon"><use href="#i-upload"/></svg></span>
+    <div class="card__title">آپلود بدون سقف</div>
+    <p class="muted t-sm lh-body mb-0">
+      سقف رایگان <span class="num">{{ platform.free_upload_minutes }}</span> دقیقه است؛ با VIP برداشته می‌شود.
+    </p>
+  </div>
+  <div class="card">
+    <span class="stat-card__icon stat-card__icon--gold mb-3"><svg class="icon"><use href="#i-heart"/></svg></span>
+    <div class="card__title">حمایت از سازنده</div>
+    <p class="muted t-sm lh-body mb-0">
+      بخشی از هر اشتراک به سازنده‌هایی می‌رسد که واقعاً گوش می‌دهی.
+    </p>
+  </div>
 </div>
+
+<!-- ============ Plans ============ -->
+<div class="section-head"><h2>انتخاب پلن</h2></div>
+
+{% if plans %}
+  <div class="price-grid">
+    {% for plan in plans %}
+      <div class="price {% if plan.is_featured %}price--featured{% endif %}">
+        {% if plan.is_featured %}<span class="price__flag">پیشنهاد ما</span>{% endif %}
+        <div class="price__name">{{ plan.title }}</div>
+        <div>
+          <span class="price__amount num">{{ plan.price }}</span>
+          <span class="price__unit">تومان</span>
+        </div>
+        <div class="price__period">برای <span class="num">{{ plan.duration_days }}</span> روز</div>
+
+        <ul class="price__features">
+          <li><svg class="icon"><use href="#i-check"/></svg>دانلود آفلاین همه آثار</li>
+          <li><svg class="icon"><use href="#i-check"/></svg>آپلود بدون سقف دقیقه</li>
+          <li><svg class="icon"><use href="#i-check"/></svg>پشتیبانی از سازنده‌های موردعلاقه‌ات</li>
+          {% if plan.description %}<li><svg class="icon"><use href="#i-check"/></svg>{{ plan.description }}</li>{% endif %}
+        </ul>
+
+        <div class="price__cta">
+          <a class="btn {% if plan.is_featured %}btn--primary{% else %}btn--ghost{% endif %} btn--block"
+             href="{% url 'start_payment' plan.id %}">
+            {% if profile.has_vip %}تمدید اشتراک{% else %}خرید اشتراک{% endif %}
+          </a>
+          {% if debug %}
+            <a class="btn btn--ghost btn--sm btn--block mt-2" href="{% url 'vip_activate_dev_plan' plan.id %}">
+              فعال‌سازی بدون پرداخت (فقط حالت توسعه)
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty">
+    <div class="empty__icon"><svg class="icon"><use href="#i-wallet"/></svg></div>
+    <div class="empty__title">هنوز پلنی تعریف نشده</div>
+    <p class="empty__text">پلن‌های اشتراک به‌زودی اینجا اعلام می‌شوند.</p>
+  </div>
+{% endif %}
+
+<!-- ============ Transparency ============ -->
+<div class="notice mt-5">
+  <svg class="icon"><use href="#i-shield"/></svg>
+  <div>
+    <b>دقیقاً چه چیزی می‌خری.</b>
+    پرداخت از طریق درگاه <b>زرین‌پال</b> انجام می‌شود و اطلاعات کارت بانکی‌ات هرگز به
+    کست نمی‌رسد. مبلغ و مدت اشتراک همان چیزی است که بالا نوشته شده — بدون تمدید
+    خودکار و بدون هزینه‌ی پنهان. اشتراک در پایان دوره به‌طور خودکار تمام می‌شود.
+    <div class="mt-2">
+      <a class="text-accent w-700" href="{% url 'terms' %}">قوانین</a> ·
+      <a class="text-accent w-700" href="{% url 'privacy' %}">حریم خصوصی</a>
+    </div>
+  </div>
+</div>
+
+{% if elig %}
+  <div class="card mt-4">
+    <div class="card__title">پیشرفت شرایط ویژه</div>
+    <p class="card__sub">هر چه بیشتر گوش بدهی و منتشر کنی، به مزایای بیشتری می‌رسی.</p>
+    <div class="progress" role="progressbar" aria-valuenow="{{ elig.progress_pct }}" aria-valuemin="0" aria-valuemax="100">
+      <div class="progress__bar" style="width:{{ elig.progress_pct }}%"></div>
+    </div>
+    <div class="muted t-xs mt-2 num">{{ elig.progress_pct }}٪</div>
+  </div>
+{% endif %}
 {% endblock %}

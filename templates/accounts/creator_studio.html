@@ -1,148 +1,260 @@
 {% extends "base.html" %}
-{% block title %}Creator Studio • Casset{% endblock %}
+{% load casset_urls static %}
+{% block title %}استودیوی سازنده | کست{% endblock %}
 
 {% block content %}
-<section class="card" style="max-width:900px;margin:0 auto">
-  <h1>Creator Studio</h1>
-  <p class="muted small">مدیریت محتوا، آمار و آماده‌سازی درآمد.</p>
+<div class="page-head cluster cluster--between">
+  <div>
+    <h1>استودیوی سازنده</h1>
+    <p>مدیریت آثار، آمار پخش و دفتر امتیاز — ۳۰ روز اخیر.</p>
+  </div>
+  <div class="cluster">
+    <a class="btn btn--ghost btn--sm" href="{{ profile.profile_url }}">
+      <svg class="icon"><use href="#i-external"/></svg>صفحه عمومی
+    </a>
+    <a class="btn btn--primary btn--sm" href="{% url 'upload_track' %}">
+      <svg class="icon"><use href="#i-upload"/></svg>آپلود اثر
+    </a>
+  </div>
+</div>
 
-  <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
-    <div class="card" style="padding:14px">
-      <div class="muted small">وضعیت سازنده</div>
-      <div style="font-weight:900;font-size:18px">{{ profile.creator_status }}</div>
+{% if not profile.can_publish %}
+  <div class="notice notice--warn mb-4">
+    <svg class="icon"><use href="#i-alert"/></svg>
+    <div>
+      <b>هنوز نمی‌توانی اثر منتشر کنی.</b>
+      می‌توانی پیش‌نویس بسازی، ولی برای ارسال به بررسی باید مراحل انتشاردهنده را کامل کنی.
+      <div class="mt-2"><a class="btn btn--primary btn--sm" href="{% url 'creator_apply' %}">تکمیل مراحل</a></div>
     </div>
-    <div class="card" style="padding:14px">
-      <div class="muted small">میانبرها</div>
-      <div class="row row-wrap">
-        <a class="btn btn--primary" href="/upload/">آپلود محتوا</a>
-        <a class="btn btn--ghost" href="/my/tracks/">ترک‌های من</a>
-        <a class="btn btn--ghost" href="/payout/">درخواست برداشت</a>
+  </div>
+{% endif %}
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-play"/></svg></span></div>
+    <b class="stat-card__value">{{ totals.plays }}</b>
+    <span class="stat-card__label">پخش (۳۰ روز)</span>
+  </div>
+  <div class="stat-card stat-card--gold">
+    <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-coin"/></svg></span></div>
+    <b class="stat-card__value">{{ totals.points }}</b>
+    <span class="stat-card__label">امتیاز (۳۰ روز)</span>
+  </div>
+  <div class="stat-card stat-card--purple">
+    <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-user"/></svg></span></div>
+    <b class="stat-card__value">{{ first_time_listeners }}</b>
+    <span class="stat-card__label">شنونده اول‌بار</span>
+  </div>
+  <div class="stat-card stat-card--good">
+    <div class="stat-card__top"><span class="stat-card__icon"><svg class="icon"><use href="#i-repeat"/></svg></span></div>
+    <b class="stat-card__value">{{ returning_listeners }}</b>
+    <span class="stat-card__label">شنونده برگشتی</span>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div>
+    <section class="card chart-card">
+      <div class="section-head mt-0">
+        <h2>روند پخش روزانه</h2>
+        <span class="muted t-xs">پخش معتبر و امتیاز</span>
+      </div>
+      {% if daily %}
+        <div class="chart-wrap"><canvas id="studioChart" aria-label="نمودار پخش روزانه"></canvas></div>
+      {% else %}
+        <div class="empty">
+          <div class="empty__icon"><svg class="icon"><use href="#i-trend"/></svg></div>
+          <div class="empty__title">هنوز داده‌ای نیست</div>
+          <p class="empty__text">وقتی آثارت پخش شوند، روند اینجا رسم می‌شود.</p>
+        </div>
+      {% endif %}
+    </section>
+
+    <!-- ============ Per-track performance ============ -->
+    <section class="card mt-4">
+      <div class="section-head mt-0">
+        <h2>عملکرد هر اثر</h2>
+        <div class="cluster">
+          <a class="pill {% if sort == 'plays' %}pill--active{% endif %}" href="?sort=plays">پرپخش‌ترین</a>
+          <a class="pill {% if sort == 'points' %}pill--active{% endif %}" href="?sort=points">پرامتیازترین</a>
+          <a class="pill {% if sort == 'newest' %}pill--active{% endif %}" href="?sort=newest">جدیدترین</a>
+          <a class="pill {% if sort == 'title' %}pill--active{% endif %}" href="?sort=title">الفبایی</a>
+        </div>
+      </div>
+
+      {% if track_performance %}
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>اثر</th><th>وضعیت</th><th>پخش ۳۰ روز</th><th>امتیاز</th><th></th></tr>
+            </thead>
+            <tbody>
+              {% for row in track_performance %}
+                <tr>
+                  <td>
+                    <a href="{% url 'track_detail' row.track.slug %}">{{ row.track.title }}</a>
+                    <div class="muted t-xs">{{ row.track.get_content_type_display }} · <span class="num">{{ row.track.duration_display }}</span></div>
+                  </td>
+                  <td>
+                    {% if row.track.status == "approved" %}
+                      <span class="status status--good">منتشرشده</span>
+                    {% elif row.track.status == "pending" %}
+                      <span class="status status--warn">در بررسی</span>
+                    {% elif row.track.status == "draft" %}
+                      <span class="status status--muted">پیش‌نویس</span>
+                    {% else %}
+                      <span class="status status--bad">{{ row.track.get_status_display }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="num">{{ row.plays }}</td>
+                  <td class="num">{{ row.points }}</td>
+                  <td>
+                    <div class="cluster cluster--nowrap">
+                      <a class="iconbtn btn--sm" href="{% url 'edit_track' row.track.id %}" aria-label="ویرایش">
+                        <svg class="icon"><use href="#i-edit"/></svg>
+                      </a>
+                      {% if row.track.status == "draft" or row.track.status == "rejected" %}
+                        <form method="post" action="{% url 'submit_track' row.track.id %}">
+                          {% csrf_token %}
+                          <button class="btn btn--primary btn--sm" type="submit">ارسال برای بررسی</button>
+                        </form>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty">
+          <div class="empty__icon"><svg class="icon"><use href="#i-music"/></svg></div>
+          <div class="empty__title">هنوز اثری منتشر نکرده‌ای</div>
+          <p class="empty__text">اولین اثرت را آپلود کن؛ بعد از تایید، آمارش همین‌جا می‌آید.</p>
+          <a class="btn btn--primary" href="{% url 'upload_track' %}">آپلود اولین اثر</a>
+        </div>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside>
+    <!-- ============ Wallet ============ -->
+    <div class="wallet-card">
+      <span class="wallet-card__sub">موجودی امتیاز</span>
+      <b class="wallet-card__amount num">{{ profile.points }}</b>
+      <div class="cluster mt-3">
+        <a class="btn btn--gold btn--sm" href="{% url 'payout' %}">درخواست تسویه</a>
       </div>
     </div>
-  </div>
 
-  <div class="card" style="padding:14px;margin-top:12px">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-      <div>
-        <div class="muted small">موجودی امتیاز فعلی</div>
-        <div style="font-weight:900;font-size:26px">{{ profile.points }}</div>
+    <!-- ============ Ledger ============ -->
+    <div class="card mt-4">
+      <div class="card__title">دفتر تراکنش امتیاز</div>
+      <p class="card__sub">
+        هر تغییر موجودی — چه اهدا، چه کسر بابت تسویه — با دلیل دقیق اینجاست.
+      </p>
+      <div class="ledger">
+        {% for entry in recent_ledger %}
+          <div class="ledger__row">
+            <div class="flex-1">
+              <b class="t-sm">{{ entry.get_reason_display }}</b>
+              {% if entry.note %}<div class="muted t-xs">{{ entry.note }}</div>{% endif %}
+              <div class="muted t-xs">{{ entry.created_at|date:"Y/m/d H:i" }}</div>
+            </div>
+            <span class="ledger__delta {% if entry.delta > 0 %}text-good{% elif entry.delta < 0 %}text-bad{% endif %}">
+              {{ entry.delta|stringformat:"+d" }}
+            </span>
+          </div>
+        {% empty %}
+          <p class="muted t-sm mb-0">هنوز تراکنشی ثبت نشده.</p>
+        {% endfor %}
       </div>
-      <a class="btn btn--primary" href="/payout/">درخواست برداشت</a>
     </div>
 
-    <h2 style="margin:16px 0 8px">تراکنش‌های اخیر امتیاز</h2>
-    <p class="muted small" style="margin:0 0 8px">هر تغییر موجودی — چه اهدا و چه کسر بابت برداشت — اینجا با دلیل دقیق ثبت می‌شود؛ شفاف و قابل رهگیری.</p>
-    <div class="list">
-      {% for entry in recent_ledger %}
-        <div class="item" style="justify-content:space-between">
-          <div>
-            <div style="font-weight:700">{{ entry.get_reason_display }}</div>
-            {% if entry.note %}<div class="muted small">{{ entry.note }}</div>{% endif %}
-          </div>
-          <div class="row" style="align-items:center;gap:10px">
-            <span class="muted small">{{ entry.created_at }}</span>
-            <span style="font-weight:900;{% if entry.delta > 0 %}color:#4ade80{% elif entry.delta < 0 %}color:#ff6b6b{% endif %}">{{ entry.delta|stringformat:"+d" }}</span>
-          </div>
-        </div>
-      {% empty %}
-        <div class="item"><span class="muted">هنوز تراکنشی ثبت نشده.</span></div>
-      {% endfor %}
-    </div>
-
-    <h2 style="margin:16px 0 8px">سوابق درخواست برداشت</h2>
-    <div class="list">
-      {% for p in recent_payouts %}
-        <div class="item" style="justify-content:space-between">
-          <div>
-            <div style="font-weight:800">{{ p.amount }} ({{ p.points }} امتیاز)</div>
-            <div class="muted small">{{ p.created_at }}</div>
-          </div>
-          <div class="muted">{{ p.get_status_display }}</div>
-        </div>
-      {% empty %}
-        <div class="item"><span class="muted">هنوز درخواست برداشتی ثبت نکردی.</span></div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <div class="card" style="padding:14px;margin-top:12px">
-    <div class="muted small">آدرس صفحه شما (Shareable)</div>
-    {% if profile.public_handle %}
-      <div style="font-weight:800;font-size:16px">/{{ profile.public_handle }}/</div>
-      <a class="btn btn--ghost" href="/{{ profile.public_handle }}/">مشاهده پروفایل عمومی</a>
-    {% else %}
-      <p class="muted small" style="margin:6px 0 10px">برای اینکه پیج شما با لینک ساده مثل <b>casset.ir/username</b> باز شود، یک یوزرنیم عمومی انتخاب کن.</p>
-      <a class="btn btn--primary" href="/creator/handle/">انتخاب یوزرنیم عمومی</a>
-    {% endif %}
-  </div>
-
-  <div class="card" style="padding:14px;margin-top:12px">
-    <h2 style="margin:0 0 8px">محتوای اخیر</h2>
-    <div class="list">
-      {% for t in tracks %}
-        <div class="item" style="justify-content:space-between">
-          <div>
-            <div style="font-weight:800">{{ t.title }}</div>
-            <div class="muted small">{{ t.content_type }} • {{ t.status }} • {{ t.visibility }} • plays={{ t.play_count }} • likes={{ t.like_count }}</div>
-          </div>
-          <div class="row row-wrap">
-            <a class="btn btn--ghost" href="/my/tracks/{{ t.id }}/edit/">Edit</a>
-            {% if t.status == "draft" or t.status == "rejected" or t.status == "pending" %}
-              <form method="post" action="/my/tracks/{{ t.id }}/submit/" style="display:inline">
-                {% csrf_token %}
-                <button class="btn btn--primary" type="submit">Send</button>
-              </form>
+    <!-- ============ Payouts ============ -->
+    <div class="card mt-4">
+      <div class="card__title">سوابق تسویه</div>
+      <div class="ledger">
+        {% for p in recent_payouts %}
+          <div class="ledger__row">
+            <div class="flex-1">
+              <b class="t-sm num">{{ p.amount }} تومان</b>
+              <div class="muted t-xs"><span class="num">{{ p.points }}</span> امتیاز · {{ p.created_at|date:"Y/m/d" }}</div>
+            </div>
+            {% if p.status == "approved" %}
+              <span class="status status--good">تاییدشده</span>
+            {% elif p.status == "rejected" %}
+              <span class="status status--bad">رد شده</span>
+            {% else %}
+              <span class="status status--warn">در انتظار</span>
             {% endif %}
           </div>
+        {% empty %}
+          <p class="muted t-sm mb-0">هنوز درخواست تسویه‌ای ثبت نکرده‌ای.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- ============ Public link ============ -->
+    <div class="card mt-4">
+      <div class="card__title">لینک اختصاصی تو</div>
+      {% if profile.public_handle %}
+        <p class="t-sm mb-3" dir="ltr">casset.ir/{{ profile.public_handle }}</p>
+        <div class="cluster">
+          <a class="btn btn--ghost btn--sm" href="{{ profile.profile_url }}">مشاهده</a>
+          <button class="btn btn--ghost btn--sm" type="button"
+                  data-share="1" data-url="{{ request.scheme }}://{{ request.get_host }}{{ profile.profile_url }}"
+                  data-title="{{ profile.public_name }} در کست">
+            <svg class="icon"><use href="#i-share"/></svg>اشتراک‌گذاری
+          </button>
         </div>
-      {% empty %}
-        <div class="item"><span class="muted">هنوز محتوایی نداری.</span></div>
-      {% endfor %}
+      {% else %}
+        <p class="card__sub">
+          با انتخاب یوزرنیم عمومی، صفحه‌ات با لینک ساده‌ی <b dir="ltr">casset.ir/username</b> باز می‌شود.
+        </p>
+        <a class="btn btn--primary btn--block" href="{% url 'creator_handle' %}">انتخاب یوزرنیم</a>
+      {% endif %}
     </div>
-  </div>
+  </aside>
+</div>
+{% endblock %}
 
-  <div class="card" style="padding:14px;margin-top:12px">
-    <h2 style="margin:0 0 8px">آمار ۳۰ روز اخیر</h2>
-    <div class="list">
-      {% for d in daily %}
-        <div class="item" style="justify-content:space-between">
-          <div class="muted">{{ d.day }}</div>
-          <div>plays: <b>{{ d.plays }}</b> • points: <b>{{ d.points|default:0 }}</b></div>
-        </div>
-      {% empty %}
-        <div class="item"><span class="muted">داده‌ای برای نمایش نیست.</span></div>
-      {% endfor %}
-    </div>
-  </div>
+{% block scripts %}
+{% if daily %}
+<script src="{% static 'vendor/chart.umd.min.js' %}"></script>
+<script id="studioData" type="application/json">
+{"labels": {{ chart_labels|jsonify }}, "plays": {{ chart_plays|jsonify }}, "points": {{ chart_points|jsonify }}}
+</script>
+<script>
+(function () {
+  var canvas = document.getElementById("studioChart");
+  if (!canvas || typeof Chart === "undefined") return;
+  var data = JSON.parse(document.getElementById("studioData").textContent);
+  var css = getComputedStyle(document.documentElement);
+  Chart.defaults.font.family = "Vazirmatn, system-ui, sans-serif";
+  Chart.defaults.color = css.getPropertyValue("--text").trim();
 
-  <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px;margin-top:12px">
-    <div class="card" style="padding:14px">
-      <div class="muted small">شنونده‌های جدید (۳۰ روز)</div>
-      <div style="font-weight:900;font-size:22px">{{ first_time_listeners }}</div>
-    </div>
-    <div class="card" style="padding:14px">
-      <div class="muted small">شنونده‌های برگشتی (۳۰ روز)</div>
-      <div style="font-weight:900;font-size:22px">{{ returning_listeners }}</div>
-    </div>
-  </div>
-
-  <div class="card" style="padding:14px;margin-top:12px">
-    <h2 style="margin:0 0 8px">عملکرد هر ترک (۳۰ روز اخیر)</h2>
-    <div class="list">
-      {% for row in track_performance %}
-        <div class="item" style="justify-content:space-between">
-          <div style="min-width:0">
-            <a href="/t/{{ row.track.slug }}/" style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ row.track.title }}</a>
-          </div>
-          <div>plays: <b>{{ row.plays }}</b> • points: <b>{{ row.points }}</b></div>
-        </div>
-      {% empty %}
-        <div class="item"><span class="muted">داده‌ای برای نمایش نیست.</span></div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <hr style="margin:16px 0">
-  <a class="btn btn--ghost" href="/dashboard/">بازگشت به داشبورد</a>
-</section>
+  new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: data.labels,
+      datasets: [
+        { label: "پخش", data: data.plays, backgroundColor: css.getPropertyValue("--accent").trim(),
+          borderRadius: 4, maxBarThickness: 18 },
+        { label: "امتیاز", data: data.points, backgroundColor: css.getPropertyValue("--gold").trim(),
+          borderRadius: 4, maxBarThickness: 18 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 12, padding: 16 } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
+        y: { beginAtZero: true, grid: { color: css.getPropertyValue("--line").trim() }, ticks: { precision: 0 } }
+      }
+    }
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

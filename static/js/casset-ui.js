@@ -305,6 +305,56 @@
   }
 
   /* ------------------------------------------------------------------
+     Notifications: mark one, or all, as read without a page reload.
+
+     The forms work perfectly well without JavaScript — this only removes
+     the full-page reload, which is jarring when all that changed is a
+     badge going from 3 to 0.
+     ------------------------------------------------------------------ */
+  function initNotificationActions() {
+    d.addEventListener("submit", function (e) {
+      var form = e.target.closest("[data-notif-read], [data-notif-read-all]");
+      if (!form) return;
+      e.preventDefault();
+
+      var isAll = form.hasAttribute("data-notif-read-all");
+      var body = new URLSearchParams(new FormData(form));
+
+      fetch(form.action, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-CSRFToken": getCookie("csrftoken"),
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: body.toString()
+      })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data || data.ok === false) {
+            if (window.showToast) window.showToast("انجام نشد", false);
+            return;
+          }
+          if (isAll) {
+            $$(".notif--unread").forEach(function (row) { row.classList.remove("notif--unread"); });
+            $$("[data-notif-read]").forEach(function (f) { f.remove(); });
+            form.remove();
+          } else {
+            var row = form.closest("[data-notif-row]");
+            if (row) row.classList.remove("notif--unread");
+            form.remove();
+          }
+          var badge = $("#notifBadge");
+          if (badge && isAll) badge.classList.add("hidden");
+          if (window.showToast) window.showToast("خوانده شد");
+        })
+        .catch(function () {
+          if (window.showToast) window.showToast("ارتباط برقرار نشد", false);
+        });
+    });
+  }
+
+  /* ------------------------------------------------------------------
      Recent searches — client-side only, no server round trip and no
      search history stored on our side.
      ------------------------------------------------------------------ */
@@ -525,6 +575,7 @@
     initOtpInput();
     initTabs();
     initNotificationBadge();
+    initNotificationActions();
     initRecentSearches();
     initDragReorder();
     initImagePreview();

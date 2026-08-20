@@ -141,6 +141,23 @@ def submit_track(request, track_id: int):
     if request.method != "POST":
         raise Http404
 
+    # Publisher gate.
+    #
+    # Uploading a draft is open to any signed-in account — a draft is
+    # private and harmless. Submitting for review is the moment content
+    # becomes public-bound, so this is where the product rule applies:
+    # a publisher must have a verified phone number and a public handle
+    # (accounts.models.UserProfile.can_publish). Gating at upload time
+    # instead would block people from preparing work before they finish
+    # setting up, for no safety benefit.
+    profile = ensure_creator_profile(request.user)
+    if not profile.can_publish:
+        messages.error(
+            request,
+            "برای انتشار اثر، ابتدا شماره موبایلت را تایید کن و یوزرنیم عمومی انتخاب کن.",
+        )
+        return redirect("creator_apply")
+
     # Only allow submission from draft/rejected.
     if track.status not in [Track.Status.DRAFT, Track.Status.REJECTED, Track.Status.PENDING]:
         messages.error(request, "این محتوا در وضعیت فعلی قابل ارسال نیست.")

@@ -1,75 +1,104 @@
 {% extends "base.html" %}
-{% load static casset_urls thumbnails %}
-{% block title %}@{{ user_obj.username }} • Casset{% endblock %}
-{% block meta %}
-<meta name="description" content="{{ profile.bio|default:profile.public_name|truncatechars:160 }}" />
-<meta property="og:site_name" content="Casset" />
-<meta property="og:type" content="profile" />
-<meta property="og:title" content="{{ profile.public_name }} (@{{ user_obj.username }})" />
-<meta property="og:description" content="{{ profile.bio|default:profile.public_name|truncatechars:160 }}" />
-<meta property="og:url" content="{{ request.build_absolute_uri }}" />
-{% if profile.avatar %}<meta property="og:image" content="{% abs_url profile.avatar.url %}" />{% endif %}
-<meta name="twitter:card" content="{% if profile.avatar %}summary_large_image{% else %}summary{% endif %}" />
-<meta name="twitter:title" content="{{ profile.public_name }} (@{{ user_obj.username }})" />
-<meta name="twitter:description" content="{{ profile.bio|default:profile.public_name|truncatechars:160 }}" />
+{% load casset_urls thumbnails %}
+
+{% block title %}{{ profile.public_name }} — موسیقی و پادکست | کست{% endblock %}
+{% block meta_description %}{{ profile.bio|default:profile.public_name|truncatechars:150 }}{% endblock %}
+{% block og_type %}profile{% endblock %}
+{% block og_title %}{{ profile.public_name }} در کست{% endblock %}
+{% block og_description %}{{ profile.bio|default:profile.public_name|truncatechars:150 }}{% endblock %}
+{% block og_image %}{% if profile.cover %}{% abs_url profile.cover.url %}{% elif profile.avatar %}{% abs_url profile.avatar.url %}{% else %}{{ request.scheme }}://{{ request.get_host }}{{ block.super }}{% endif %}{% endblock %}
+{% block twitter_title %}{{ profile.public_name }} در کست{% endblock %}
+{% block twitter_description %}{{ profile.bio|default:profile.public_name|truncatechars:150 }}{% endblock %}
+
+{% block head %}
+<script type="application/ld+json">
+{{ jsonld|safe }}
+</script>
 {% endblock %}
 
 {% block content %}
+<!-- ============ Hero ============ -->
 <section class="profile-hero">
-  <div class="profile-cover" style="{% if profile.cover %}background-image:url('{{ profile.cover.url }}');{% endif %}">
+  <div class="profile-cover"
+       {% if profile.cover %}style="background-image:url('{{ profile.cover|thumbnail_url:'1200x500' }}')"{% endif %}>
     <div class="profile-hero__inner">
       <div class="profile-avatar">
         {% if profile.avatar %}
-          <img src="{{ profile.avatar.url }}" alt="{{ profile.public_name }}">
+          <img src="{{ profile.avatar|thumbnail_url:'320x320' }}" alt="{{ profile.public_name }}" width="104" height="104">
         {% else %}
-          <div class="avatar-fallback">{{ user_obj.username|slice:":1"|upper }}</div>
+          <span class="avatar-fallback">{{ profile.public_name|slice:":1"|upper }}</span>
         {% endif %}
       </div>
 
       <div class="profile-meta">
         <h1 class="profile-name">
           {{ profile.public_name }}
-          {% if profile.is_verified %}<span class="verified-badge" title="Creator تاییدشده">✔</span>{% endif %}
+          {% if profile.is_verified %}
+            <svg class="icon verified-badge" role="img" aria-label="سازنده تاییدشده"><use href="#i-verified"/></svg>
+          {% endif %}
         </h1>
-        <div class="profile-handle">@{{ user_obj.username }}</div>
-        {% if profile.bio %}<div class="profile-bio">{{ profile.bio }}</div>{% endif %}
+        <div class="profile-handle" dir="ltr">
+          {% if profile.public_handle %}@{{ profile.public_handle }}{% else %}@{{ user_obj.username }}{% endif %}
+        </div>
+        {% if profile.bio %}<p class="profile-bio">{{ profile.bio }}</p>{% endif %}
 
         {% if profile.website_url or profile.instagram_url or profile.telegram_url or profile.youtube_url or profile.twitter_url %}
-          <div class="profile-links">
-            {% if profile.website_url %}<a href="{{ profile.website_url }}" target="_blank" rel="noopener noreferrer nofollow" title="وب‌سایت">🌐</a>{% endif %}
-            {% if profile.instagram_url %}<a href="{{ profile.instagram_url }}" target="_blank" rel="noopener noreferrer nofollow" title="اینستاگرام">📷</a>{% endif %}
-            {% if profile.telegram_url %}<a href="{{ profile.telegram_url }}" target="_blank" rel="noopener noreferrer nofollow" title="تلگرام">✈️</a>{% endif %}
-            {% if profile.youtube_url %}<a href="{{ profile.youtube_url }}" target="_blank" rel="noopener noreferrer nofollow" title="یوتیوب">▶️</a>{% endif %}
-            {% if profile.twitter_url %}<a href="{{ profile.twitter_url }}" target="_blank" rel="noopener noreferrer nofollow" title="ایکس">𝕏</a>{% endif %}
+          {% comment %}
+            SVG icons, not raw emoji. Emoji render differently on every
+            platform and were the one place the icon system broke down.
+            rel="nofollow" on user-supplied links so a profile page cannot
+            be used to pass link equity to arbitrary sites.
+          {% endcomment %}
+          <div class="social-links">
+            {% if profile.website_url %}<a href="{{ profile.website_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="وب‌سایت" title="وب‌سایت"><svg class="icon"><use href="#i-globe"/></svg></a>{% endif %}
+            {% if profile.instagram_url %}<a href="{{ profile.instagram_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="اینستاگرام" title="اینستاگرام"><svg class="icon"><use href="#i-instagram"/></svg></a>{% endif %}
+            {% if profile.telegram_url %}<a href="{{ profile.telegram_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="تلگرام" title="تلگرام"><svg class="icon"><use href="#i-telegram"/></svg></a>{% endif %}
+            {% if profile.youtube_url %}<a href="{{ profile.youtube_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="یوتیوب" title="یوتیوب"><svg class="icon"><use href="#i-youtube"/></svg></a>{% endif %}
+            {% if profile.twitter_url %}<a href="{{ profile.twitter_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="ایکس" title="ایکس"><svg class="icon"><use href="#i-x"/></svg></a>{% endif %}
           </div>
         {% endif %}
       </div>
 
       <div class="profile-actions">
         {% if request.user.is_authenticated and request.user.id != user_obj.id %}
-          <button class="btn btn--primary" data-follow="1" data-creator="{{ user_obj.username }}">
+          <button class="btn btn--primary" type="button" data-follow="1" data-creator="{{ user_obj.username }}">
             دنبال کردن
           </button>
-        {% elif request.user.is_authenticated and request.user.id == user_obj.id %}
-          <a class="btn btn--ghost" href="{% url 'settings' %}">ویرایش پروفایل</a>
-        {% endif %}
-
-        {% if tracks or podcast_tracks %}
-          <a class="btn btn--ghost" href="#" data-station="1" data-station-user="{{ user_obj.username }}">
-            📻 رادیو
+        {% elif is_owner %}
+          <a class="btn btn--ghost" href="{% url 'settings' %}">
+            <svg class="icon"><use href="#i-edit"/></svg>ویرایش پروفایل
           </a>
         {% endif %}
 
-        <button class="btn btn--ghost" type="button" data-share="1" data-url="{{ request.build_absolute_uri }}" data-title="{{ profile.public_name }} (@{{ user_obj.username }}) • Casset">
-          اشتراک‌گذاری
+        {% if tracks or podcast_tracks %}
+          <button class="btn btn--ghost" type="button" data-station="1" data-station-user="{{ user_obj.username }}">
+            <svg class="icon"><use href="#i-shuffle"/></svg>رادیو
+          </button>
+        {% endif %}
+
+        <button class="btn btn--ghost" type="button" data-share="1"
+                data-url="{{ request.build_absolute_uri }}"
+                data-title="{{ profile.public_name }} در کست">
+          <svg class="icon"><use href="#i-share"/></svg>اشتراک‌گذاری
         </button>
 
         {% if request.user.is_authenticated and request.user.id != user_obj.id %}
-          <form class="profile-report" method="post" action="{% url 'report_profile' username=user_obj.username %}">
-            {% csrf_token %}
-            <input type="hidden" name="reason" value="impersonation">
-            <button class="btn btn--ghost" type="submit">گزارش</button>
-          </form>
+          <div class="menu profile-report">
+            <button class="iconbtn" type="button" data-menu-toggle aria-haspopup="true" aria-expanded="false" aria-label="گزینه‌های بیشتر">
+              <svg class="icon"><use href="#i-more"/></svg>
+            </button>
+            <div class="menu__panel" role="menu">
+              <form method="post" action="{% url 'report_profile' username=user_obj.username %}">
+                {% csrf_token %}
+                <input type="hidden" name="reason" value="impersonation">
+                <button class="menu__item menu__item--danger" type="submit" role="menuitem"
+                        data-confirm="این پروفایل برای بررسی به تیم کست گزارش می‌شود."
+                        data-confirm-title="گزارش پروفایل">
+                  <svg class="icon"><use href="#i-alert"/></svg>گزارش این پروفایل
+                </button>
+              </form>
+            </div>
+          </div>
         {% endif %}
       </div>
     </div>
@@ -77,205 +106,235 @@
 
   <div class="profile-stats">
     <button class="profile-stat" type="button" data-connections="followers" data-username="{{ user_obj.username }}">
-      <div class="stat">{{ stats.followers }}</div><div class="muted small">دنبال‌کننده</div>
+      <span class="stat num">{{ stats.followers }}</span><span class="muted t-xs">دنبال‌کننده</span>
     </button>
     <button class="profile-stat" type="button" data-connections="following" data-username="{{ user_obj.username }}">
-      <div class="stat">{{ stats.following }}</div><div class="muted small">دنبال‌شده</div>
+      <span class="stat num">{{ stats.following }}</span><span class="muted t-xs">دنبال‌شده</span>
     </button>
     <div class="profile-stat profile-stat--static">
-      <div class="stat">{{ stats.plays }}</div><div class="muted small">پخش</div>
+      <span class="stat num">{{ stats.plays }}</span><span class="muted t-xs">پخش</span>
     </div>
     <div class="profile-stat profile-stat--static">
-      <div class="stat">{{ stats.likes }}</div><div class="muted small">لایک</div>
+      <span class="stat num">{{ stats.likes }}</span><span class="muted t-xs">پسند</span>
     </div>
   </div>
 
   {% comment %}
-    Only sections that actually have content get a tab — dead navigation
-    (tabs whose target is always empty, or whose href 404s) is worse than
-    no tab at all. See the removed 5-tab version this replaced.
+    Only sections with content get a tab — dead navigation is worse than
+    no navigation. The one exception is the owner's own view, where an
+    empty tab is a place to put a "publish your first work" invitation.
   {% endcomment %}
-  <div class="profile-tabs" role="tablist">
-    <button class="tab tab--active" type="button" data-tab="tracks">ترک‌ها <span class="muted">{{ tracks|length }}</span></button>
-    {% if podcast_tracks %}<button class="tab" type="button" data-tab="podcasts">پادکست‌ها <span class="muted">{{ podcast_tracks|length }}</span></button>{% endif %}
-    {% if albums %}<button class="tab" type="button" data-tab="albums">آلبوم‌ها <span class="muted">{{ albums|length }}</span></button>{% endif %}
-    {% if shows %}<button class="tab" type="button" data-tab="shows">شوها <span class="muted">{{ shows|length }}</span></button>{% endif %}
-    {% if public_playlists %}<button class="tab" type="button" data-tab="playlists">پلی‌لیست‌ها <span class="muted">{{ public_playlists|length }}</span></button>{% endif %}
-    {% if request.user.is_authenticated and request.user.id == user_obj.id %}
-      <a class="tab tab--link" href="{% url 'creator_studio' %}">استودیوی من ↗</a>
+  <div class="tabs" role="tablist" data-tab-group>
+    <button class="tabs__tab tabs__tab--active" type="button" data-tab="tracks" aria-selected="true">
+      آثار <span class="muted num">{{ tracks|length }}</span>
+    </button>
+    {% if podcast_tracks %}
+      <button class="tabs__tab" type="button" data-tab="podcasts" aria-selected="false">
+        پادکست <span class="muted num">{{ podcast_tracks|length }}</span>
+      </button>
+    {% endif %}
+    {% if albums %}
+      <button class="tabs__tab" type="button" data-tab="albums" aria-selected="false">
+        آلبوم <span class="muted num">{{ albums|length }}</span>
+      </button>
+    {% endif %}
+    {% if shows %}
+      <button class="tabs__tab" type="button" data-tab="shows" aria-selected="false">
+        شو <span class="muted num">{{ shows|length }}</span>
+      </button>
+    {% endif %}
+    {% if public_playlists %}
+      <button class="tabs__tab" type="button" data-tab="playlists" aria-selected="false">
+        پلی‌لیست <span class="muted num">{{ public_playlists|length }}</span>
+      </button>
     {% endif %}
   </div>
 </section>
 
-<div class="grid profile-grid">
-  <main class="card">
-    <div class="tab-panel" data-tab-panel="tracks">
-      <div class="track-list">
-        {% for t in tracks %}
-          <div class="track-row">
-            <div class="row-cover" style="{% if t.cover %}background-image:url('{{ t.cover|thumbnail_url:"120x120" }}');{% endif %}"></div>
-            <button class="play-btn" data-play="1" data-track="{{ t.id }}" data-src="{{ t.audio_src }}" data-title="{{ t.title }}" data-by="@{{ user_obj.username }}" data-peaks="{{ t.waveform_peaks|jsonify }}" data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}" title="پخش">▶</button>
-            <div class="track-info">
-              <a class="track-title" href="{% url 'track_detail' slug=t.slug %}">{{ t.title }}</a>
-              <div class="muted small">{{ t.created_at|date:"Y-m-d" }} • {{ t.play_count }} پخش • {{ t.like_count }} لایک</div>
-            </div>
-            <div class="track-actions">
-              <button class="icon-btn" title="افزودن به صف پخش" data-queue="1" data-track="{{ t.id }}" data-src="{{ t.audio_src }}" data-title="{{ t.title }}" data-by="@{{ user_obj.username }}" data-peaks="{{ t.waveform_peaks|jsonify }}" data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">＋</button>
-              <button class="icon-btn" title="لایک" data-like="1" data-track="{{ t.id }}">♥</button>
-            </div>
-          </div>
-        {% empty %}
-          <div class="muted">هیچ محتوایی منتشر نشده.</div>
-        {% endfor %}
-      </div>
+<!-- ============ Panels ============ -->
+<div class="grid-2">
+  <div>
+    <div data-tab-panel="tracks">
+      {% if tracks %}
+        <div class="card list" data-queue-scope>
+          {% for t in tracks %}{% include "partials/_track_row.html" with t=t %}{% endfor %}
+        </div>
+      {% elif is_owner %}
+        <div class="empty">
+          <div class="empty__icon"><svg class="icon"><use href="#i-mic"/></svg></div>
+          <div class="empty__title">هنوز اثری منتشر نکرده‌ای</div>
+          <p class="empty__text">
+            صفحه‌ات آماده است — فقط اولین اثرت را منتشر کن تا اینجا دیده شود.
+          </p>
+          <a class="btn btn--primary" href="{% url 'upload_track' %}">
+            <svg class="icon"><use href="#i-upload"/></svg>انتشار اولین اثر
+          </a>
+        </div>
+      {% else %}
+        <div class="empty">
+          <div class="empty__icon"><svg class="icon"><use href="#i-music"/></svg></div>
+          <div class="empty__title">هنوز اثری منتشر نشده</div>
+          <p class="empty__text">این سازنده هنوز چیزی منتشر نکرده است. دنبالش کن تا اولین اثرش را از دست ندهی.</p>
+        </div>
+      {% endif %}
     </div>
 
     {% if podcast_tracks %}
-    <div class="tab-panel" data-tab-panel="podcasts" hidden>
-      <div class="track-list">
-        {% for t in podcast_tracks %}
-          <div class="track-row">
-            <div class="row-cover" style="{% if t.cover %}background-image:url('{{ t.cover|thumbnail_url:"120x120" }}');{% endif %}"></div>
-            <button class="play-btn" data-play="1" data-track="{{ t.id }}" data-src="{{ t.audio_src }}" data-title="{{ t.title }}" data-by="@{{ user_obj.username }}" data-peaks="{{ t.waveform_peaks|jsonify }}" data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}" title="پخش">▶</button>
-            <div class="track-info">
-              <a class="track-title" href="{% url 'track_detail' slug=t.slug %}">{{ t.title }}</a>
-              <div class="muted small">{{ t.created_at|date:"Y-m-d" }} • {{ t.play_count }} پخش</div>
-            </div>
-            <div class="track-actions">
-              <button class="icon-btn" title="افزودن به صف پخش" data-queue="1" data-track="{{ t.id }}" data-src="{{ t.audio_src }}" data-title="{{ t.title }}" data-by="@{{ user_obj.username }}" data-peaks="{{ t.waveform_peaks|jsonify }}" data-cover="{% if t.cover %}{{ t.cover.url }}{% endif %}">＋</button>
-              <button class="icon-btn" title="لایک" data-like="1" data-track="{{ t.id }}">♥</button>
-            </div>
-          </div>
-        {% endfor %}
+      <div data-tab-panel="podcasts" class="hidden">
+        <div class="card list" data-queue-scope>
+          {% for t in podcast_tracks %}{% include "partials/_track_row.html" with t=t %}{% endfor %}
+        </div>
       </div>
-    </div>
     {% endif %}
 
     {% if albums %}
-    <div class="tab-panel" data-tab-panel="albums" hidden>
-      <div class="card-grid">
-        {% for a in albums %}
-          <a class="mini-card" href="{% url 'show_detail' album_id=a.id %}">
-            <div class="mini-card__cover" style="{% if a.cover %}background-image:url('{{ a.cover.url }}');{% endif %}"></div>
-            <div class="mini-card__title">{{ a.title }}</div>
-            <div class="muted small">{{ a.track_count }} ترک</div>
-          </a>
-        {% endfor %}
+      <div data-tab-panel="albums" class="hidden">
+        <div class="card-grid">
+          {% for a in albums %}
+            <a class="mini-card" href="{% url 'show_detail' album_id=a.id %}">
+              <span class="mini-card__cover"
+                    {% if a.cover %}style="background-image:url('{{ a.cover|thumbnail_url:'400x400' }}')"{% endif %}></span>
+              <span class="mini-card__title truncate">{{ a.title }}</span>
+              <span class="muted t-xs num">{{ a.track_count }} اثر</span>
+            </a>
+          {% endfor %}
+        </div>
       </div>
-    </div>
     {% endif %}
 
     {% if shows %}
-    <div class="tab-panel" data-tab-panel="shows" hidden>
-      <div class="card-grid">
-        {% for s in shows %}
-          <a class="mini-card" href="{% url 'show_detail' album_id=s.id %}">
-            <div class="mini-card__cover" style="{% if s.cover %}background-image:url('{{ s.cover.url }}');{% endif %}"></div>
-            <div class="mini-card__title">{{ s.title }}</div>
-            <div class="muted small">{{ s.track_count }} قسمت</div>
-          </a>
-        {% endfor %}
+      <div data-tab-panel="shows" class="hidden">
+        <div class="card-grid">
+          {% for s in shows %}
+            <a class="mini-card" href="{% url 'show_detail' album_id=s.id %}">
+              <span class="mini-card__cover"
+                    {% if s.cover %}style="background-image:url('{{ s.cover|thumbnail_url:'400x400' }}')"{% endif %}></span>
+              <span class="mini-card__title truncate">{{ s.title }}</span>
+              <span class="muted t-xs num">{{ s.track_count }} قسمت</span>
+            </a>
+          {% endfor %}
+        </div>
       </div>
-    </div>
     {% endif %}
 
     {% if public_playlists %}
-    <div class="tab-panel" data-tab-panel="playlists" hidden>
-      <div class="card-grid">
-        {% for p in public_playlists %}
-          <a class="mini-card" href="{% url 'playlist_detail' playlist_id=p.id %}">
-            <div class="mini-card__cover mini-card__cover--playlist">🎵</div>
-            <div class="mini-card__title">{{ p.name }}</div>
-            <div class="muted small">{{ p.item_count }} ترک</div>
-          </a>
-        {% endfor %}
+      <div data-tab-panel="playlists" class="hidden">
+        <div class="card-grid">
+          {% for p in public_playlists %}
+            <a class="mini-card" href="{% url 'playlist_detail' playlist_id=p.id %}">
+              <span class="mini-card__cover mini-card__cover--playlist"><svg class="icon"><use href="#i-playlist"/></svg></span>
+              <span class="mini-card__title truncate">{{ p.name }}</span>
+              <span class="muted t-xs num">{{ p.item_count }} اثر</span>
+            </a>
+          {% endfor %}
+        </div>
       </div>
-    </div>
     {% endif %}
-  </main>
+  </div>
 
-  <aside class="card">
-    <h3>پیشنهاد برای دنبال کردن</h3>
-    <div class="suggested">
+  <aside>
+    {% if is_owner %}
+      <div class="wallet-card">
+        <span class="wallet-card__sub">موجودی امتیاز شما</span>
+        <b class="wallet-card__amount num">{{ profile.points }}</b>
+        <div class="wallet-card__sub">فقط برای خودت و تیم کست قابل مشاهده است.</div>
+        <div class="cluster mt-3">
+          <a class="btn btn--gold btn--sm" href="{% url 'payout' %}">درخواست تسویه</a>
+          <a class="btn btn--ghost btn--sm" href="{% url 'creator_studio' %}">استودیو</a>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="card {% if is_owner %}mt-4{% endif %}">
+      <div class="card__title">سازنده‌های پیشنهادی</div>
       {% for u in suggested_creators %}
         <div class="suggest-row">
-          <a href="/@{{ u.username }}/">@{{ u.username }}</a>
+          <a class="cluster" href="{{ u.profile.profile_url }}">
+            <span class="creator-box__av creator-box__av--sm" aria-hidden="true"
+                  {% if u.profile.avatar %}style="background-image:url('{{ u.profile.avatar|thumbnail_url:'80x80' }}')"{% endif %}></span>
+            <span class="t-sm w-700 truncate">{{ u.profile.public_name }}</span>
+          </a>
           {% if request.user.is_authenticated and request.user.id != u.id %}
-            <button class="btn btn--ghost btn--sm" data-follow="1" data-creator="{{ u.username }}">دنبال کردن</button>
+            <button class="btn btn--ghost btn--sm" type="button" data-follow="1" data-creator="{{ u.username }}">دنبال</button>
           {% endif %}
         </div>
       {% empty %}
-        <div class="muted small">فعلاً پیشنهادی نداریم.</div>
+        <p class="muted t-sm mb-0">فعلاً پیشنهادی نداریم.</p>
       {% endfor %}
     </div>
-
-    <hr>
-
-    {% if request.user.is_authenticated and request.user.id == user_obj.id %}
-      <h3>امتیاز شما</h3>
-      <p class="muted small">این امتیازها فقط برای شما و ادمین نمایش داده می‌شود.</p>
-      <div class="stat">{{ profile.points }}</div>
-      <a class="btn btn--ghost btn--sm" href="{% url 'payout' %}" style="margin-top:10px">درخواست تسویه</a>
-    {% endif %}
   </aside>
 </div>
 
-<!-- Followers/Following modal -->
-<div id="connModal" class="overlay-panel" style="display:none">
+<!-- Followers / following modal -->
+<div id="connModal" class="overlay-panel hidden">
   <div class="overlay-panel__inner card">
-    <div class="row" style="justify-content:space-between;align-items:center">
-      <h2 id="connModalTitle" style="margin:0">دنبال‌کننده‌ها</h2>
-      <button id="connClose" class="iconbtn" type="button" aria-label="بستن">✕</button>
+    <div class="cluster cluster--between">
+      <h2 id="connModalTitle" class="mb-0">دنبال‌کننده‌ها</h2>
+      <button id="connClose" class="iconbtn" type="button" aria-label="بستن"><svg class="icon"><use href="#i-close"/></svg></button>
     </div>
-    <div id="connModalList" class="list" style="margin-top:10px"></div>
+    <div id="connModalList" class="list mt-3"></div>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-(function(){
-  // Tab switching (client-side only — every tab here has real content,
-  // no dead hrefs like the previous version's removed 5-tab layout).
-  document.querySelectorAll('.profile-tabs [data-tab]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      document.querySelectorAll('.profile-tabs [data-tab]').forEach(function(b){ b.classList.remove('tab--active'); });
-      btn.classList.add('tab--active');
-      var target = btn.dataset.tab;
-      document.querySelectorAll('[data-tab-panel]').forEach(function(panel){
-        panel.hidden = panel.dataset.tabPanel !== target;
-      });
-    });
-  });
+(function () {
+  /* Followers / following list. Tab switching itself is handled by the
+     shared [data-tab-group] logic in casset-ui.js — this page no longer
+     ships its own copy of it. */
+  var modal = document.getElementById("connModal");
+  var list = document.getElementById("connModalList");
+  var title = document.getElementById("connModalTitle");
+  if (!modal) return;
 
-  // Followers/Following modal
-  var modal = document.getElementById('connModal');
-  var list = document.getElementById('connModalList');
-  var title = document.getElementById('connModalTitle');
-  function closeModal(){ if (modal) modal.style.display = 'none'; }
-  document.getElementById('connClose') && document.getElementById('connClose').addEventListener('click', closeModal);
-  modal && modal.addEventListener('click', function(e){ if (e.target === modal) closeModal(); });
+  function close() { modal.classList.add("hidden"); }
+  document.getElementById("connClose").addEventListener("click", close);
+  modal.addEventListener("click", function (e) { if (e.target === modal) close(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
 
-  document.querySelectorAll('[data-connections]').forEach(function(btn){
-    btn.addEventListener('click', function(){
+  document.querySelectorAll("[data-connections]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
       var kind = btn.dataset.connections;
       var username = btn.dataset.username;
-      title.textContent = kind === 'followers' ? 'دنبال‌کننده‌ها' : 'دنبال‌شده‌ها';
-      list.innerHTML = '<div class="item"><span class="muted">در حال بارگذاری...</span></div>';
-      modal.style.display = 'flex';
-      fetch('/api/v1/connections/' + encodeURIComponent(username) + '/?type=' + kind)
-        .then(function(r){ return r.json(); })
-        .then(function(data){
+      title.textContent = kind === "followers" ? "دنبال‌کننده‌ها" : "دنبال‌شده‌ها";
+      list.innerHTML = '<p class="muted t-sm">در حال بارگذاری…</p>';
+      modal.classList.remove("hidden");
+
+      fetch("/api/v1/connections/" + encodeURIComponent(username) + "/?type=" + kind)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
           if (!data.ok || !data.people.length) {
-            list.innerHTML = '<div class="item"><span class="muted">کسی یافت نشد.</span></div>';
+            list.innerHTML = '<p class="muted t-sm">کسی اینجا نیست.</p>';
             return;
           }
-          list.innerHTML = data.people.map(function(p){
-            var badge = p.verified ? ' <span class="verified-badge" style="font-size:11px">✔</span>' : '';
-            return '<div class="item"><a href="/@' + p.username + '/" style="font-weight:900">@' + p.username + badge + '</a></div>';
-          }).join('');
+          /* Built with DOM nodes, not an HTML string: display names are
+             user-supplied and would otherwise be an injection point. */
+          list.innerHTML = "";
+          data.people.forEach(function (p) {
+            var row = document.createElement("a");
+            row.className = "suggest-row";
+            row.href = p.url || ("/@" + p.username + "/");
+
+            var name = document.createElement("span");
+            name.className = "t-sm w-700 truncate";
+            name.textContent = p.name || p.username;
+            row.appendChild(name);
+
+            if (p.verified) {
+              var badge = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+              badge.setAttribute("class", "icon verified-badge");
+              var use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+              use.setAttribute("href", "#i-verified");
+              badge.appendChild(use);
+              row.appendChild(badge);
+            }
+            list.appendChild(row);
+          });
         })
-        .catch(function(){ list.innerHTML = '<div class="item"><span class="muted">خطا در دریافت لیست</span></div>'; });
+        .catch(function () {
+          list.innerHTML = '<p class="muted t-sm">خطا در دریافت فهرست.</p>';
+        });
     });
   });
 })();

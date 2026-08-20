@@ -934,3 +934,109 @@ input[type="file"]::file-selector-button:hover { filter: brightness(1.05); }
 .pl-card:hover .pl-card__cover { transform: translateY(-2px); }
 .pl-card__title { display: block; font-weight: 800; font-size: var(--fs-sm); margin-bottom: 4px; }
 .pl-card__title:hover { color: var(--accent2); }
+
+/* Ledger rows (creator studio, payouts) */
+.ledger { display: flex; flex-direction: column; }
+.ledger__row {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+}
+.ledger__row + .ledger__row { border-top: 1px solid var(--line); }
+.ledger__delta { font-weight: 900; font-size: var(--fs-sm); flex: none; }
+.icon--xs { width: 13px !important; height: 13px !important; }
+
+/* ---------------------------------------------------------------------
+   21. Playlist detail
+   ------------------------------------------------------------------ */
+.playlist-hero { display: flex; gap: var(--sp-5); align-items: flex-start; flex-wrap: wrap; }
+.playlist-hero__cover {
+  width: 190px; aspect-ratio: 1/1; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-2);
+  background-size: cover; background-position: center;
+  background-image: linear-gradient(135deg, rgb(var(--accent-rgb) / .30), rgb(var(--purple-rgb) / .28));
+  box-shadow: var(--shadow-2);
+}
+.playlist-hero__cover .icon { width: 44px; height: 44px; color: var(--text); opacity: .5; }
+.playlist-hero__meta { flex: 1; min-width: 240px; }
+.playlist-hero__name {
+  font-size: var(--fs-xl); font-weight: 900;
+  background: transparent; border: 1px solid transparent;
+  padding: 4px 8px; border-radius: var(--radius-1); width: auto; max-width: 340px;
+}
+.playlist-hero__name:hover, .playlist-hero__name:focus { border-color: var(--line); background: var(--field-bg); }
+@media (max-width: 560px){ .playlist-hero__cover { width: 120px; } }
+
+/* Reorder affordances: drag on a pointer device, arrows everywhere else. */
+@media (hover: none) { .drag-handle { display: none; } }
+@media (hover: hover) { .reorder-arrows { display: none; } }
+.reorder-arrows .iconbtn { height: 22px; min-width: 26px; padding: 0; }
+
+/* Numbered how-it-works list */
+.steps-list { color: var(--muted); line-height: 1.9; padding-inline-start: 18px; margin: 0 0 var(--sp-4); }
+.steps-list li { margin-bottom: var(--sp-2); }
+
+/* Progress bar */
+.progress {
+  height: 10px; border-radius: 999px; overflow: hidden;
+  background: var(--surface-3);
+}
+.progress__bar {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  transition: width var(--dur) var(--ease);
+}
+
+/* ---------------------------------------------------------------------
+   22. Notifications
+   ------------------------------------------------------------------ */
+.notif {
+  display: flex; align-items: flex-start; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-2);
+  border-radius: var(--radius-1);
+}
+.notif + .notif { border-top: 1px solid var(--line); }
+.notif--unread { background: var(--tint-accent); }
+.notif__icon {
+  width: 34px; height: 34px; border-radius: 11px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--muted);
+}
+.notif__icon .icon { width: 17px; height: 17px; }
+.notif__icon--track_liked, .notif__icon--comment_liked { background: var(--tint-bad); color: var(--bad); }
+.notif__icon--new_follower { background: var(--tint-purple); color: var(--purple); }
+.notif__icon--track_approved { background: var(--tint-good); color: var(--good); }
+.notif__icon--track_rejected { background: var(--tint-bad); color: var(--bad); }
+.notif__icon--milestone_plays { background: var(--tint-gold); color: var(--gold); }
+.notif__body { flex: 1; min-width: 0; }
+.notif__text { font-size: var(--fs-sm); font-weight: 600; line-height: 1.75; margin-bottom: 2px; }
+.notif__actions { display: flex; gap: 6px; flex: none; align-items: center; }
+@media (max-width: 560px){
+  .notif__actions .btn--ghost { display: none; }
+}
+.creator-box__av--sm { width: 32px; height: 32px; }
+.profile-stat .stat { font-size: var(--fs-xl); font-weight: 900; display: block; }
+.suggest-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-2) 0; }
+.suggest-row + .suggest-row { border-top: 1px solid var(--line); }
+.suggest-row .cluster { min-width: 0; }
+
+/* ---------------------------------------------------------------------
+   23. Upload flow + my tracks
+   ------------------------------------------------------------------ */
+.upload-step__head { display: flex; align-items: flex-start; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.upload-step__num {
+  width: 28px; height: 28px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent); color: var(--on-accent);
+  font-weight: 800; font-size: var(--fs-xs);
+}
+
+.mytrack { display: flex; align-items: flex-start; gap: var(--sp-3); padding: var(--sp-4) 0; }
+.mytrack + .mytrack { border-top: 1px solid var(--line); }
+.mytrack:first-child { padding-top: 0; }
+.mytrack__meta { flex: 1; min-width: 0; }
+.mytrack__actions { display: flex; gap: var(--sp-2); flex: none; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px){
+  .mytrack { flex-wrap: wrap; }
+  .mytrack__actions { width: 100%; justify-content: flex-start; }
+}
