@@ -53,7 +53,7 @@ class Album(models.Model):
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='albums')
     title = models.CharField(max_length=140)
     description = models.TextField(blank=True)
-    cover = models.ImageField(upload_to='album_covers/', blank=True, null=True)
+    cover = models.ImageField(upload_to='tracks/album_covers/', blank=True, null=True)
     content_type = models.CharField(max_length=16, choices=ContentType.choices, default=ContentType.MUSIC)
     is_public = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -105,9 +105,14 @@ class Track(models.Model):
     explicit = models.BooleanField(default=False)
     visibility = models.CharField(max_length=12, choices=Visibility.choices, default=Visibility.PRIVATE)
 
-    cover = models.ImageField(upload_to="covers/", blank=True, null=True)
-    audio = models.FileField(upload_to="audio/", blank=True, null=True)
-    video = models.FileField(upload_to="video/", blank=True, null=True)
+    # Namespaced under tracks/ (not the bare "covers/" this used to be) so
+    # object-storage paths never collide with accounts.UserProfile's own
+    # cover field, which used the exact same prefix — see CLAUDE.md item on
+    # the S3 migration for why that mattered once storage stopped being a
+    # single shared local filesystem.
+    cover = models.ImageField(upload_to="tracks/covers/", blank=True, null=True)
+    audio = models.FileField(upload_to="tracks/audio/", blank=True, null=True)
+    video = models.FileField(upload_to="tracks/video/", blank=True, null=True)
 
     duration_seconds = models.PositiveIntegerField(default=0)
     allow_comments = models.BooleanField(default=True)

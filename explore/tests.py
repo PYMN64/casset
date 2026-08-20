@@ -7,15 +7,18 @@ back" personalized feed) — these tests lock that behavior in.
 """
 
 from datetime import date, timedelta
+from unittest import skipUnless
 
+from django.db import connection
 from django.test import TestCase
 from django.urls import reverse
 
 from core.test_utils import make_user
 from interactions.models import CreatorFollow
 from plays.models import PlayEvent
-from tracks.models import Track
+from tracks.models import Genre, Track
 
+from . import services
 from .models import FeaturedPin
 
 
@@ -173,3 +176,72 @@ class PinnedAndTypeFilterTests(TestCase):
     def test_invalid_type_falls_back_to_all(self):
         resp = self.client.get(reverse("discover") + "?type=not_a_real_type")
         self.assertEqual(resp.context["selected_type"], "all")
+
+
+# ---------------------------------------------------------------------------
+# Search (explore/services.py) — the SQLite path is what CI/dev actually
+# exercises (pyproject.toml's default settings module runs sqlite); the
+# PostgreSQL SearchVector/SearchRank path is skipped here and instead
+# verified against a real Postgres server (see .casset/state/changelog.md).
+# ---------------------------------------------------------------------------
+
+class SearchTracksTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("search_creator")
+        self.match = make_track(self.creator, title="Shabaviz Live")
+        self.other = make_track(self.creator, title="Unrelated Track")
+        make_track(self.creator, title="Hidden Draft", status=Track.Status.DRAFT)
+
+    def test_matches_title_case_insensitively(self):
+        results = services.search_tracks("shabaviz")
+        ids = [r["id"] for r in results]
+        self.assertIn(self.match.id, ids)
+        self.assertNotIn(self.other.id, ids)
+
+    def test_excludes_non_public_or_unapproved_tracks(self):
+        results = services.search_tracks("Hidden")
+        self.assertEqual(results, [])
+
+    def test_orders_by_play_count(self):
+        Track.objects.filter(pk=self.other.pk).update(title="Shabaviz Extra", play_count=100)
+        results = services.search_tracks("shabaviz")
+        self.assertEqual(results[0]["id"], self.other.pk)
+
+
+class SearchCreatorsTests(TestCase):
+    def test_matches_username(self):
+        make_user("findable_creator_x")
+        results = services.search_creators("findable_creator")
+        usernames = [r["username"] for r in results]
+        self.assertIn("findable_creator_x", usernames)
+
+    def test_no_match_returns_empty(self):
+        self.assertEqual(services.search_creators("zzz_no_such_user"), [])
+
+
+class SearchGenresTests(TestCase):
+    def test_matches_genre_name(self):
+        Genre.objects.create(name="Traditional Persian", slug="traditional-persian")
+        results = services.search_genres("Persian")
+        self.assertEqual(len(results), 1)
+
+
+@skipUnless(connection.vendor == "postgresql", "SearchVector/SearchRank only runs on PostgreSQL")
+class SearchFullTextPostgresTests(TestCase):
+    """Only executes when the test suite is run against a real Postgres
+    server (see .casset/state/changelog.md for the pgserver-based
+    verification runs used in prior phases) — SQLite is the default and
+    can't exercise this branch."""
+
+    def setUp(self):
+        self.creator = make_user("pg_search_creator")
+        self.by_title = make_track(self.creator, title="Zarathustra Podcast")
+        self.by_description = make_track(
+            self.creator, title="Unrelated", description="A show about Zarathustra history",
+        )
+
+    def test_ranks_title_match_above_description_match(self):
+        results = services.search_tracks("Zarathustra")
+        ids = [r["id"] for r in results]
+        self.assertEqual(ids[0], self.by_title.id)
+        self.assertIn(self.by_description.id, ids)

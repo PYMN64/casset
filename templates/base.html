@@ -9,6 +9,18 @@
 
   <title>{% block title %}Casset{% endblock %}</title>
 
+  {% block meta %}
+  <meta name="description" content="کست — اولین پلتفرم ایرانی انتشار و کشف موزیک، پادکست و کتاب صوتی." />
+  <meta property="og:site_name" content="Casset" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Casset" />
+  <meta property="og:description" content="اولین پلتفرم ایرانی انتشار و کشف موزیک، پادکست و کتاب صوتی." />
+  <meta property="og:url" content="{{ request.build_absolute_uri }}" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Casset" />
+  <meta name="twitter:description" content="اولین پلتفرم ایرانی انتشار و کشف موزیک، پادکست و کتاب صوتی." />
+  {% endblock %}
+
   <link rel="manifest" href="{% static 'manifest.webmanifest' %}">
   <link rel="apple-touch-icon" href="{% static 'icons/icon.svg' %}">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -232,6 +244,10 @@
           <svg class="icon" id="pbPlayIcon"><use href="#i-play"/></svg>
         </button>
         <a class="iconbtn" href="#" id="pbNext" aria-label="بعدی"><svg class="icon"><use href="#i-next"/></svg></a>
+      </div>
+
+      <div id="pbWave" class="playerbar__wave" aria-hidden="true">
+        {% for i in "0123456789012345"|make_list %}<span></span>{% endfor %}
       </div>
 
       <div class="playerbar__tools">

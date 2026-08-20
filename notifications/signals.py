@@ -95,16 +95,14 @@ def on_track_status_changed(sender, instance, created, **kwargs):
         return
 
     try:
-        from notifications.services import (
-            notify_new_track_to_followers,
-            notify_track_approved,
-            notify_track_rejected,
-        )
+        from notifications.services import notify_track_approved, notify_track_rejected
+        from notifications.tasks import notify_new_track_to_followers_task
         if instance.status == Track.Status.APPROVED:
             notify_track_approved(track=instance)
-            # Fan-out to followers only when newly approved + public
+            # Fan-out to followers only when newly approved + public — via
+            # Celery now (see notifications/tasks.py), eager in dev/test.
             if instance.visibility == Track.Visibility.PUBLIC:
-                notify_new_track_to_followers(track=instance)
+                notify_new_track_to_followers_task.delay(track_id=instance.id)
 
         elif instance.status == Track.Status.REJECTED:
             notify_track_rejected(

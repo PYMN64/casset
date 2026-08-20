@@ -1,5 +1,28 @@
 # Casset Current State
 
+## v1.0 — MVP baseline (2026-08-20)
+
+This tree is the **v1 reference point**: the first fully working, tested,
+production-shaped version of Casset. Everything below describes how it got
+here; `.casset/state/changelog.md` has the per-change detail.
+
+- **417 tests green on real PostgreSQL** (416 on SQLite + 1 Postgres-only
+  full-text-search test). `ruff check .` fully clean for the first time.
+- Postgres is now permanent dev infrastructure, not a one-off verification:
+  `python scripts/local_postgres.py test` runs the whole suite against a real
+  server with no Docker/admin rights needed.
+- Production hardening in place: S3-compatible object storage (opt-in),
+  Celery+Redis, Sentry, `/healthz/`, `backup_db`, and fail-fast prod guards
+  for DB / SMS / payment credentials.
+- Monetization is real, not dev-only: Zarinpal provider abstraction and
+  creator payouts that actually deduct points through `PointLedger`.
+- Demo data: `python manage.py seed_demo --users 33` populates every
+  dashboard and queue with realistic activity.
+
+**Known blockers for an actual production deploy** (deliberate, not bugs):
+real `ZARINPAL_MERCHANT_ID`, `KAVENEGAR_API_KEY`, and S3 credentials must be
+supplied by the owner — prod refuses to boot without them, by design.
+
 ## Status
 Phase 1 (Foundation Stabilization) **closed** 2026-08-19 — all 8 items in CLAUDE.md §3 resolved.
 Phase 2 (revised — social endpoints + player UX, roadmap §7) **closed** 2026-08-19 — items #9/#10 resolved.
@@ -10,12 +33,20 @@ Phase 4+5 (merged — personal feed + creator analytics + smart discovery, roadm
 creators were found already sitting uncommitted from a parallel session; reviewed (2 real bugs found
 and fixed, see §9.2), completed (suggested creators), and fully tested (0 → 25 tests across explore/
 accounts/plays).
+Final phase (Production hardening + real monetization + competitive UX, roadmap §10) **closed**
+2026-08-20 — items #15-#20 resolved. Real SMS (Kavenegar) + payment gateway (Zarinpal) providers,
+S3-compatible object storage, Celery, Sentry, health check, backup command, real payout point deduction,
+Postgres full-text search, OG tags, thumbnail pipeline, creator earnings dashboard, staff platform
+dashboard, decorative waveform, upload/review UX pass. Two real Sum(BooleanField)-on-PostgreSQL bugs
+found this session (one via code audit before writing code, one via the live-Postgres verification pass
+itself — same class as item #13, in a view that had never been reachable before this session fixed its
+routing). Not committed yet — awaiting explicit user approval per this session's instructions.
 
 ## Repository strategy
 Keep the existing Django modular monolith. Stabilize and refactor critical domains instead of rewriting.
 
 ## Current critical path
-S0 Foundation ✅ → S1 Identity ✅ → S2 Content/Social ✅ → S3 Moderation ✅ → S4 Playback ✅ → S5 Play Intelligence ✅ → S6 Analytics ✅ → S7 Discovery ✅ → **S8 Production (next)**.
+S0 Foundation ✅ → S1 Identity ✅ → S2 Content/Social ✅ → S3 Moderation ✅ → S4 Playback ✅ → S5 Play Intelligence ✅ → S6 Analytics ✅ → S7 Discovery ✅ → S8 Production ✅ → **S9 Real deploy (next — needs real S3/Zarinpal/Kavenegar credentials from PYMN)**.
 
 ## Current release criterion
 The creator/listener business flow must work end-to-end and produce trustworthy qualified-play, analytics and reward records.
@@ -76,3 +107,11 @@ MinGW64 install (`/mingw64/share/zoneinfo`). A normal PostgreSQL install/Docker 
 
 **Conclusion: the Postgres path is production-ready and proven, not just configured.** No further
 smoke-test is required before the first real deploy on this account.
+
+**Re-verified 2026-08-20 (final phase)** with the same pgserver-based disposable-Postgres method: full
+413-test suite + `migrate` under both `dev`/`prod` settings — this run is what caught a second
+`Sum(BooleanField)` bug (`core/staff_views.py::users_console`, same class as item #13) before it could
+ever reach a real deploy. Fixed and re-verified clean. Test count: 343 → 413 over this session (SMS
+provider, S3 storage validation, Celery task, health check, backup command, staff console — previously
+completely unreachable, now tested — payment provider, payout approval, full-text search, OG tags,
+thumbnail filter, and the two dashboards).

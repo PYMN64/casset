@@ -1,6 +1,18 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static casset_urls %}
 {% block title %}@{{ user_obj.username }} • Casset{% endblock %}
+{% block meta %}
+<meta name="description" content="{{ profile.bio|default:profile.public_name|truncatechars:160 }}" />
+<meta property="og:site_name" content="Casset" />
+<meta property="og:type" content="profile" />
+<meta property="og:title" content="{{ profile.public_name }} (@{{ user_obj.username }})" />
+<meta property="og:description" content="{{ profile.bio|default:profile.public_name|truncatechars:160 }}" />
+<meta property="og:url" content="{{ request.build_absolute_uri }}" />
+{% if profile.avatar %}<meta property="og:image" content="{% abs_url profile.avatar.url %}" />{% endif %}
+<meta name="twitter:card" content="{% if profile.avatar %}summary_large_image{% else %}summary{% endif %}" />
+<meta name="twitter:title" content="{{ profile.public_name }} (@{{ user_obj.username }})" />
+<meta name="twitter:description" content="{{ profile.bio|default:profile.public_name|truncatechars:160 }}" />
+{% endblock %}
 
 {% block content %}
 <section class="profile-hero">
@@ -22,7 +34,7 @@
 
       {% if request.user.is_authenticated and request.user.id != user_obj.id %}
         <button class="btn btn--primary" data-follow="1" data-creator="{{ user_obj.username }}">
-          Follow <span class="muted" id="followCount">{{ stats.followers }}</span>
+          دنبال کردن <span class="muted" id="followCount">{{ stats.followers }}</span>
         </button>
       {% endif %}
 
@@ -30,43 +42,50 @@
         <form class="profile-report" method="post" action="{% url 'report_profile' username=user_obj.username %}">
           {% csrf_token %}
           <input type="hidden" name="reason" value="impersonation">
-          <button class="btn btn--ghost" type="submit">Report</button>
+          <button class="btn btn--ghost" type="submit">گزارش</button>
         </form>
       {% endif %}
     </div>
   </div>
 
+  {% comment %}
+    Only sections that actually exist on this page get a tab. The previous
+    markup shipped five tabs (All/Tracks/Playlists/Albums/Reposts) whose
+    hrefs pointed at #ids that were never rendered — and "Reposts" isn't a
+    feature this codebase has at all. Dead navigation is worse than none.
+    NOTE: {# #} is single-line only in Django; a multi-line one renders as
+    literal text on the page.
+  {% endcomment %}
   <div class="profile-tabs">
-    <a class="tab tab--active" href="#all">All</a>
-    <a class="tab" href="#tracks">Tracks</a>
-    <a class="tab" href="#playlists">Playlists</a>
-    <a class="tab" href="#albums">Albums</a>
-    <a class="tab" href="#reposts">Reposts</a>
+    <a class="tab tab--active" href="#all">محتواها</a>
+    {% if request.user.is_authenticated and request.user.id == user_obj.id %}
+      <a class="tab" href="{% url 'creator_studio' %}">استودیوی من</a>
+    {% endif %}
   </div>
 </section>
 
 <div class="grid profile-grid">
   <main class="card" id="all">
     <div class="profile-stats">
-      <div><div class="muted small">Followers</div><div class="stat">{{ stats.followers }}</div></div>
-      <div><div class="muted small">Following</div><div class="stat">{{ stats.following }}</div></div>
-      <div><div class="muted small">Plays</div><div class="stat">{{ stats.plays }}</div></div>
-      <div><div class="muted small">Likes</div><div class="stat">{{ stats.likes }}</div></div>
+      <div><div class="muted small">دنبال‌کننده</div><div class="stat">{{ stats.followers }}</div></div>
+      <div><div class="muted small">دنبال‌شده</div><div class="stat">{{ stats.following }}</div></div>
+      <div><div class="muted small">پخش</div><div class="stat">{{ stats.plays }}</div></div>
+      <div><div class="muted small">لایک</div><div class="stat">{{ stats.likes }}</div></div>
     </div>
 
-    <h2 class="mt">Recent</h2>
+    <h2 class="mt">جدیدترین‌ها</h2>
     <div class="track-list">
       {% for t in tracks %}
         <div class="track-row">
-          <button class="play-btn" data-play="{{ t.id }}" data-src="{{ t.audio_src }}" data-title="{{ t.title }}" data-cover="{{ t.cover_src }}">▶</button>
+          <button class="play-btn" data-play="{{ t.id }}" data-src="{{ t.audio_src }}" data-title="{{ t.title }}" data-cover="{{ t.cover_src }}" title="پخش">▶</button>
           <div class="track-info">
-            <div class="track-title">{{ t.title }}</div>
-            <div class="muted small">{{ t.created_at|date:"Y-m-d" }} • {{ t.play_count }} plays • {{ t.like_count }} likes</div>
+            <a class="track-title" href="{% url 'track_detail' slug=t.slug %}">{{ t.title }}</a>
+            <div class="muted small">{{ t.created_at|date:"Y-m-d" }} • {{ t.play_count }} پخش • {{ t.like_count }} لایک</div>
             <div class="wave-placeholder"></div>
           </div>
           <div class="track-actions">
-            <button class="icon-btn" title="Add to queue" data-queue="{{ t.id }}">＋</button>
-            <button class="icon-btn" title="Like" data-like="{{ t.id }}">♥</button>
+            <button class="icon-btn" title="افزودن به صف پخش" data-queue="{{ t.id }}">＋</button>
+            <button class="icon-btn" title="لایک" data-like="{{ t.id }}">♥</button>
           </div>
         </div>
       {% empty %}
@@ -76,13 +95,13 @@
   </main>
 
   <aside class="card">
-    <h3>Who to follow</h3>
+    <h3>پیشنهاد برای دنبال کردن</h3>
     <div class="suggested">
       {% for u in suggested_creators %}
         <div class="suggest-row">
           <a href="/@{{ u.username }}/">@{{ u.username }}</a>
           {% if request.user.is_authenticated and request.user.id != u.id %}
-            <button class="btn btn--ghost btn--sm" data-follow="1" data-creator="{{ u.username }}">Follow</button>
+            <button class="btn btn--ghost btn--sm" data-follow="1" data-creator="{{ u.username }}">دنبال کردن</button>
           {% endif %}
         </div>
       {% empty %}
@@ -93,9 +112,10 @@
     <hr>
 
     {% if request.user.is_authenticated and request.user.id == user_obj.id %}
-      <h3>Your points</h3>
+      <h3>امتیاز شما</h3>
       <p class="muted small">این امتیازها فقط برای شما و ادمین نمایش داده می‌شود.</p>
       <div class="stat">{{ profile.points }}</div>
+      <a class="btn btn--ghost btn--sm" href="{% url 'payout' %}" style="margin-top:10px">درخواست تسویه</a>
     {% endif %}
   </aside>
 </div>

@@ -110,6 +110,11 @@ class PayoutRequest(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="payouts")
     amount = models.PositiveIntegerField()
+    # Points backing this payout, locked in at request time (not
+    # re-derived from `amount` at approval time — price_per_point_music can
+    # change between request and approval, and the deduction must match
+    # exactly what the creator was quoted, not whatever the price is today).
+    points = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
     admin_note = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -247,3 +247,81 @@ class AlbumViewTests(TestCase):
         track.refresh_from_db()
         self.assertIsNone(track.album)  # detached, not deleted
         self.assertTrue(Track.objects.filter(id=track.id).exists())
+
+
+# ---------------------------------------------------------------------------
+# Open Graph / meta tags (track_detail)
+# ---------------------------------------------------------------------------
+
+class TrackDetailOpenGraphTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("og_creator")
+        self.track = Track.objects.create(
+            creator=self.creator, title="Test Track Title", description="توضیحات ترک",
+            content_type=Track.ContentType.MUSIC,
+            status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
+        )
+
+    def test_og_title_and_description_present(self):
+        resp = self.client.get(reverse("track_detail", args=[self.track.slug]))
+        self.assertContains(resp, 'property="og:title"')
+        self.assertContains(resp, "Test Track Title")
+        self.assertContains(resp, 'property="og:description"')
+        self.assertContains(resp, "توضیحات ترک")
+
+    def test_no_og_image_without_cover(self):
+        resp = self.client.get(reverse("track_detail", args=[self.track.slug]))
+        self.assertNotContains(resp, 'property="og:image"')
+
+    def test_og_image_present_with_cover(self):
+        self.track.cover = _make_image_file()
+        self.track.save()
+        resp = self.client.get(reverse("track_detail", args=[self.track.slug]))
+        self.assertContains(resp, 'property="og:image"')
+        self.assertContains(resp, self.track.cover.url)
+
+
+# ---------------------------------------------------------------------------
+# Persian (non-ASCII) slugs
+#
+# Track.save() slugifies with allow_unicode=True, so a Persian title yields a
+# Persian slug. The URL pattern used Django's built-in `slug` converter,
+# which is ASCII-only — so every Persian-titled track's detail page was
+# unreachable and {% url 'track_detail' %} raised NoReverseMatch. On a
+# Persian platform that is nearly all real content. Every pre-existing test
+# here used ASCII titles, which is exactly why it stayed hidden.
+# ---------------------------------------------------------------------------
+
+class PersianSlugRoutingTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("fa_slug_creator")
+        self.track = Track.objects.create(
+            creator=self.creator, title="رویای نیمه‌شب",
+            content_type=Track.ContentType.MUSIC,
+            status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
+        )
+
+    def test_slug_is_persian(self):
+        self.assertTrue(any("؀" <= ch <= "ۿ" for ch in self.track.slug))
+
+    def test_reverse_builds_url_for_persian_slug(self):
+        """reverse() must not raise NoReverseMatch. The slug arrives
+        percent-encoded in the path, which is correct URL behaviour."""
+        from urllib.parse import quote
+
+        url = reverse("track_detail", args=[self.track.slug])
+        self.assertIn(quote(self.track.slug), url)
+
+    def test_detail_page_loads_for_persian_slug(self):
+        resp = self.client.get(reverse("track_detail", args=[self.track.slug]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "رویای نیمه‌شب")
+
+    def test_ascii_slug_still_works(self):
+        ascii_track = Track.objects.create(
+            creator=self.creator, title="Plain ASCII Title",
+            content_type=Track.ContentType.MUSIC,
+            status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
+        )
+        resp = self.client.get(reverse("track_detail", args=[ascii_track.slug]))
+        self.assertEqual(resp.status_code, 200)

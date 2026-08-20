@@ -324,3 +324,68 @@ Creator اعلان دریافت‌های جدید را می‌بیند ──►
 ۳. ✅ کاربر جدید/بدون‌Follow هم یک مسیر کشف Creator داره (Suggested Creators)
 ۴. ✅ داشبورد Creator شنونده اول‌بار/برگشتی و عملکرد هر ترک رو نشون می‌ده، بدون خطای Postgres
 ۵. ✅ هیچ query بدون `LIMIT` واقعی در سطح دیتابیس روی مسیرهای پرترافیک باقی نمونده
+
+---
+
+## بخش ۱۰ — فاز نهایی: Production، مونتیزیشن واقعی، تجربه رقابتی — ✅ تحویل شد (۲۰۲۶-۰۸-۲۰)
+
+### ۱۰.۱ چرا این فاز
+آخرین قدم قبل از رقابت واقعی با شنوتو/کست‌باکس/طاقچه. سه دسته به ترتیب اولویت کاربر: (A) سخت‌سازی
+Production که بدونش deploy واقعی ممکن نیست، (B) تکمیل مونتیزیشن واقعی (نه dev-only)، (C) تجربه رقابتی.
+حین کار، کاربر دو مورد اضافه هم خواست: SMS واقعی (item صفر) و پنل‌های داشبوردی حرفه‌ای‌تر برای درآمد/امتیاز
+Creator و آمار پلتفرم برای staff.
+
+### ۱۰.۲ کد جدید — خلاصه بر اساس دسته
+**دسته ۰ (SMS):** `accounts/services.py` (provider abstraction: Console/Kavenegar).
+
+**دسته A (Production):**
+- `django-storages`+`boto3` — `USE_S3_STORAGE` در `prod.py`، S3-compatible عمومی (نه قفل روی یک provider)
+- `config/celery.py` + `notifications/tasks.py` — فن‌اوت اعلان از سینک به Celery (eager در dev/test)
+- Sentry (اختیاری، فقط با `SENTRY_DSN`)
+- `core/views.py::health_check` (`/healthz/`) + `core/management/commands/backup_db.py` + `.casset/ops/backup.md`
+- رفع باگ routing: `core/staff_urls.py` هیچ‌وقت mount نشده بود (مورد #۱۵)
+
+**دسته B (مونتیزیشن):**
+- `billing/services.py` — provider abstraction پرداخت (Zarinpal واقعی/Dev)، `start_payment`/`payment_callback`
+- `billing/staff_views.py`/`staff_urls.py` — صف تایید payout
+- رفع باگ: `create_payout_request` امتیاز رو کم نمی‌کرد (مورد #۱۷) — حالا از طریق PointLedger
+
+**دسته C (تجربه رقابتی):**
+- `explore/services.py` — SearchVector/SearchRank روی Postgres، icontains فالبک روی SQLite
+- OG/meta tags (`base.html` + `track_detail.html` + `public_profile_pro.html`)
+- `core/templatetags/thumbnails.py` — lazy thumbnail، بدون migration جدید
+- Waveform تزئینی (CSS، نه peaks واقعی — تصمیم صریح، ffmpeg/pydub توجیه نداشت)
+- داشبورد درآمد/امتیاز Creator (`creator_studio.html` — تراکنش‌های PointLedger + سوابق payout)
+- داشبورد آماری پلتفرم برای staff (`core/staff_views.py::platform_dashboard`)
+- بازبینی UX: `my_tracks.html` (برچسب فارسی + بج رنگی)، `upload.html` (بازخورد حین آپلود)
+
+### ۱۰.۳ باگ‌های واقعی کشف‌شده (نه فرضی)
+۱. **`core/staff_urls.py` هیچ‌وقت mount نشده بود** — کل پنل staff (users/creators console) از روز اول
+   غیرقابل‌دسترس بود، هیچ‌کس (نه کاربر، نه Claude قبلی) متوجه نشده بود چون هیچ تستی هم روش نبود.
+۲. **`core/staff_views.py::users_console` — `Sum(BooleanField)` روی Postgres** — همون کلاس باگ #۱۳ قبلی،
+   ولی در یک view دیگه. چون این view تا همین فاز mount نشده بود، هیچ‌وقت این مسیر واقعاً اجرا نشده بود.
+   **کشف‌شده توسط تایید زنده روی PostgreSQL واقعی** (همون روش pgserver فاز #۴) — دقیقاً همون ارزشی که آن
+   فرآیند قبلاً هم ثابت کرده بود، این‌بار دوباره.
+۳. **`create_payout_request` امتیاز کاربر رو کم نمی‌کرد** — بعد از تایید یک payout، همون امتیاز باز قابل
+   درخواست مجدد بود. رفع شد با `PointLedger` deduction واقعی.
+۴. **`ProfileSettingsForm` بدون اعتبارسنجی آپلود avatar/cover** — برخلاف Track/Album، هیچ چک MIME/سایزی
+   نداشت.
+۵. **`templates/accounts/public_profile.html` قالب orphan** — هیچ view‌ای رندرش نمی‌کرد؛ حذف شد.
+۶. **OTP در production واقعاً SMS نمی‌فرستاد** — فقط یک پیام موفقیت نشون می‌داد.
+
+### ۱۰.۴ تایید
+- `python manage.py test` → **۴۱۳ تست** (از ۳۵۱)، همه pass روی SQLite
+- **تایید زنده کامل روی PostgreSQL واقعی** (۱۶.۲، `pgserver` یکبارمصرف): `migrate` زیر `dev`/`prod` + کل
+  ۴۱۳ تست، بعد از رفع باگ #۲ بالا — همه pass
+- `makemigrations --check`, `ruff check .`, `manage.py check --deploy` (با env کامل prod) — تمیز
+- تایید دستی کامل در مرورگر: خرید VIP end-to-end، صف payout staff، هر دو داشبورد جدید، پنل کاربران staff،
+  بج‌های وضعیت فارسی، بازخورد آپلود، OG tags واقعی، waveform در playerbar
+
+### ۱۰.۵ معیار Done — همه برآورده شد
+۱. ✅ Production بدون S3/Zarinpal/Kavenegar credential واقعی fail-fast می‌کنه (نه silent broken deploy)
+۲. ✅ خرید VIP از انتخاب پلن تا فعال‌شدن، از طریق یک درگاه پرداخت واقعی (نه فقط dev flag)
+۳. ✅ تایید payout واقعاً امتیاز کم می‌کنه، دوباره قابل درخواست نیست
+۴. ✅ جستجو روی Postgres واقعاً rank می‌کنه، نه فقط substring match
+۵. ✅ لینک ترک/پروفایل در تلگرام/واتساپ/توییتر پیش‌نمایش درست نشون می‌ده
+۶. ✅ Creator شفاف می‌بینه امتیازش از کجا اومده و کجا رفته؛ staff یک نمای کلی از سلامت پلتفرم داره
+۷. ✅ صفحه انتظار بررسی و فرم آپلود دیگه بی‌بازخورد نیستن

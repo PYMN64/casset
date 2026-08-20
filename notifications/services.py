@@ -104,7 +104,10 @@ def notify_track_rejected(*, track, reason: str = "") -> None:
 def notify_new_track_to_followers(*, track) -> None:
     """Fan-out: notify each follower of creator about a new public track.
 
-    Runs synchronously for MVP. Move to Celery for large follower counts.
+    Called from notifications/tasks.py::notify_new_track_to_followers_task
+    (a Celery task) rather than directly from the signal — this function
+    itself stays synchronous and DB-only so it's just as easy to call from
+    a management command or test as from the task.
     """
     from interactions.models import CreatorFollow
 

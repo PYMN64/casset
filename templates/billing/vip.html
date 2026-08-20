@@ -31,7 +31,10 @@
           </div>
           <div class="row row-wrap" style="align-items:center">
             <span style="font-weight:800">{{ plan.price }}</span>
-            <a class="btn btn--primary" href="/vip/activate-dev/{{ plan.id }}/">فعال‌سازی (Dev)</a>
+            <a class="btn btn--primary" href="/vip/pay/{{ plan.id }}/">خرید</a>
+            {% if debug %}
+              <a class="btn" href="/vip/activate-dev/{{ plan.id }}/">فعال‌سازی (Dev only)</a>
+            {% endif %}
           </div>
         </div>
       {% empty %}
@@ -78,7 +81,7 @@
         </div>
       {% endif %}
     </div>
-    <p class="muted small" style="margin-top:10px">وقتی درگاه پرداخت واقعی وصل شد، دکمه‌های بالا با فلوی خرید واقعی جایگزین می‌شوند.</p>
+    <p class="muted small" style="margin-top:10px">پرداخت از طریق زرین‌پال انجام می‌شود.</p>
   </aside>
 </div>
 {% endblock %}

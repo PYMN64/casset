@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Staff • Dashboard{% endblock %}
+{% block content %}
+<div class="container" style="max-width:1100px;">
+  <h1 style="margin:16px 0;">داشبورد مدیریت پلتفرم</h1>
+
+  <div class="grid" style="grid-template-columns:repeat(3, minmax(0,1fr));gap:12px">
+    <div class="card" style="padding:14px">
+      <div class="muted small">درآمد کل (پلن‌های پرداخت‌شده)</div>
+      <div style="font-weight:900;font-size:26px">{{ revenue_total }}</div>
+    </div>
+    <div class="card" style="padding:14px">
+      <div class="muted small">امتیاز صادرشده / بازخریدشده</div>
+      <div style="font-weight:900;font-size:22px">{{ points_issued }} / {{ points_redeemed }}</div>
+    </div>
+    <div class="card" style="padding:14px">
+      <div class="muted small">امتیاز معلق (صادرشده − بازخریدشده)</div>
+      <div style="font-weight:900;font-size:26px">{{ points_outstanding }}</div>
+    </div>
+  </div>
+
+  <h2 style="margin:20px 0 8px">صف‌های نیازمند بررسی</h2>
+  <div class="grid" style="grid-template-columns:repeat(2, minmax(0,1fr));gap:12px">
+    <a class="card" href="/moderation/tracks/" style="padding:14px;display:block;text-decoration:none;color:inherit">
+      <div class="muted small">ترک‌های در انتظار بررسی</div>
+      <div style="font-weight:900;font-size:22px">{{ pending_tracks }}</div>
+    </a>
+    <a class="card" href="/moderation/reports/" style="padding:14px;display:block;text-decoration:none;color:inherit">
+      <div class="muted small">گزارش‌های در انتظار</div>
+      <div style="font-weight:900;font-size:22px">{{ pending_reports }}</div>
+    </a>
+    <a class="card" href="/staff/payouts/" style="padding:14px;display:block;text-decoration:none;color:inherit">
+      <div class="muted small">درخواست‌های تسویه در انتظار</div>
+      <div style="font-weight:900;font-size:22px">{{ pending_payout_count }} <span class="muted small">({{ pending_payout_amount }})</span></div>
+    </a>
+    <a class="card" href="/staff/creators/?status=pending" style="padding:14px;display:block;text-decoration:none;color:inherit">
+      <div class="muted small">Creatorهای در انتظار تایید</div>
+      <div style="font-weight:900;font-size:22px">{{ pending_creators }}</div>
+    </a>
+  </div>
+
+  <h2 style="margin:20px 0 8px">وضعیت کلی</h2>
+  <div class="grid" style="grid-template-columns:repeat(3, minmax(0,1fr));gap:12px">
+    <div class="card" style="padding:14px">
+      <div class="muted small">Creatorهای تاییدشده</div>
+      <div style="font-weight:900;font-size:22px">{{ active_creators }}</div>
+    </div>
+    <div class="card" style="padding:14px">
+      <div class="muted small">حساب‌های تعلیق‌شده</div>
+      <div style="font-weight:900;font-size:22px">{{ suspended_users }}</div>
+    </div>
+    <a class="card" href="/staff/users/" style="padding:14px;display:block;text-decoration:none;color:inherit">
+      <div class="muted small">مشاهده</div>
+      <div style="font-weight:900;font-size:16px">همه کاربران</div>
+    </a>
+  </div>
+</div>
+{% endblock %}

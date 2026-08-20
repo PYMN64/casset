@@ -53,12 +53,14 @@ class AuditLog(models.Model):
         REPORT = "report", "Report"
         PROFILE = "profile", "Profile"
         COMMENT = "comment", "Comment"
+        PAYOUT = "payout", "Payout"
 
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_actions")
     target_type = models.CharField(max_length=16, choices=TargetType.choices)
     track = models.ForeignKey('tracks.Track', on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs')
     report = models.ForeignKey('moderation.Report', on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs')
     target_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_targets')
+    payout = models.ForeignKey('billing.PayoutRequest', on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs')
 
     action = models.CharField(max_length=64)
     metadata = models.JSONField(default=dict, blank=True)

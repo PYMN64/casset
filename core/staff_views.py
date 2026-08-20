@@ -3,7 +3,9 @@ from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, render
 
 from accounts.models import UserProfile
-from plays.models import PlayEvent
+from billing.models import Invoice, PayoutRequest
+from moderation.models import Report
+from plays.models import PlayEvent, PointLedger
 from tracks.models import Track
 
 
@@ -14,8 +16,16 @@ def users_console(request):
         .annotate(
             tracks_count=Count("user__tracks", distinct=True),
             plays_count=Count("user__tracks__play_events", distinct=False),
-            points_earned=Sum(
-                "user__tracks__play_events__point_awarded",
+            # Count(..., filter=...), not Sum(BooleanField): SUM(boolean) is
+            # SQLite-only (silently tolerated) and errors on PostgreSQL with
+            # "function sum(boolean) does not exist" — same class of bug as
+            # accounts/views.py::creator_studio_view (CLAUDE.md item #13),
+            # caught here by the same live-Postgres verification pass. This
+            # view was previously unreachable (core.staff_urls was never
+            # mounted in config/urls.py until this session), so the bug had
+            # never actually been hit before.
+            points_earned=Count(
+                "user__tracks__play_events",
                 filter=Q(user__tracks__play_events__point_awarded=True),
             ),
         )
@@ -70,4 +80,49 @@ def creator_detail(request, user_id: int):
         request,
         "staff/creator_detail.html",
         {"profile": profile, "tracks": tracks, "totals": totals},
+    )
+
+
+@staff_member_required
+def platform_dashboard(request):
+    """Platform-wide overview: revenue, points economy, and the queues that
+    need staff attention right now — a real admin home instead of three
+    disconnected list pages (users/creators consoles, moderation queues)
+    each requiring a separate visit to check on."""
+    revenue_total = (
+        Invoice.objects.filter(status=Invoice.Status.PAID).aggregate(total=Sum("amount"))["total"] or 0
+    )
+
+    points_summary = PointLedger.objects.aggregate(
+        issued=Sum("delta", filter=Q(delta__gt=0)),
+        redeemed=Sum("delta", filter=Q(delta__lt=0)),
+    )
+    points_issued = points_summary["issued"] or 0
+    points_redeemed = -(points_summary["redeemed"] or 0)
+
+    pending_payouts = PayoutRequest.objects.filter(status=PayoutRequest.Status.PENDING)
+    pending_payout_amount = pending_payouts.aggregate(total=Sum("amount"))["total"] or 0
+
+    return render(
+        request,
+        "staff/platform_dashboard.html",
+        {
+            "revenue_total": revenue_total,
+            "points_issued": points_issued,
+            "points_redeemed": points_redeemed,
+            "points_outstanding": points_issued - points_redeemed,
+            "active_creators": UserProfile.objects.filter(
+                creator_status=UserProfile.CreatorStatus.APPROVED
+            ).count(),
+            "pending_creators": UserProfile.objects.filter(
+                creator_status=UserProfile.CreatorStatus.PENDING
+            ).count(),
+            "pending_tracks": Track.objects.filter(
+                status__in=[Track.Status.SUBMITTED, Track.Status.PENDING]
+            ).count(),
+            "pending_reports": Report.objects.filter(status=Report.Status.PENDING).count(),
+            "pending_payout_count": pending_payouts.count(),
+            "pending_payout_amount": pending_payout_amount,
+            "suspended_users": UserProfile.objects.filter(suspended_at__isnull=False).count(),
+        },
     )

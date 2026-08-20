@@ -138,6 +138,21 @@ function attachCountAfterSeconds(audioEl, getTrackId, seconds) {
   audioEl.addEventListener("ended", clearTimer);
 }
 
+// Decorative waveform bars in the playerbar (#pbWave, see base.html). Not
+// real peaks from the audio file — that needs server-side decoding (ffmpeg/
+// pydub), a real system dependency this project doesn't carry yet. This is
+// a CSS-animated bar row that just reflects play/pause state, styled to
+// read as a waveform at a glance. Swappable for real peaks later without
+// touching this call site.
+function hookWaveformAnimation(audioEl) {
+  const wave = document.getElementById("pbWave");
+  if (!wave) return;
+  const setPlaying = (on) => wave.classList.toggle("is-playing", on);
+  audioEl.addEventListener("play", () => setPlaying(true));
+  audioEl.addEventListener("pause", () => setPlaying(false));
+  audioEl.addEventListener("ended", () => setPlaying(false));
+}
+
 // ---------- Global player + Queue state ----------
 function getAudioEl() { return document.getElementById("globalAudio"); }
 
@@ -896,6 +911,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (globalAudio) {
     attachCountAfterSeconds(globalAudio, () => window.__nowTrackId, seconds);
     hookResumeAndSpeed(globalAudio, () => window.__nowTrackId);
+    hookWaveformAnimation(globalAudio);
   }
 
   const pageAudio = document.querySelector("audio[data-track]");

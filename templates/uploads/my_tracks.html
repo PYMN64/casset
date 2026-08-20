@@ -3,7 +3,7 @@
 {% block content %}
 <div class="card">
   <h1>ترک‌های من</h1>
-  <p class="muted">وضعیت‌ها: draft / submitted / approved / rejected / takedown / blocked</p>
+  <p class="muted small">هر ترک یکی از این مراحل را طی می‌کند: <b>پیش‌نویس</b> ← <b>در صف بررسی</b> ← <b>منتشرشده</b> (یا رد شده، با دلیل مشخص)</p>
 
   <div class="item">
     <a class="btn primary" href="/upload/">Upload new</a>
@@ -19,14 +19,26 @@
           {% else %}
             <span style="font-weight:900">{{ t.title }}</span>
           {% endif %}
-          <span class="muted" style="font-size:12px">
-            Status: <b style="color:var(--text)">{{ t.status }}</b>
-            • Visibility: <b style="color:var(--text)">{{ t.visibility }}</b>
+          <span class="muted" style="font-size:12px;display:flex;align-items:center;gap:8px">
+            <span style="padding:3px 10px;border-radius:999px;font-weight:700;
+              {% if t.status == "approved" %}background:rgba(74,222,128,.15);color:#4ade80
+              {% elif t.status == "rejected" or t.status == "takedown" or t.status == "blocked" %}background:rgba(255,107,107,.15);color:#ff6b6b
+              {% elif t.status == "submitted" or t.status == "pending" %}background:rgba(255,147,56,.15);color:#ff9338
+              {% else %}background:rgba(255,255,255,.08);color:var(--text){% endif %}">
+              {% if t.status == "draft" %}پیش‌نویس
+              {% elif t.status == "submitted" or t.status == "pending" %}در صف بررسی
+              {% elif t.status == "approved" %}منتشرشده
+              {% elif t.status == "rejected" %}رد شده
+              {% elif t.status == "takedown" %}جمع‌آوری شده
+              {% elif t.status == "blocked" %}مسدود
+              {% else %}{{ t.get_status_display }}{% endif %}
+            </span>
+            • {{ t.get_visibility_display }}
           </span>
         </div>
 
         {% if t.status == "rejected" and t.reject_reason %}
-          <div class="muted" style="font-size:12px">Reject reason: {{ t.reject_reason }}</div>
+          <div class="muted" style="font-size:12px">دلیل رد: {{ t.reject_reason }}</div>
         {% endif %}
 
         <div class="row row-wrap" style="margin-top:8px">
@@ -34,10 +46,10 @@
           {% if t.status == "draft" or t.status == "rejected" or t.status == "pending" %}
             <form method="post" action="/my/tracks/{{ t.id }}/submit/" style="display:inline">
               {% csrf_token %}
-              <button class="btn btn--primary" type="submit">Send for review</button>
+              <button class="btn btn--primary" type="submit">ارسال برای بررسی</button>
             </form>
           {% elif t.status == "submitted" or t.status == "pending" %}
-            <span class="muted small">در صف بررسی</span>
+            <span class="muted small">در صف بررسی — معمولاً ظرف چند ساعت بررسی می‌شود.</span>
           {% endif %}
         </div>
 

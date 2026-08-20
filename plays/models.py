@@ -62,6 +62,7 @@ class PointLedger(models.Model):
     Reason codes
     ------------
     PLAY_REWARD      — normal award: listener reached playback threshold
+    PAYOUT_DEDUCTION — creator payout approved (billing/services.py::approve_payout)
     BLOCKED_NO_EVENT — progress sent but no matching PlayEvent found
     BLOCKED_TIME     — progress too fast (bot signal)
     BLOCKED_IP_LIMIT — IP exceeded daily award cap
@@ -71,6 +72,9 @@ class PointLedger(models.Model):
     class Reason(models.TextChoices):
         # Positive
         PLAY_REWARD = "play_reward", "Play reward"
+        # Negative — first (and so far only) real use of the signed `delta`
+        # the class docstring above always promised ("future").
+        PAYOUT_DEDUCTION = "payout_deduction", "Payout deduction"
         # Blocked (delta=0, logged for audit)
         BLOCKED_NO_EVENT  = "blocked_no_event",  "Blocked: no play event"
         BLOCKED_TIME      = "blocked_time",      "Blocked: too fast"

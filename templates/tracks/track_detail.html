@@ -1,5 +1,18 @@
 {% extends "base.html" %}
+{% load casset_urls %}
 {% block title %}{{ track.title }} • Casset{% endblock %}
+{% block meta %}
+<meta name="description" content="{{ track.description|default:track.title|truncatechars:160 }}" />
+<meta property="og:site_name" content="Casset" />
+<meta property="og:type" content="music.song" />
+<meta property="og:title" content="{{ track.title }} — @{{ track.creator.username }}" />
+<meta property="og:description" content="{{ track.description|default:track.title|truncatechars:160 }}" />
+<meta property="og:url" content="{{ request.build_absolute_uri }}" />
+{% if track.cover %}<meta property="og:image" content="{% abs_url track.cover.url %}" />{% endif %}
+<meta name="twitter:card" content="{% if track.cover %}summary_large_image{% else %}summary{% endif %}" />
+<meta name="twitter:title" content="{{ track.title }} — @{{ track.creator.username }}" />
+<meta name="twitter:description" content="{{ track.description|default:track.title|truncatechars:160 }}" />
+{% endblock %}
 {% block content %}
 <div class="grid">
   <section class="card">

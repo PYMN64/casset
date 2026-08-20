@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load thumbnails %}
 {% block title %}Discover • Casset{% endblock %}
 
 {% block content %}
@@ -30,7 +31,7 @@
           <div class="row">
             <div style="display:flex;gap:12px;align-items:center;min-width:0">
               <div style="width:42px;height:42px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.06);flex:0 0 auto">
-                {% if t.cover %}<img src="{{ t.cover.url }}" alt="" style="width:100%;height:100%;object-fit:cover">{% endif %}
+                {% if t.cover %}<img src="{{ t.cover|thumbnail_url:"300x300" }}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">{% endif %}
               </div>
               <div style="min-width:0">
                 <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</a>
@@ -60,7 +61,7 @@
           <div class="row">
             <div style="display:flex;gap:12px;align-items:center;min-width:0">
               <div style="width:42px;height:42px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.06);flex:0 0 auto">
-                {% if t.cover %}<img src="{{ t.cover.url }}" alt="" style="width:100%;height:100%;object-fit:cover">{% endif %}
+                {% if t.cover %}<img src="{{ t.cover|thumbnail_url:"300x300" }}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">{% endif %}
               </div>
               <div style="min-width:0">
                 <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</a>
@@ -91,7 +92,7 @@
         <div class="row">
           <div style="display:flex;gap:12px;align-items:center;min-width:0">
             <div style="width:42px;height:42px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.06);flex:0 0 auto">
-              {% if t.cover %}<img src="{{ t.cover.url }}" alt="" style="width:100%;height:100%;object-fit:cover">{% endif %}
+              {% if t.cover %}<img src="{{ t.cover|thumbnail_url:"300x300" }}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">{% endif %}
             </div>
             <div style="min-width:0">
               <a href="/t/{{ t.slug }}/" style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</a>

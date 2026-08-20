@@ -17,6 +17,176 @@
 > **قانون:** هر Claude که تغییری روی پروژه می‌ده، باید یک entry جدید بالای خط
 > `## [2026-08-17] اسکن کامل پروژه — باگ‌های کریتیکال، Security، تست و نقص‌ها
 
+## [2026-08-20] فاز نهایی — Production، مونتیزیشن واقعی، تجربه رقابتی — ✅ بسته شد
+
+**نوع:** Architecture + Feature + Security + Bugfix + Tests
+**انجام‌دهنده:** Claude (session با صاحب پروژه، اجرای پیوسته بدون توقف طبق درخواست صریح)
+
+**تصمیم:** آخرین فاز قبل از رقابت واقعی با شنوتو/کست‌باکس/طاقچه. سه دسته: (A) سخت‌سازی Production،
+(B) مونتیزیشن واقعی، (C) تجربه رقابتی — به‌علاوه یک آیتم ۰ (SMS واقعی) و دو داشبورد اضافه‌شده حین کار
+طبق درخواست کاربر (داشبورد درآمد/امتیاز شفاف Creator + داشبورد آماری پلتفرم برای staff).
+
+قبل از هر کدی، طبق قانون بخش ۵ CLAUDE.md، `git status`/`git log` چک شد (working tree تمیز، منطبق با
+مستندات) — برخلاف چند فاز قبل، این‌بار هیچ کار موازی کامیت‌نشده‌ای پیدا نشد.
+
+### ۰. OTP SMS واقعی (Kavenegar)
+`accounts/services.py` (جدید) — provider abstraction دقیقاً مثل الگوی Zarinpal پایین: `ConsoleSmsProvider`
+(dev/test، فقط log می‌کنه) و `KavenegarSmsProvider` (API واقعی `sms/send.json`). انتخاب با `SMS_PROVIDER`
+env. **یافته حین بررسی:** `phone_start_view` تا امروز در production عملاً هیچ SMS واقعی ارسال نمی‌کرد —
+فقط پیام "کد ارسال شد" نشون می‌داد بدون اینکه واقعاً چیزی بفرسته (مورد #۲۰ بخش ۳). `config/settings/prod.py`
+حالا بدون `SMS_PROVIDER=kavenegar` + `KAVENEGAR_API_KEY` واقعی اصلاً بالا نمی‌آد.
+
+### دسته A — سخت‌سازی Production
+- **Object Storage:** `django-storages[s3]` + `boto3` اضافه شد. `config/settings/prod.py`:
+  `USE_S3_STORAGE=1` فعال می‌کنه (S3-compatible عمومی — Arvan/Liara/MinIO/AWS، فقط با env عوض می‌شه، قفل
+  روی یک provider نیست)؛ بدون این env، رفتار prod مثل قبل (fail-fast اگه کلیدها ناقص باشن). **باگ واقعی
+  رفع‌شده حین این کار:** `Track.cover` و `UserProfile.cover` هر دو `upload_to="covers/"` بودن — collision
+  واقعی روی object storage. Namespace شدن (`tracks/covers/`, `accounts/covers/`, ...) + migration.
+  **یافته امنیتی جانبی:** `accounts/forms.py::ProfileSettingsForm` هیچ `clean_cover`/`clean_avatar` نداشت
+  (مورد #۱۸) — با `core/validators.py::validate_image` مشترک رفع شد.
+- **Celery + Redis:** `config/celery.py` + wiring در `config/__init__.py`. `notifications/tasks.py::
+  notify_new_track_to_followers_task` جایگزین فراخوانی سینک قبلی در `notifications/signals.py` شد.
+  `CELERY_TASK_ALWAYS_EAGER` خودکار بر اساس وجود `REDIS_URL` (بدون Redis = eager، برای dev/test بدون نیاز
+  به worker).
+- **Sentry:** `sentry-sdk[django]`، فقط با `SENTRY_DSN` در prod init می‌شه.
+- **Health check:** `core/views.py::health_check` (`GET /healthz/`) — چک DB + cache واقعی، نه فقط 200 ثابت.
+- **Backup:** `core/management/commands/backup_db.py` (`pg_dump` wrapper، فقط روی Postgres) +
+  `.casset/ops/backup.md` (مستندسازی cron).
+- **باگ واقعی کشف‌شده (مورد #۱۵):** `core/staff_urls.py` (users/creators console + creator_detail) از قبل
+  روی دیسک بود ولی **هیچ‌وقت در `config/urls.py` mount نشده بود** — کل پنل staff غیرقابل‌دسترس بود، صفر
+  تست هم داشت. مونت شد در `staff/` + ۱۵+ تست جدید (`core/tests.py`).
+
+### دسته B — مونتیزیشن واقعی
+- **درگاه پرداخت زرین‌پال:** `billing/services.py` (جدید) — provider abstraction: `ZarinpalProvider`
+  (API واقعی v4: request/verify) و `DevPaymentProvider` (فقط DEBUG، منطق قدیمی `activate_vip_dev` رو در
+  قالب همون Invoice/Transaction واقعی حفظ می‌کنه). `start_payment`/`payment_callback` views جدید.
+  `config/settings/prod.py` بدون `PAYMENT_PROVIDER=zarinpal` + `ZARINPAL_MERCHANT_ID` واقعی fail می‌کنه.
+  منبع حقیقت عوض نشد — همون `Invoice`/`Plan`/`Transaction` قبلی (که از قبل webhook-ready بودن).
+- **Payout واقعی:** **باگ واقعی کشف‌شده (مورد #۱۷):** `create_payout_request` هیچ‌وقت امتیاز کاربر رو کم
+  نمی‌کرد — یعنی بعد از تایید، همون امتیاز باز قابل درخواست مجدد بود. `PayoutRequest.points` (فیلد جدید،
+  امتیاز رو در لحظه درخواست قفل می‌کنه) + `billing/services.py::approve_payout` که کسر رو از طریق
+  `PointLedger` (delta منفی، reason=`PAYOUT_DEDUCTION` جدید در `plays/models.py`) انجام می‌ده — نه
+  دستکاری مستقیم `UserProfile.points`. `billing/staff_views.py` صف تایید/رد payout، الگوی دقیق
+  `moderation/report_queue.html`. `AuditLog.TargetType.PAYOUT` جدید در `moderation/models.py`.
+
+### دسته C — تجربه رقابتی
+- **جستجوی full-text:** `explore/services.py` (جدید) — `SearchVector`/`SearchRank` وزن‌دار (title=A,
+  description=B) روی PostgreSQL، فالبک `icontains` روی SQLite (چون dev/test پیش‌فرض SQLite است) — بدون
+  فیلد/migration جدید (annotate در لحظه کوئری). `explore/views.py::api_search` این سرویس رو صدا می‌زنه.
+- **OG/Meta tags:** `{% block meta %}` در `base.html` (fallback عمومی) + override در `track_detail.html`
+  و `public_profile_pro.html` (og:title/description/image از cover/avatar واقعی، twitter:card).
+  **یافته جانبی (مورد #۱۹):** `templates/accounts/public_profile.html` یک قالب orphan بود — هیچ view‌ای
+  رندرش نمی‌کرد؛ حذف شد (همون الگوی حذف `tracks/detail.html` در فاز ۳).
+- **Thumbnail pipeline:** `core/templatetags/thumbnails.py::thumbnail_url` — بدون فیلد/migration جدید،
+  lazy generate + cache روی هر storage backend (local یا S3)، fallback امن به تصویر اصلی در صورت خطا.
+  در `discover.html` (سه گرید کاور) با `loading="lazy"` وایر شد.
+- **Waveform:** تصمیم صریح — waveform واقعی (peaks از فایل صوتی) نیاز به ffmpeg/pydub (dependency سیستمی
+  جدید) داره که هزینه‌اش برای یک آیتم "nice-to-have" توجیه نداشت. نسخه تزئینی CSS-animated (۱۶ بار،
+  seed ثابت) در playerbar (`#pbWave` در `base.html`، انیمیشن با `hookWaveformAnimation` در `app.js`).
+- **داشبورد درآمد/امتیاز Creator (درخواست صریح کاربر):** `creator_studio_view` حالا `recent_ledger`
+  (۲۵ تراکنش اخیر PointLedger با دلیل دقیق) و `recent_payouts` رو هم به context اضافه می‌کنه؛
+  `creator_studio.html` یک بخش «تراکنش‌های اخیر امتیاز» شفاف نشون می‌ده.
+- **داشبورد آماری پلتفرم برای staff (درخواست صریح کاربر):** `core/staff_views.py::platform_dashboard`
+  (mount شده در `staff/`، صفحه اول staff) — درآمد کل (Sum روی Invoiceهای PAID)، امتیاز صادرشده/بازخریدشده،
+  صف‌های نیازمند بررسی (ترک/گزارش/payout/creator در انتظار) با لینک مستقیم.
+- **بازبینی UX آپلود/انتظار بررسی:** `my_tracks.html` برچسب‌های وضعیت فارسی + بج رنگی (به‌جای مقدار خام
+  DB مثل `submitted`)؛ `upload.html` دکمه ارسال حین آپلود غیرفعال می‌شه + پیام "در حال آپلود…" (فایل‌های
+  صوتی/ویدیویی بزرگ دیگه بی‌بازخورد نمی‌مونن).
+
+### باگ دوم Sum(boolean) — کشف‌شده توسط همون تایید زنده Postgres (مورد #۱۶)
+دقیقاً طبق روال فازهای قبل، بعد از پایان کدنویسی، کل تست‌سوییت روی یک PostgreSQL واقعی (۱۶.۲، از طریق
+پکیج `pgserver`، یکبار‌مصرف) اجرا شد — هم `migrate` زیر `dev`/`prod`، هم کل تست‌ها. این بار
+`core/staff_views.py::users_console` رو لو داد: همون الگوی `Sum("...point_awarded")` روی یک `BooleanField`
+(مورد #۱۳ قبلی، ولی این‌بار در یک view دیگه) — چون این view تا همین فاز اصلاً mount نشده بود (مورد #۱۵)،
+هیچ‌وقت این مسیر لمس نشده بود. با `Count(..., filter=Q(...=True))` رفع شد؛ یک تست رگرسیون اضافه شد.
+جانبی: `BackupDbCommandTests.test_refuses_on_sqlite` هم سخت‌تر شد (settings mock صریح) چون زیر Postgres
+واقعی رفتارش نامعین می‌شد.
+
+**فایل‌های عمده تغییرکرده/جدید:** `accounts/services.py`, `billing/services.py`,
+`billing/staff_views.py`/`staff_urls.py`, `explore/services.py`, `core/views.py`, `core/urls.py`,
+`core/templatetags/thumbnails.py`, `core/management/commands/backup_db.py`, `config/celery.py`,
+`notifications/tasks.py`, migrations در `accounts`/`tracks`/`billing`/`moderation`/`plays`، + قالب‌های
+`staff/platform_dashboard.html`, `billing/staff_payout_queue.html`, و ویرایش‌های گسترده در `base.html`,
+`creator_studio.html`, `my_tracks.html`, `upload.html`, `vip.html`, `discover.html`, `track_detail.html`,
+`public_profile_pro.html`.
+
+**تایید:**
+- `python manage.py test` → **۴۱۳ تست** (از ۳۵۱ قبل از فاز)، همه pass روی SQLite
+- **تایید زنده کامل روی PostgreSQL واقعی (۱۶.۲، pgserver یکبارمصرف):** `migrate` زیر `dev` و `prod`، و کل
+  ۴۱۳ تست — همه pass بعد از رفع باگ #۱۶. دقیقاً همون سطح تاییدی که فاز #۴ قبلی داشت.
+- `makemigrations --check`, `ruff check .`, `manage.py check`, `manage.py check --deploy` (با env کامل
+  prod شامل کلیدهای S3/Zarinpal/Kavenegar) — همه تمیز (فقط همون W004 قدیمی و بی‌خطر HSTS)
+- تایید دستی کامل در مرورگر روی `runserver` واقعی: خرید VIP end-to-end (`start_payment` →
+  `payment_callback` → `mark_paid` → `has_vip()=True`)، صف تایید payout برای staff، داشبورد آماری پلتفرم،
+  داشبورد درآمد Creator، پنل کاربران staff (قبلاً غیرقابل‌دسترس)، بج‌های وضعیت فارسی در my_tracks،
+  بازخورد "در حال آپلود" روی فرم آپلود، og:title/og:image واقعی روی track_detail، و ۱۶ بار waveform در
+  playerbar با انیمیشن حین پخش.
+
+**وضعیت CLAUDE.md:** موارد #۱۵ تا #۲۰ بسته شدند ✅. جدول دامنه‌ها (بخش ۴) برای همه اپ‌های لمس‌شده به‌روز
+شد. بخش ۶: فاز نهایی ✅ بسته شد. بخش ۸ (Architecture Map): نکته staff routing + Celery اضافه شد.
+
+**Commit نشد** — طبق دستور صریح کاربر، منتظر تایید نهایی برای commit.
+
+---
+
+## [2026-08-20] تثبیت نسخه ۱ (MVP قابل بهره‌برداری) — Postgres دائمی، ۵ باگ جدید، پاک‌سازی کد مرده
+
+**نوع:** Bugfix + Infrastructure + Architecture + Tests
+**انجام‌دهنده:** Claude (session با صاحب پروژه)
+
+**نقطه شروع:** خطای واقعی کاربر در PyCharm: `ModuleNotFoundError: No module named 'celery'`. ریشه‌یابی نشون داد پکیج‌های جدید (celery/boto3/django-storages/sentry-sdk/requests) در پایتون سراسری نصب شده بودن نه در `.venv` پروژه که PyCharm ازش استفاده می‌کنه. با `./.venv/Scripts/python.exe -m pip install -e ".[dev]"` رفع شد. **درس:** روی این ماشین همیشه باید از `.venv/Scripts/python.exe` استفاده بشه، نه `python` سراسری.
+
+**یافته مهم درباره‌ی وضعیت کد:** یک session موازی هم‌زمان روی همین ریپو کار کرده بود و دسته C (جستجوی full-text، thumbnail pipeline، داشبورد پلتفرم، OG tags، UX آپلود) رو ساخته بود. کد اون session و کد این session روی دیسک ادغام شدن. ممیزی کامل انجام شد و ادغام منسجم بود (health check این session + `platform_dashboard` اون session هر دو سالم، باگ `Sum(boolean)` در `users_console` هم رفع‌شده).
+
+### PostgreSQL به‌عنوان زیرساخت دائمی (نه تست موقت)
+درخواست صریح کاربر: «دیگه این موضوع پیش نیاد که Postgres هنوز فعال نشده». فاز قبل از `pgserver` به‌عنوان یک ابزار یک‌بارمصرف استفاده کرده بود؛ حالا تبدیل به زیرساخت دائمی شد:
+- `scripts/local_postgres.py` (جدید) — `start`/`stop`/`test`/`migrate`/`check`. یک PostgreSQL کامل بدون نیاز به Docker یا دسترسی ادمین.
+- `pgserver` به `[project.optional-dependencies] dev` اضافه شد.
+- `.pgdata/` و `backups/` به `.gitignore` اضافه شدند.
+- **رفع مشکل tzdata که فاز قبل هم خورده بود:** باینری pgserver در ویندوز بدون `share/postgresql/timezone` میاد و چون جنگو موقع هر اتصال `SET TIME ZONE 'UTC'` می‌زنه، هیچ اتصالی برقرار نمی‌شد. نکته‌ی ظریف: یک `share/timezone` (بدون `postgresql/`) از قبل پر بود ولی **هرگز خونده نمی‌شه** — sharedir واقعی این بیلد `share/postgresql` است. تابع تشخیص اول اشتباهاً به‌خاطر همون دایرکتوری بی‌مصرف زودهنگام return می‌کرد.
+- **نتیجه: کل ۴۱۷ تست روی PostgreSQL واقعی pass شدن** (روی SQLite ۴۱۶ تست + ۱ skip؛ اون یکی تست جستجوی full-text مخصوص Postgres است که فقط در این مسیر واقعاً اجرا می‌شه).
+
+### ۵ باگ واقعی جدید کشف و رفع‌شده (موارد #۲۱ تا #۲۵ جدول بخش ۳)
+1. **بحرانی — اسلاگ فارسی:** `t/<slug:slug>/` از converter داخلی جنگو استفاده می‌کرد که فقط ASCII می‌پذیره، ولی `Track.save()` با `allow_unicode=True` اسلاگ فارسی می‌سازه. یعنی **صفحه‌ی هر ترک با عنوان فارسی کاملاً غیرقابل‌دسترس بود** — روی یک پلتفرم فارسی یعنی تقریباً تمام محتوای واقعی. با `core/converters.py::UnicodeSlugConverter` (رجیستر‌شده به‌عنوان `uslug`) رفع شد. **چرا هیچ‌وقت لو نرفته بود:** همه‌ی تست‌های قبلی عنوان انگلیسی داشتن. حین اضافه‌کردن لینک عنوان ترک در پروفایل، به‌صورت `NoReverseMatch` در مرورگر واقعی خودش رو نشون داد. ۴ تست رگرسیون فارسی اضافه شد.
+2. **امنیتی — `config/settings/__init__.py`:** یک `from .dev import *` داشت، یعنی `DJANGO_SETTINGS_MODULE=config.settings` بی‌صدا تنظیمات dev رو لود می‌کرد (`DEBUG=True`، کوکی ناامن، SQLite، SECRET_KEY تصادفی) — روی production یک فاجعه‌ی کاملاً خاموش. حالا `ImportError` صریح می‌ده. **نکته‌ی پیاده‌سازی:** شرطی نوشته شد (`if os.environ.get(...) == "config.settings"`) چون پایتون قبل از زیرماژول پکیج والد رو import می‌کنه و یک `raise` بی‌قید مسیر سالم `config.settings.dev` رو هم می‌شکست.
+3. **OG image با S3:** `{{ request.scheme }}://{{ request.get_host }}{{ ...url }}` با `USE_S3_STORAGE=1` (که `FileField.url` خودش مطلقه) URL خراب دوتایی می‌ساخت. `core/templatetags/casset_urls.py::abs_url` جایگزین شد.
+4. **کامنت چندخطی `{# #}`:** در جنگو `{# #}` فقط تک‌خطیه؛ نسخه‌ی چندخطی به‌عنوان متن خام در صفحه رندر می‌شد (در مرورگر دیده شد، نه در تست). به `{% comment %}` تبدیل شد + یک اسکن روی کل `templates/` برای اطمینان از نبود مورد مشابه.
+5. **`seed_demo` و کش کهنه:** `creator.profile.points` از یک آبجکت حافظه‌ای قدیمی خونده می‌شد (قبل از بازمحاسبه‌ی امتیاز)، پس هیچ payout ساخته نمی‌شد.
+
+### پاک‌سازی کد مرده
+- **۳ قالب یتیم حذف شد:** `accounts/creator_dashboard.html`, `playlists/index.html`, `tracks/artist_profile.html`. (نکته: `artist_profile` یک view داره ولی فقط `redirect` می‌کنه و هرگز قالبش رو render نمی‌کنه.)
+- اسکن با resolver خود جنگو: **هر view روت شده** — هیچ view مرده‌ای نموند.
+- اسکن توابع `services.py`: هیچ تابع بدون فراخوان.
+- **`ruff check .` برای اولین بار در تاریخ پروژه کاملاً تمیز شد** (از ۹۱ مورد اولیه به صفر) — ۴ خطای `E402` قدیمی `config/urls.py` هم با جابه‌جایی `admin.site.*` به بعد از import رفع شد.
+
+### پنل ادمین حرفه‌ای
+۴ مدل ثبت‌نشده اضافه شدند؛ حالا **هر ۲۵ مدل پروژه در ادمین‌اند**:
+- `moderation.AuditLog` — عمداً **فقط-خواندنی** (`has_add/change/delete_permission` هر سه `False`) چون قابل‌ویرایش بودنِ رد حسابرسی کل هدفش رو از بین می‌بره. نوشتنش منحصراً از لایه‌ی service است.
+- `explore.FeaturedPin` — با `list_editable` روی `position`/`is_active`؛ تنها جاییه که staff می‌تونه بدون کد، محتوای صفحه‌ی کشف رو کنترل کنه.
+- `playlists.Playlist` (+ inline آیتم‌ها، با `annotate` برای جلوگیری از N+1 در ستون تعداد) و `playlists.PlaylistItem`.
+
+### داده‌ی نمونه واقعی
+`core/management/commands/seed_demo.py` (جدید) — ۳۳ کاربر، ۳۲ ترک، ۵۶۴ پخش، ۳۸۱ امتیاز، ۸۹ فالو، ۱۱۵ لایک، ۵۹ کامنت، ۴ گزارش، ۴ درخواست تسویه، ۲ پلن. امتیازها از طریق `PointLedger` ثبت می‌شن و `UserProfile.points` **از روی همون ledger بازمحاسبه** می‌شه، نه دستکاری مستقیم (طبق Constitution بخش ۲).
+
+### بازطراحی پروفایل کاربری
+- متن‌های انگلیسی (`Follow`, `Report`, `Recent`, `Who to follow`, `Your points`, …) به فارسی برگردونده شدن — بقیه‌ی سایت فارسیه و این ناهماهنگی بود.
+- **تب‌های تقلبی حذف شدند:** `All/Tracks/Playlists/Albums/Reposts` که `href`شون به `#id`هایی اشاره می‌کرد که اصلاً رندر نمی‌شدن — و «Reposts» اصلاً فیچری نیست که در کدبیس وجود داشته باشه.
+- عنوان ترک‌ها حالا لینک واقعی به صفحه‌ی ترک‌ان (همین کار باگ #۲۱ رو لو داد).
+- دکمه‌ی «درخواست تسویه» برای صاحب پروفایل.
+
+### تایید
+- `ruff check .` → **All checks passed**
+- `python manage.py test` (SQLite) → **۴۱۶ تست، OK** (۱ skip)
+- `python scripts/local_postgres.py test` (PostgreSQL واقعی) → **۴۱۷ تست، OK، بدون skip**
+- `manage.py check` / `makemigrations --check --dry-run` → تمیز
+- جاروب خودکار **۳۱ مسیر** در سه سطح دسترسی (ناشناس/کاربر/staff) با داده‌ی seed واقعی → هیچ خطای ۴۰۰+
+- تایید دستی مرورگر: صفحه‌ی کشف، پروفایل، صفحه‌ی ترک فارسی (باگ #۲۱)، داشبورد پلتفرم، صف تسویه، ادمین، AuditLog، `/healthz/`
+- **تایید end-to-end جریان تسویه در مرورگر واقعی:** تایید یک payout ۴۸ امتیازی → ردیف `-48` در `PointLedger` با reason=`PAYOUT_DEDUCTION`، کش و ledger هر دو صفر (بدون drift)، وضعیت `paid`، و `AuditLog` ثبت‌شده — یعنی باگ #۱۷ (امتیاز هرگز کم نمی‌شد) واقعاً بسته شده.
+
+**وضعیت CLAUDE.md:** موارد #۲۱ تا #۲۵ اضافه و بسته شدند. بخش ۷ (دستورات توسعه) با مسیر Postgres واقعی و `seed_demo` به‌روز شد.
+
+---
+
 ## [2026-08-20] مورد #۴ کاملاً بسته شد — تایید زنده روی PostgreSQL واقعی + رفع مستندات کهنه
 
 **نوع:** Verification + Docs

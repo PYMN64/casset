@@ -268,6 +268,47 @@ else:
 PLAY_COUNT_AFTER_SECONDS = int(os.getenv("PLAY_COUNT_AFTER_SECONDS", "59"))
 
 # ---------------------------------------------------------------------------
+# SMS (OTP delivery) — see accounts/services.py for the provider abstraction.
+# "console" (dev/test default) only logs; "kavenegar" sends real SMS.
+# prod.py fails fast if SMS_PROVIDER != "kavenegar" or the API key is empty.
+# ---------------------------------------------------------------------------
+
+SMS_PROVIDER = os.getenv("SMS_PROVIDER", "console").strip().lower()
+KAVENEGAR_API_KEY = os.getenv("KAVENEGAR_API_KEY", "").strip()
+KAVENEGAR_SENDER = os.getenv("KAVENEGAR_SENDER", "").strip()
+
+# ---------------------------------------------------------------------------
+# Payment gateway — see billing/services.py for the provider abstraction.
+# "dev" (default) never touches a real gateway; "zarinpal" does. prod.py
+# fails fast if PAYMENT_PROVIDER != "zarinpal" or the merchant ID is empty.
+# ---------------------------------------------------------------------------
+
+PAYMENT_PROVIDER = os.getenv("PAYMENT_PROVIDER", "dev").strip().lower()
+ZARINPAL_MERCHANT_ID = os.getenv("ZARINPAL_MERCHANT_ID", "").strip()
+ZARINPAL_SANDBOX = os.getenv("ZARINPAL_SANDBOX", "0") in ("1", "true", "yes", "on")
+
+# ---------------------------------------------------------------------------
+# Celery — broker/result backend share REDIS_URL with the cache above.
+# CELERY_TASK_ALWAYS_EAGER defaults True: without a REDIS_URL (the common
+# dev/CI case, per pyproject.toml's default DJANGO_SETTINGS_MODULE=dev) or a
+# running worker, tasks would otherwise just queue forever and never run.
+# Eager mode makes `.delay()` execute synchronously in-process instead —
+# same call sites, no behavior difference for tests. prod.py sets this False
+# so notification fan-out actually goes through a real worker at scale.
+# ---------------------------------------------------------------------------
+
+CELERY_BROKER_URL = REDIS_URL or "memory://"
+CELERY_RESULT_BACKEND = REDIS_URL or None
+CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "1" if not REDIS_URL else "0") in (
+    "1", "true", "yes", "on",
+)
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 

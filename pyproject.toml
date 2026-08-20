@@ -47,6 +47,19 @@ dependencies = [
     # --- Timezone data ---
     # لازم برای زمان درست در ویندوز (Asia/Tehran).
     "tzdata>=2025.1",
+
+    # --- Outbound HTTP (SMS/payment gateway provider APIs) ---
+    "requests>=2.32,<3.0",
+
+    # --- Object storage (S3-compatible: Arvan Cloud, Liara, MinIO, AWS) ---
+    # Only activated in prod.py when USE_S3_STORAGE=1; dev keeps local disk.
+    "django-storages[s3]>=1.14,<2.0",
+
+    # --- Async task queue ---
+    "celery>=5.4,<6.0",
+
+    # --- Error tracking (prod-only, only initialized if SENTRY_DSN is set) ---
+    "sentry-sdk[django]>=2.20,<3.0",
 ]
 
 # -----------------------------------------------------------------------------
@@ -65,6 +78,13 @@ dev = [
 
     # Linting & formatting
     "ruff>=0.4,<1.0",
+
+    # Local PostgreSQL for dev/test without admin rights or Docker.
+    # Production runs a real managed Postgres; this exists so the test suite
+    # can run against the SAME engine instead of SQLite — that difference has
+    # already caught two real bugs (CLAUDE.md items #13/#16).
+    # Usage: python scripts/local_postgres.py test
+    "pgserver>=0.1.4,<0.2 ; sys_platform != 'darwin' or platform_machine != 'x86_64'",
 ]
 
 # -----------------------------------------------------------------------------

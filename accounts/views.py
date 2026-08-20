@@ -25,6 +25,7 @@ from .forms import (
     RegisterForm,
 )
 from .models import PhoneOTP, UserProfile
+from .services import send_otp_sms
 
 UserModel = get_user_model()
 
@@ -134,7 +135,11 @@ def phone_start_view(request):
             user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:256],
         )
 
-        # TODO: integrate SMS provider.
+        # SMS delivery — provider abstraction in accounts/services.py
+        # (console in dev/test, Kavenegar in prod). Never blocks login on
+        # failure; delivery errors are logged there.
+        send_otp_sms(phone, code)
+
         # SECURITY: only show code in DEBUG mode — never in production.
         if settings.DEBUG:
             messages.success(request, f"[DEV] کد تست: {code}")
@@ -351,6 +356,20 @@ def creator_studio_view(request):
     ]
     track_performance.sort(key=lambda row: row["plays"], reverse=True)
 
+    # Transparent earnings/points — every PointLedger row that touched this
+    # creator's balance, not just the aggregate. This is the "why is my
+    # balance what it is" view: award reasons, blocked-play audit entries,
+    # and payout deductions all show up here from the same source of truth
+    # (Constitution, CLAUDE.md §2 — UserProfile.points is a derived cache).
+    from billing.models import PayoutRequest
+
+    recent_ledger = list(
+        PointLedger.objects.filter(user=request.user).order_by("-created_at")[:25]
+    )
+    recent_payouts = list(
+        PayoutRequest.objects.filter(user=request.user).order_by("-created_at")[:10]
+    )
+
     return render(
         request,
         "accounts/creator_studio.html",
@@ -361,6 +380,8 @@ def creator_studio_view(request):
             "first_time_listeners": first_time_listeners,
             "returning_listeners": returning_listeners,
             "track_performance": track_performance,
+            "recent_ledger": recent_ledger,
+            "recent_payouts": recent_payouts,
         },
     )
 

@@ -54,6 +54,17 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 | 12 | ~~`check_and_notify_milestone` (اعلان ۱۰۰/۵۰۰/... پخش) نوشته شده بود ولی هیچ‌جا صدا زده نمی‌شد — کد مرده~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۱۹، فاز ۳) — در `plays/views.py::register_play` بعد از هر افزایش واقعی `play_count` صدا زده می‌شود. |
 | 13 | ~~`accounts/views.py::creator_studio_view` با `Sum("point_awarded")` روی یک `BooleanField` جمع می‌زد — روی SQLite بی‌صدا کار می‌کنه ولی روی PostgreSQL خطای `function sum(boolean) does not exist` می‌ده~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۲۰، فاز ۴+۵) — با `Count("id", filter=Q(point_awarded=True))` جایگزین شد؛ قابل‌حمل بین دیتابیس‌ها. کشف‌شده حین ممیزی کد قبل از ساخت روی همین view. |
 | 14 | ~~همون view: `my_tracks = list(qs)[:50]` — کل ترک‌های Creator رو (بدون LIMIT در SQL) به لیست پایتون تبدیل می‌کرد، بعد ۵۰ تای اول رو می‌گرفت~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۲۰، فاز ۴+۵) — به `list(qs[:50])` تغییر کرد؛ `LIMIT 50` حالا در سطح SQL اجرا می‌شود. |
+| 15 | ~~`core/staff_urls.py` (users/creators console + creator_detail) از قبل روی دیسک بود ولی هیچ‌وقت در `config/urls.py` با `include()` مونت نشده بود — کل پنل staff غیرقابل‌دسترس بود~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۲۰، فاز نهایی) — مونت شد در `staff/`؛ صفر تست قبلی به ۱۵+ تست رسید. |
+| 16 | ~~`core/staff_views.py::users_console` هم دقیقاً همون باگ مورد #۱۳ رو داشت (`Sum("...point_awarded")` روی BooleanField) — چون این view تا همین فاز غیرقابل‌دسترس بود، هیچ‌وقت لمس نشده بود~~ | — | ✅ حل‌شده — با `Count(..., filter=Q(...=True))` جایگزین شد؛ **با اجرای زنده روی PostgreSQL واقعی لو رفت**، دقیقاً همون فرآیندی که #۱۳ رو کشف کرد. |
+| 17 | ~~`billing/views.py::create_payout_request` هیچ‌وقت امتیاز کاربر رو کم نمی‌کرد — بعد از تایید یک payout، همون امتیاز باز هم قابل درخواست مجدد بود~~ | — | ✅ حل‌شده — `PayoutRequest.points` (فیلد جدید) + `billing/services.py::approve_payout` امتیاز رو از طریق `PointLedger` (delta منفی، reason=`PAYOUT_DEDUCTION`) کسر می‌کنه، نه دستکاری مستقیم `UserProfile.points`. |
+| 18 | ~~`accounts/forms.py::ProfileSettingsForm` هیچ `clean_cover`/`clean_avatar` نداشت — برخلاف Track/Album، آپلود avatar/cover پروفایل بدون اعتبارسنجی MIME/سایز رد می‌شد~~ | — | ✅ حل‌شده — از همون `core/validators.py::validate_image` مشترک استفاده می‌کنه. |
+| 19 | ~~`templates/accounts/public_profile.html` یک قالب orphan بود — هیچ view‌ای رندرش نمی‌کرد (`public_profile`/`public_profile_by_handle` هر دو از `public_profile_pro.html` استفاده می‌کنن)~~ | — | ✅ حذف شد (همون الگوی حذف `templates/tracks/detail.html` در فاز ۳). |
+| 20 | ~~`accounts/views.py::phone_start_view` کد OTP رو در production عملاً به هیچ‌کجا ارسال نمی‌کرد — فقط `messages.success(request, "کد ارسال شد")` می‌گفت بدون اینکه واقعاً SMS بره~~ | — | ✅ حل‌شده (فاز نهایی) — `accounts/services.py` provider abstraction (Kavenegar واقعی / Console برای dev)؛ prod بدون `KAVENEGAR_API_KEY` واقعی اصلاً بالا نمی‌آد. |
+| 21 | ~~**باگ بحرانی:** الگوی URL `t/<slug:slug>/` از converter داخلی `slug` جنگو استفاده می‌کرد که فقط ASCII می‌پذیره (`[-a-zA-Z0-9_]+`)، ولی `Track.save()` با `slugify(allow_unicode=True)` اسلاگ فارسی می‌سازه — یعنی **صفحه‌ی هر ترک با عنوان فارسی کاملاً غیرقابل‌دسترس بود** و `{% url 'track_detail' %}` خطای `NoReverseMatch` می‌داد~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۲۰) — `core/converters.py::UnicodeSlugConverter` (رجیستر شده به‌عنوان `uslug` در `config/urls.py`). چون همه‌ی تست‌های قبلی عنوان انگلیسی داشتن، این باگ هیچ‌وقت لو نرفته بود؛ ۴ تست رگرسیون با عنوان فارسی اضافه شد (`tracks/tests.py::PersianSlugRoutingTests`). |
+| 22 | ~~`config/settings/__init__.py` یک `from .dev import *` داشت — یعنی `DJANGO_SETTINGS_MODULE=config.settings` (بدون `.dev`/`.prod`) بی‌صدا تنظیمات **dev** رو لود می‌کرد: `DEBUG=True`، کوکی ناامن، SQLite، و SECRET_KEY تصادفی — روی یک سرور production فاجعه‌ی خاموش~~ | — | ✅ حل‌شده — حالا اگر `DJANGO_SETTINGS_MODULE` دقیقاً `config.settings` باشه، `ImportError` صریح می‌ده. شرطی نوشته شده (نه `raise` بی‌قید) چون پایتون قبل از زیرماژول، پکیج والد رو import می‌کنه و `raise` بی‌قید مسیر سالم `config.settings.dev` رو هم می‌شکست. |
+| 23 | ~~OG image در `track_detail.html` و `public_profile_pro.html` با `{{ request.scheme }}://{{ request.get_host }}{{ ...url }}` ساخته می‌شد — با `USE_S3_STORAGE=1` که `FileField.url` خودش مطلقه، URL خراب دوتایی (`https://casset.ir/https://bucket...`) تولید می‌کرد~~ | — | ✅ حل‌شده — `core/templatetags/casset_urls.py::abs_url` که از `request.build_absolute_uri()` استفاده می‌کنه (URL مطلق رو دست‌نخورده می‌ذاره، نسبی رو prefix می‌کنه). |
+| 24 | ~~۳ قالب یتیم (`accounts/creator_dashboard.html`, `playlists/index.html`, `tracks/artist_profile.html`) که هیچ view‌ای رندرشون نمی‌کرد — `artist_profile` فقط `redirect` می‌کنه و هرگز قالبش رو render نمی‌کنه~~ | — | ✅ حذف شدند (همون الگوی موارد #۱۹ و فاز ۳). |
+| 25 | ~~۴ مدل (`playlists.Playlist`, `playlists.PlaylistItem`, `explore.FeaturedPin`, `moderation.AuditLog`) در پنل ادمین ثبت نشده بودن — یعنی ادمین نمی‌تونست پین‌های تبلیغاتی صفحه‌ی کشف رو مدیریت کنه یا رد حسابرسی رو ببینه~~ | — | ✅ حل‌شده — هر ۲۵ مدل پروژه حالا در ادمین ثبت‌شده‌ان. `AuditLog` عمداً **فقط-خواندنی**ه (add/change/delete هر سه رد می‌شن) چون قابل‌ویرایش بودنِ رد حسابرسی کل هدفش رو از بین می‌بره. |
 
 > وقتی هرکدوم از این موارد رفع شد، این جدول باید در همین فایل آپدیت بشه (ردیف حذف یا وضعیت به ✅ تغییر کنه).
 
@@ -63,17 +74,19 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 
 | اپ | نقش | بلوغ فعلی |
 |---|---|---|
-| `accounts` | کاربر، پروفایل، OTP، آنبوردینگ Creator، تعلیق حساب، آنالیتیکس Creator | متوسط — منطق VIP در مدل پخش شده، باید جمع بشه. تعلیق حساب (`is_active` + `UserProfile.suspended_at/reason`) روی هر دو مسیر ورود اعمال می‌شود. `creator_studio_view` حالا شنونده اول‌بار/برگشتی + عملکرد هر ترک را نشان می‌دهد (فاز ۴+۵) |
-| `tracks` | آلبوم/ترک، ژانر، تگ، چرخه انتشار | ✅ خوب — AlbumForm حرفه‌ای شد، cover validation، CRUD کامل، تست دارد |
-| `uploads` | آپلود فایل، ارسال برای بررسی | نیاز به Service مجزا برای اعتبارسنجی فایل؛ `submit_track` حالا `PlatformSetting.auto_approve_tracks` را چک می‌کند (فاز ۳) |
-| `plays` | ثبت پخش، آمار روزانه، Fraud signal، اعلان نقطه‌عطف | ✅ خوب — PointLedger، ۴ دروازه امنیتی، services.py، recalculate_points، `check_and_notify_milestone` حالا واقعاً صدا زده می‌شود. `aggregate_stats`/`DailyTrackStat` آماده‌اند ولی عمداً به هیچ داشبوردی وصل نشدند (بخش ۹ روadmap) |
-| `interactions` | لایک، فالو، علاقه‌مندی، کامنت، بلاک کامنت‌گذار | ✅ کامل — مدل + endpoint هر شش نوع تعامل (like/follow/comment/comment-like/favorite/block) با `services.py`، همه به Notification وصل، ۴۲ تست |
-| `explore` | کشف، فید شخصی‌سازی‌شده، Trending، پیشنهاد Creator | ✅ کامل شد (۲۰۲۶-۰۸-۲۰، فاز ۴+۵) — `discover_view` حالا فید بر اساس Follow، Trending وزن‌دار به Qualified Play، و پیشنهاد Creator داره؛ ۱۶ تست جدید (قبلاً صفر) |
-| `moderation` | گزارش، AuditLog، صف بررسی ترک، اکشن staff | ✅ کامل‌تر شد — تایید/رد ترک (`approve_track`/`reject_track` حالا در `services.py`، به‌اشتراک با auto-approve)، گزارش کامنت + مخفی‌سازی خودکار، **و حالا** staff می‌تواند وضعیت Report را عوض کند، کامنت مخفی‌شده را برگرداند، و حساب تعلیق/رفع‌تعلیق کند |
-| `billing` | پلن، فاکتور، تراکنش، درخواست تسویه | تنها منبع حقیقت برای VIP/پلن — تمیز و دارای تست |
+| `accounts` | کاربر، پروفایل، OTP (SMS واقعی)، آنبوردینگ Creator، تعلیق حساب، آنالیتیکس + درآمد Creator | ✅ خوب — `accounts/services.py` جدید: provider abstraction برای OTP SMS (Kavenegar واقعی / Console dev). `creator_studio_view`/`creator_studio.html` حالا علاوه بر شنونده اول‌بار/برگشتی، یک بخش شفاف «موجودی + تراکنش‌های اخیر PointLedger + سوابق payout» هم داره (فاز نهایی) |
+| `tracks` | آلبوم/ترک، ژانر، تگ، چرخه انتشار | ✅ خوب — AlbumForm حرفه‌ای شد، cover validation، CRUD کامل، تست دارد، OG/meta tag روی `track_detail` |
+| `uploads` | آپلود فایل، ارسال برای بررسی | نیاز به Service مجزا برای اعتبارسنجی فایل؛ `submit_track` `PlatformSetting.auto_approve_tracks` را چک می‌کند. `my_tracks.html`/`upload.html` برچسب‌های فارسی خوانا + بازخورد بصری حین آپلود گرفتن (فاز نهایی) |
+| `plays` | ثبت پخش، آمار روزانه، Fraud signal، اعلان نقطه‌عطف | ✅ خوب — PointLedger (حالا با `PAYOUT_DEDUCTION` هم به‌عنوان delta منفی)، ۴ دروازه امنیتی، services.py، recalculate_points. `aggregate_stats`/`DailyTrackStat` عمداً به هیچ داشبوردی وصل نشدند |
+| `interactions` | لایک، فالو، علاقه‌مندی، کامنت، بلاک کامنت‌گذار | ✅ کامل — مدل + endpoint هر شش نوع تعامل با `services.py`، همه به Notification وصل، ۴۲ تست |
+| `explore` | کشف، فید شخصی‌سازی‌شده، Trending، پیشنهاد Creator، **جستجوی full-text** | ✅ کامل — `explore/services.py` جدید: `SearchVector`/`SearchRank` روی PostgreSQL (وزن‌دار title/description)، فالبک `icontains` روی SQLite (dev/test) — `api_search` این سرویس رو صدا می‌زنه، دیگه منطق inline نیست |
+| `moderation` | گزارش، AuditLog، صف بررسی ترک، اکشن staff | ✅ کامل — approve/reject ترک، گزارش کامنت + مخفی‌سازی خودکار، تعلیق/رفع‌تعلیق. `AuditLog.TargetType.PAYOUT` جدید برای اکشن‌های payout (فاز نهایی) |
+| `billing` | پلن، فاکتور، تراکنش، درخواست تسویه، **درگاه پرداخت واقعی** | ✅ کامل شد (فاز نهایی) — `billing/services.py` جدید: provider abstraction برای پرداخت (Zarinpal واقعی / Dev برای dev)، `start_payment`/`payment_callback` جایگزین مسیر dev-only، `approve_payout`/`reject_payout` (کسر امتیاز واقعی از طریق PointLedger)، `billing/staff_views.py` صف تایید payout جدید |
 | ~~`subscriptions`~~ | ~~پلن و اشتراک (نسخه قدیمی‌تر)~~ | ✅ حذف‌شده — در `_deprecated/` آرشیو شده، هیچ referenceای در کد زنده وجود ندارد |
-| `core` | تنظیمات پلتفرم (Singleton) | خوب |
-| **(جدید - وجود دارد)** | Notification / Activity Feed | ✅ کامل — ۸ verb، grouping 24ساعته، signal-driven، API + HTML، ۴۲ تست |
+| `core` | تنظیمات پلتفرم (Singleton)، **health check، backup، thumbnail pipeline، staff dashboard** | ✅ کامل شد (فاز نهایی) — `core/views.py::health_check` (`/healthz/`)، `core/management/commands/backup_db.py` (pg_dump wrapper)، `core/templatetags/thumbnails.py` (lazy cached thumbnail، کار می‌کنه روی هر storage backend)، `core/staff_views.py::platform_dashboard` (درآمد کل، اقتصاد امتیاز، صف‌های نیازمند بررسی) — و `core/staff_urls.py` که قبلاً هیچ‌وقت mount نشده بود، حالا در `config/urls.py` مونت شده |
+| `notifications` | Notification / Activity Feed | ✅ کامل — ۸ verb، grouping ۲۴ساعته، signal-driven، API + HTML، ۴۲ تست. فن‌اوت `notify_new_track_to_followers` حالا از طریق **Celery** (`notifications/tasks.py`) اجرا می‌شود، نه سینک (فاز نهایی) |
+
+**زیرساخت (بدون اپ Django مجزا):** Object Storage (django-storages، S3-compatible generic — Arvan/Liara/MinIO/AWS، فقط با `USE_S3_STORAGE=1` در prod فعال می‌شه)، Celery+Redis (broker مشترک با cache)، Sentry (اختیاری، فقط با `SENTRY_DSN`)۔ همه در `config/settings/prod.py`.
 
 ---
 
@@ -109,7 +122,12 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 فاز ۴+۵ (ادغام‌شده) فید شخصی + آنالیتیکس + کشف هوشمند — ✅ بسته شد (۲۰۲۶-۰۸-۲۰): موارد #۱۳/#۱۴ رفع
                     شدند. Follow-feed/Trending وزن‌دار/پیشنهاد Creator/آنالیتیکس Creator تکمیل و تست شد.
                     جزئیات کامل: `.casset/execution/90-day-roadmap.md` بخش ۹
-فاز ۶  (روز ۸۵-۹۰)  سخت‌سازی Production و استقرار نهایی
+فاز نهایی (Production + مونتیزیشن + تجربه رقابتی) — ✅ بسته شد (۲۰۲۶-۰۸-۲۰): موارد #۱۵ تا #۲۰ رفع
+                    شدند. Object Storage (S3-compatible)، Celery، Sentry، health check، backup، OTP SMS
+                    واقعی (Kavenegar)، درگاه پرداخت واقعی (Zarinpal)، تسویه Creator با کسر امتیاز واقعی،
+                    جستجوی full-text (Postgres)، OG/meta tags، thumbnail pipeline، داشبورد درآمد Creator،
+                    داشبورد پلتفرم برای staff، waveform تزئینی، و بازبینی UX آپلود/انتظار بررسی.
+                    جزئیات کامل: `.casset/execution/90-day-roadmap.md` بخش ۱۰
 ```
 
 سند کامل شامل جزییات هر فاز، معیار "Done" هر بخش، و ریسک‌های هر مرحله در فایل زیر است:
@@ -138,6 +156,21 @@ pytest --cov=. --cov-report=html                # پوشش تست → htmlcov/in
 ```
 چک‌لیست کامل تست دستی/سناریوهای E2E مرورگر: `.casset/TESTING.md`.
 
+**تست روی PostgreSQL واقعی (مهم — نه اختیاری):**
+دستورهای بالا روی SQLite اجرا می‌شن، ولی production روی Postgres است و این تفاوت تا الان **دو باگ واقعی** رو لو داده (موارد #۱۳/#۱۶ — `SUM(boolean)`). یک Postgres واقعی و محلی بدون نیاز به Docker یا دسترسی ادمین:
+```powershell
+python scripts/local_postgres.py start   # بالا آوردن سرور (idempotent) + چاپ متغیرهای اتصال
+python scripts/local_postgres.py test    # کل تست‌سوییت روی همون Postgres واقعی
+python scripts/local_postgres.py stop
+```
+دیتای این سرور در `.pgdata/` است (gitignore شده؛ پاک‌کردنش یعنی ریست کامل). پکیج `pgserver` در `[dev]` نصب می‌شه. توجه: یک تست (جستجوی full-text) روی SQLite **skip** می‌شه و فقط در این مسیر واقعاً اجرا می‌شه — پس عدد تست Postgres یکی بیشتر از SQLite است.
+
+**داده‌ی نمونه برای تست دستی/مرورگر:**
+```powershell
+python manage.py seed_demo --users 33 --flush-demo
+```
+۳۳ کاربر (≈۹ Creator تاییدشده)، ترک، پخش، امتیاز از طریق `PointLedger`، فالو/لایک/کامنت، گزارش، و درخواست تسویه می‌سازه — یعنی همه‌ی داشبوردها و صف‌ها با داده‌ی واقعی قابل بررسی‌ان، نه حالت خالی. ورود: `demo_1` … `demo_33` با رمز `demo12345`.
+
 بررسی سلامت پروژه (قبل از هر commit مهم اجرا شود):
 ```powershell
 python manage.py check
@@ -152,7 +185,18 @@ python manage.py makemigrations <app_name>
 python manage.py migrate
 ```
 
-نکته تنظیمات: `manage.py` و `pyproject.toml` هر دو پیش‌فرض `DJANGO_SETTINGS_MODULE=config.settings.dev` دارند. برای prod باید `config.settings.prod` صراحتاً ست بشه و `DJANGO_SECRET_KEY`, `PLAY_IP_SALT`, `PLAY_UA_SALT` واقعی وجود داشته باشن — وگرنه استارت‌آپ با `ImproperlyConfigured` فیل می‌کنه (عمدی، طبق مورد ۸ بخش ۳). سوییچ دیتابیس با `DB_ENGINE=sqlite|postgresql` در `.env`.
+نکته تنظیمات: `manage.py` و `pyproject.toml` هر دو پیش‌فرض `DJANGO_SETTINGS_MODULE=config.settings.dev` دارند. برای prod باید `config.settings.prod` صراحتاً ست بشه و `DJANGO_SECRET_KEY`, `PLAY_IP_SALT`, `PLAY_UA_SALT`, `KAVENEGAR_API_KEY` (SMS)، `ZARINPAL_MERCHANT_ID` (پرداخت) واقعی وجود داشته باشن — وگرنه استارت‌آپ با `ImproperlyConfigured` فیل می‌کنه (عمدی، fail-fast). سوییچ دیتابیس با `DB_ENGINE=sqlite|postgresql` در `.env`. Object Storage اختیاریه: `USE_S3_STORAGE=1` + چهار متغیر `S3_*` (هر backend S3-compatible: Arvan/Liara/MinIO/AWS).
+
+Celery worker (برای فن‌اوت اعلان دنبال‌کننده‌ها؛ در dev/test بدون این هم کار می‌کنه چون eager است):
+```powershell
+celery -A config worker --loglevel=info
+```
+
+Backup دیتابیس (فقط Postgres):
+```powershell
+python manage.py backup_db --output-dir /path/to/backups
+```
+راهنمای کامل: `.casset/ops/backup.md`.
 
 ---
 
@@ -160,7 +204,8 @@ python manage.py migrate
 
 - **Modular monolith با یک اپ Django به‌ازای هر دامنه.** لیست واقعی و فعال اپ‌ها همیشه از `config/settings/base.py::INSTALLED_APPS` بخون، نه از مستندات — این فایل منبع حقیقت است: `accounts`, `tracks`, `uploads`, `plays`, `interactions`, `playlists`, `explore`, `moderation`, `billing`, `notifications`, `core`.
 - **Settings سه‌لایه:** `config/settings/base.py` (مشترک) ← `dev.py` / `prod.py` این را extend می‌کنن. فایل تخت قدیمی `config/settings.py` دیگر روی دیسک وجود ندارد — کاملاً حذف شده (commit `ea1d08b`، تایید مجدد توسط یک اجرای خودکار در ۲۰۲۶-۰۸-۲۰)، نه صرفاً بلاک‌شده با `raise ImportError` (که توصیف قدیمی این خط بود). هیچ import فعالی به `config.settings` (بدون `.dev`/`.prod`) در کدبیس وجود ندارد.
-- **Routing تخت:** هر اپ `urls.py` خودش را دارد و در `config/urls.py` بدون prefix با `include()` مونت می‌شود. الگوی `<slug:handle>/` (پروفایل عمومی) عمداً آخرین pattern است — هر URL جدید باید **قبل از آن** در `config/urls.py` یا در `urls.py` یکی از اپ‌ها اضافه بشه، وگرنه این الگو مسیر جدید رو قورت می‌ده.
+- **Routing تخت:** هر اپ `urls.py` خودش را دارد و در `config/urls.py` بدون prefix با `include()` مونت می‌شود. الگوی `<slug:handle>/` (پروفایل عمومی) عمداً آخرین pattern است — هر URL جدید باید **قبل از آن** در `config/urls.py` یا در `urls.py` یکی از اپ‌ها اضافه بشه، وگرنه این الگو مسیر جدید رو قورت می‌ده. `staff/` پیشوند مشترک صفحات داخلی staff است: `core.staff_urls` (`platform_dashboard`, `users_console`, `creators_console`, `creator_detail`) و `billing.staff_urls` (`payout_queue` و اکشن‌هاش) هر دو زیر همین پیشوند مونت شدن. **هشدار تاریخی:** `core.staff_urls` از قبل روی دیسک بود ولی تا ۲۰۲۶-۰۸-۲۰ هیچ‌وقت `include()` نشده بود — قبل از اضافه‌کردن یک `urls.py` جدید به هر اپی، حتماً چک کن که واقعاً در `config/urls.py` مونت شده، نه فقط اینکه فایل وجود داره.
+- **Celery:** `config/celery.py` (app instance) + `config/__init__.py` آن را import می‌کند. `CELERY_TASK_ALWAYS_EAGER` در `config/settings/base.py` به‌طور خودکار بر اساس وجود `REDIS_URL` تنظیم می‌شود (بدون Redis = eager/سینک، برای dev/test بدون نیاز به worker). Task جدید برای اپی بساز در `<app>/tasks.py` با دکوریتور `@shared_task`، مثل `notifications/tasks.py`.
 - **لایه Service/Domain** طبق قانون بخش ۲ باید منطق کسب‌وکار رو از `views.py` جدا نگه داره؛ فعلاً فقط `plays/services.py` و `notifications/services.py` این الگو را کامل پیاده کرده‌اند (نمونه‌ی مرجع برای سرویس جدید). بقیه‌ی اپ‌ها (`accounts`, `tracks`, `billing`, ...) هنوز بخشی از منطق را مستقیم در `views.py` دارند — وقتی منطق غیرپیش‌پاافتاده به یکی از این اپ‌ها اضافه می‌کنی، آن را در یک ماژول `services.py` مشابه بنویس، نه مستقیم در view.
 - **گراف اصلی کسب‌وکار:** User → Creator (`accounts`) → Track/Album (`tracks`) → PlaybackSession/Event → QualifiedPlay (`plays`) → `PointLedger` (`plays/models.py`, نوشتن فقط از طریق `plays/services.py`) → Notification (`notifications`, signal-driven از `notifications/signals.py`) → Dashboard/Analytics.
 - **بدون فرانت‌اند بیلد جدا.** `static/app.js` + `static/app.css` دستی نوشته شدن (بدون bundler/`package.json`)؛ رندر سمت سرور با Django templates در `templates/`.

@@ -179,6 +179,15 @@ class PublicProfileViewTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("myhandle", resp["Location"])
 
+    def test_og_title_present(self):
+        resp = self.client.get(reverse("public_profile", args=["publicuser"]))
+        self.assertContains(resp, 'property="og:title"')
+        self.assertContains(resp, "publicuser")
+
+    def test_no_og_image_without_avatar(self):
+        resp = self.client.get(reverse("public_profile", args=["publicuser"]))
+        self.assertNotContains(resp, 'property="og:image"')
+
     def test_404_for_unknown_user(self):
         resp = self.client.get(reverse("public_profile", args=["doesnotexist"]))
         self.assertEqual(resp.status_code, 404)
@@ -529,3 +538,96 @@ class CreatorStudioViewTests(TestCase):
         self.assertEqual(len(daily), 1)
         self.assertEqual(daily[0]["plays"], 3)
         self.assertEqual(daily[0]["points"], 2)
+
+    def test_recent_ledger_shows_this_creators_entries_only(self):
+        from plays.models import PointLedger
+
+        other = _make_user("cs_other_ledger")
+        PointLedger.objects.create(user=self.creator, delta=1, reason=PointLedger.Reason.PLAY_REWARD)
+        PointLedger.objects.create(user=other, delta=1, reason=PointLedger.Reason.PLAY_REWARD)
+
+        resp = self.client.get(reverse("creator_studio"))
+        ledger_users = {entry.user_id for entry in resp.context["recent_ledger"]}
+        self.assertEqual(ledger_users, {self.creator.id})
+
+    def test_recent_payouts_shown(self):
+        from billing.models import PayoutRequest
+
+        PayoutRequest.objects.create(user=self.creator, amount=100, points=100)
+        resp = self.client.get(reverse("creator_studio"))
+        self.assertEqual(len(resp.context["recent_payouts"]), 1)
+
+
+# ---------------------------------------------------------------------------
+# SMS provider abstraction (accounts/services.py)
+# ---------------------------------------------------------------------------
+
+class SmsProviderTests(TestCase):
+    def test_default_provider_is_console(self):
+        from accounts.services import ConsoleSmsProvider, get_sms_provider
+
+        self.assertIsInstance(get_sms_provider(), ConsoleSmsProvider)
+
+    @override_settings(SMS_PROVIDER="kavenegar", KAVENEGAR_API_KEY="testkey")
+    def test_kavenegar_selected_when_configured(self):
+        from accounts.services import KavenegarSmsProvider, get_sms_provider
+
+        provider = get_sms_provider()
+        self.assertIsInstance(provider, KavenegarSmsProvider)
+        self.assertEqual(provider.api_key, "testkey")
+
+    def test_console_provider_send_does_not_raise(self):
+        from accounts.services import ConsoleSmsProvider
+
+        ConsoleSmsProvider().send("09121234567", "test message")
+
+    @patch("accounts.services.requests.get")
+    def test_kavenegar_provider_success(self, mock_get):
+        from accounts.services import KavenegarSmsProvider
+
+        mock_get.return_value.raise_for_status.return_value = None
+        mock_get.return_value.json.return_value = {"return": {"status": 200, "message": "ok"}}
+
+        KavenegarSmsProvider(api_key="k", sender="1000").send("09121234567", "hi")
+        called_url = mock_get.call_args.args[0]
+        self.assertIn("k", called_url)
+        self.assertEqual(mock_get.call_args.kwargs["params"]["receptor"], "09121234567")
+        self.assertEqual(mock_get.call_args.kwargs["params"]["sender"], "1000")
+
+    @patch("accounts.services.requests.get")
+    def test_kavenegar_provider_raises_on_rejected_status(self, mock_get):
+        from accounts.services import KavenegarSmsProvider, SmsSendError
+
+        mock_get.return_value.raise_for_status.return_value = None
+        mock_get.return_value.json.return_value = {"return": {"status": 400, "message": "bad receptor"}}
+
+        with self.assertRaises(SmsSendError):
+            KavenegarSmsProvider(api_key="k").send("09121234567", "hi")
+
+    @patch("accounts.services.requests.get", side_effect=Exception("network down"))
+    def test_kavenegar_provider_wraps_network_error(self, mock_get):
+        import requests
+
+        from accounts.services import KavenegarSmsProvider, SmsSendError
+
+        mock_get.side_effect = requests.RequestException("network down")
+        with self.assertRaises(SmsSendError):
+            KavenegarSmsProvider(api_key="k").send("09121234567", "hi")
+
+    def test_send_otp_sms_never_raises_even_if_provider_fails(self):
+        from accounts import services
+
+        with patch.object(services, "get_sms_provider") as mock_get_provider:
+            mock_provider = mock_get_provider.return_value
+            mock_provider.send.side_effect = services.SmsSendError("boom")
+            services.send_otp_sms("09121234567", "123456")  # must not raise
+
+    def test_phone_start_view_calls_send_otp_sms(self):
+        cache.clear()
+        with patch("accounts.views.send_otp_sms") as mock_send:
+            resp = self.client.post(reverse("phone_start"), {"phone_number": "09121234567"})
+        self.assertEqual(resp.status_code, 302)
+        mock_send.assert_called_once()
+        called_phone, called_code = mock_send.call_args.args
+        self.assertEqual(called_phone, "09121234567")
+        self.assertEqual(len(called_code), 6)

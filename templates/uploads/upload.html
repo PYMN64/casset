@@ -76,8 +76,11 @@
       {{ form.cover }}
 
       <div class="row row-wrap">
-        <button class="btn btn--primary" type="submit">Save draft</button>
+        <button class="btn btn--primary" type="submit" id="uploadSubmitBtn">ذخیره پیش‌نویس</button>
         <a class="btn btn--ghost" href="/my/tracks/">My Tracks</a>
+      </div>
+      <div id="uploadProgress" class="muted small" style="display:none;margin-top:6px">
+        در حال آپلود، لطفاً این صفحه را نبندید — فایل‌های صوتی/ویدیویی بزرگ ممکن است چند دقیقه طول بکشد…
       </div>
     </form>
   </section>
@@ -109,6 +112,21 @@
   }
   if(ct){ ct.addEventListener("change", sync); }
   sync();
+
+  // Large audio/video uploads can take a while with no visible feedback
+  // otherwise — the button just sits there and looks unresponsive/frozen.
+  const form = document.getElementById("uploadForm");
+  const btn = document.getElementById("uploadSubmitBtn");
+  const progress = document.getElementById("uploadProgress");
+  if (form && btn) {
+    form.addEventListener("submit", function () {
+      if (form.dataset.submitting) return;
+      form.dataset.submitting = "1";
+      btn.disabled = true;
+      btn.textContent = "در حال آپلود…";
+      if (progress) progress.style.display = "";
+    });
+  }
 })();
 </script>
 {% endblock %}

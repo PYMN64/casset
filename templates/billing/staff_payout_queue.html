@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Staff • Payouts{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>درخواست‌های تسویه</h1>
+  <p class="muted small">فقط برای ادمین/استاف — تایید یک درخواست، امتیاز کاربر را از طریق PointLedger کسر می‌کند.</p>
+
+  <div class="list">
+    {% for p in payouts %}
+      <div class="item" style="flex-direction:column;align-items:stretch">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+          <div>
+            <div style="font-weight:900">@{{ p.user.username }} — {{ p.amount }}</div>
+            <div class="muted small">{{ p.points }} امتیاز • {{ p.created_at }}</div>
+          </div>
+          <div class="muted small">موجودی فعلی: {{ p.user.profile.points }}</div>
+        </div>
+
+        <div class="row row-wrap" style="margin-top:10px;gap:8px">
+          <form method="post" action="/staff/payouts/{{ p.id }}/approve/">
+            {% csrf_token %}
+            <button class="btn btn--primary" type="submit">تایید و پرداخت</button>
+          </form>
+          <form method="post" action="/staff/payouts/{{ p.id }}/reject/" class="row row-wrap" style="gap:6px">
+            {% csrf_token %}
+            <input type="text" name="reason" placeholder="دلیل رد" style="min-width:160px">
+            <button class="btn" type="submit" style="color:#ff6b6b">رد درخواست</button>
+          </form>
+        </div>
+      </div>
+    {% empty %}
+      <div class="item"><span class="muted">درخواست در انتظار بررسی وجود ندارد.</span></div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

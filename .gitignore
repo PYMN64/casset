@@ -46,3 +46,8 @@ staticfiles/
 
 # Media uploads (user content, not source)
 media/
+# Local PostgreSQL data dir (scripts/local_postgres.py)
+.pgdata/
+
+# Local DB backups produced by manage.py backup_db
+backups/

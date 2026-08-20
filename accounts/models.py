@@ -24,8 +24,8 @@ class UserProfile(models.Model):
 
     # MVP: URL ها (بعداً میشه FileField/S3)
     # avatar_url = models.URLField(blank=True)
-    cover = models.ImageField(upload_to="covers/", null=True, blank=True)
-    avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
+    cover = models.ImageField(upload_to="accounts/covers/", null=True, blank=True)
+    avatar = models.ImageField(upload_to="accounts/avatars/", null=True, blank=True)
     points = models.IntegerField(default=0)
     follower_count = models.PositiveIntegerField(default=0)
 

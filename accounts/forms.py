@@ -3,6 +3,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.core.validators import RegexValidator
 
+from core.validators import validate_image
+
 from .models import UserProfile
 
 User = get_user_model()
@@ -55,6 +57,21 @@ class ProfileSettingsForm(forms.ModelForm):
             self.fields["email"].initial = self.instance.user.email
             self.fields["first_name"].initial = self.instance.user.first_name
             self.fields["last_name"].initial = self.instance.user.last_name
+
+    def clean_cover(self):
+        file = self.cleaned_data.get("cover")
+        # Only validate a newly-uploaded file — the existing stored value on
+        # an unchanged field arrives here as the same FieldFile, which has
+        # no in-memory bytes to verify and would false-positive as invalid.
+        if file and hasattr(file, "content_type"):
+            validate_image(file)
+        return file
+
+    def clean_avatar(self):
+        file = self.cleaned_data.get("avatar")
+        if file and hasattr(file, "content_type"):
+            validate_image(file)
+        return file
 
     def save(self, commit=True):
         profile = super().save(commit=False)

@@ -11,6 +11,7 @@ from interactions.models import CreatorFollow
 from plays.models import PlayEvent
 from tracks.models import Genre, Track
 
+from . import services
 from .models import FeaturedPin
 
 User = get_user_model()
@@ -204,32 +205,12 @@ def api_search(request):
 
     q2 = q[:60]
 
-    tracks = (
-        Track.objects.filter(status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC, title__icontains=q2)
-        .select_related("creator")
-        .order_by("-play_count")[:10]
-        .values("id", "title", "slug", "play_count", "creator__username")
-    )
-
-    creators = (
-        User.objects.filter(username__icontains=q2)
-        .select_related("profile")
-        .order_by("username")[:10]
-        .values("username", "profile__follower_count")
-    )
-
-    genres = (
-        Genre.objects.filter(name__icontains=q2)
-        .order_by("name")[:10]
-        .values("name", "slug")
-    )
-
     return JsonResponse({
         "ok": True,
         "q": q,
-        "tracks": list(tracks),
-        "creators": list(creators),
-        "genres": list(genres),
+        "tracks": services.search_tracks(q2),
+        "creators": services.search_creators(q2),
+        "genres": services.search_genres(q2),
     })
 
 def trending_view(request):

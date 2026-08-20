@@ -2,12 +2,15 @@
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from accounts.eligibility import compute_eligibility
 from accounts.models import UserProfile
 from core.models import PlatformSetting
 
+from . import services
 from .models import Invoice, PayoutRequest, Plan
 
 
@@ -36,6 +39,7 @@ def vip_page(request):
         "plans": plans,
         "active_invoice": active_invoice,
         "elig": elig,
+        "debug": settings.DEBUG,
     })
 
 
@@ -72,6 +76,45 @@ def activate_vip_dev(request, plan_id: int | None = None):
     invoice.mark_paid()
 
     messages.success(request, f"VIP از طریق پلن «{plan.title}» فعال شد (Dev).")
+    return redirect("vip")
+
+
+@login_required
+def start_payment(request, plan_id: int):
+    """Real payment entry point — replaces activate_vip_dev in production.
+    Redirects to whatever billing.services.get_payment_provider() resolves
+    to (Zarinpal in prod, DevPaymentProvider in DEBUG without real
+    credentials — see config/settings/prod.py for the fail-fast guard)."""
+    plan = get_object_or_404(Plan, id=plan_id, is_active=True)
+    callback_url = request.build_absolute_uri(reverse("payment_callback"))
+    try:
+        redirect_url = services.start_payment(user=request.user, plan=plan, callback_url=callback_url)
+    except services.PaymentError:
+        messages.error(request, "اتصال به درگاه پرداخت ناموفق بود. لطفاً دوباره تلاش کنید.")
+        return redirect("vip")
+    return redirect(redirect_url)
+
+
+def payment_callback(request):
+    """Gateway callback — verifies and finalizes the Invoice this Authority
+    belongs to. Not @login_required: the gateway calls this directly, not
+    the logged-in browser session (though in practice it's the same tab)."""
+    invoice_id = request.GET.get("invoice_id")
+    authority = request.GET.get("Authority")
+
+    invoice = None
+    if invoice_id:
+        invoice = Invoice.objects.filter(pk=invoice_id).first()
+    elif authority:
+        invoice = Invoice.objects.filter(provider_ref=authority).first()
+    if invoice is None:
+        raise Http404("Invoice not found for this payment callback.")
+
+    ok = services.complete_payment(invoice=invoice, callback_params=request.GET.dict())
+    if ok:
+        messages.success(request, f"VIP از طریق پلن «{invoice.plan.title}» فعال شد.")
+    else:
+        messages.error(request, "پرداخت تایید نشد یا ناموفق بود.")
     return redirect("vip")
 
 
@@ -114,5 +157,11 @@ def create_payout_request(request):
     if amount > max_amount:
         amount = max_amount
 
-    PayoutRequest.objects.create(user=request.user, amount=amount)
+    # Lock in the exact point count backing this amount now — approve_payout
+    # deducts *this* number later, not whatever amount/unit works out to at
+    # approval time (price_per_point_music can change in between).
+    points = amount // unit
+    amount = points * unit
+
+    PayoutRequest.objects.create(user=request.user, amount=amount, points=points)
     return redirect("payout")
