@@ -4,6 +4,42 @@
 
 ---
 
+## [2026-08-20 ~02:40] تایید حذف `config/settings.py` (از قبل انجام‌شده) + کشف تغییرات کامیت‌نشده مهم
+
+**Branch:** `auto/2026-08-20-verify-settings-cleanup` (ساخته شد، موفق)
+**آیتم صف:** فایل `config/settings.py` را با پکیج `config/settings/` مقایسه کن؛ اگر واقعاً مرده و بدون import فعال است، حذفش کن؛ `manage.py check` و کل تست‌سوییت را اجرا کن تا مطمئن شوی هیچ‌جا به آن ارجاع نمی‌دهد.
+
+**نتیجه:** ناقص — بخش تحلیلی/مستندسازی کامل شد، اما commit نهایی به‌خاطر مانع زیرساختی گیر کرد (جزئیات پایین). هیچ کد اپلیکیشن تغییر نکرد.
+
+### چه چیزی پیدا شد
+1. **آیتم صف از قبل انجام شده بود.** `config/settings.py` دیگر روی دیسک وجود نداشت. با `git log --diff-filter=D` تایید شد در commit `ea1d08b` ("chore: delete dead settings.py and stray repo-root dump files") حذف و کامیت شده — دقیقاً commit بعدی همان اجرای متوقف‌شده‌ی دیشب (به entry پایین این فایل نگاه کن)، یعنی ظاهراً PYMN خودش دستی مانع lock رو رفع کرد و حذف رو انجام داد. `git merge-base --is-ancestor ea1d08b HEAD` تایید کرد این commit از قبل روی `stabilization/v1-baseline` (branch فعلی HEAD، `c5bb7fc`) قرار داره. جستجوی `config\.settings\b` (به‌جز `.dev`/`.prod`) در `manage.py`، `config/wsgi.py`، `config/asgi.py`، `pyproject.toml` و اپ‌ها چیزی پیدا نکرد — تایید مجدد که هیچ import فعالی به فایل حذف‌شده باقی نمونده.
+2. **یافته مهم‌تر و خارج از scope این آیتم:** working tree همون لحظه‌ای که شروع کردم، از قبل (قبل از هر کاری از من) حاوی تغییرات واقعی کامیت‌نشده بود — نه فقط نویز CRLF/LF (که تقریباً همه‌ی فایل‌های ردیابی‌شده رو پوشونده، احتمالاً به خاطر تفاوت `core.autocrlf` بین چک‌اوت ویندوز و این mount لینوکسی)، بلکه محتوای واقعی: با `git diff --ignore-all-space --stat` → ۱۰ فایل، ۵۵۷ خط: `.env.example`, `accounts/tests.py`, `accounts/views.py`, `config/settings/base.py`, `config/settings/prod.py`, `explore/tests.py`, `explore/views.py`, `plays/tests.py`, `templates/accounts/creator_studio.html`, `templates/explore/discover.html`.
+   بررسی نمونه نشون داد این کار واقعی و به‌ظاهر باکیفیته، نه زباله: `config/settings/base.py`/`prod.py` دقیقاً همون سخت‌سازی Postgres (`CONN_HEALTH_CHECKS`, `sslmode`, fail-fast) هست که `CLAUDE.md` مورد #۴ و `current.md` («Postgres readiness») **از قبل به‌عنوان «✅ حل‌شده» توصیف کرده‌اند** — یعنی مستندات میگه تمومه ولی کد واقعی هرگز کامیت نشده. `accounts/views.py` هم یک فیچر تحلیلی کامل و جدید داره (first-time/returning listener split، breakdown هر ترک، فیکس `SUM(boolean)` که روی Postgres واقعی fail می‌کنه) که هیچ‌جای changelog ثبت نشده. **به این فایل‌ها دست نزدم** — نه commit، نه stash، نه discard.
+
+### مانعی که این بار هم رخ داد (git index.lock)
+بعد از `git checkout -b auto/2026-08-20-verify-settings-cleanup` (که موفق بود) و ویرایش دو فایل مستندات (`task-queue.md`, `changelog.md` — با Read/Edit، نه bash، پس روی دیسک سالم نوشته شدن)، تلاش برای `git add && git commit` با همون خطای دیشب مواجه شد:
+```
+fatal: Unable to create '.../casset-django/.git/index.lock': File exists.
+```
+`rm -f .git/index.lock` هم با `Operation not permitted` شکست خورد (چند بار، با فاصله، امتحان شد). برخلاف دیشب، این بار `checkout -b` قبلش موفق شده بود (branch واقعاً ساخته شده و روی دیسک هست) — پس این مانع می‌تونه session-specific باشه، نه یک محدودیت دائمی مسیر mount؛ commit‌های موفق قبلی (`c5bb7fc` و قبلش) نشون می‌دن در بعضی session‌ها git write کار می‌کنه.
+
+### وضعیت فعلی دیسک (مهم برای PYMN)
+- Branch `auto/2026-08-20-verify-settings-cleanup` ساخته شده و checked-out هست.
+- `.casset/state/task-queue.md` و `.casset/state/changelog.md` **ویرایش شده‌اند روی دیسک** (نوشتن مستقیم فایل، نه git) ولی **commit نشده‌اند** — یعنی `git status` این دو فایل رو به‌عنوان modified نشون می‌ده، هم روی این branch هم اگه به `stabilization/v1-baseline` برگردی (تغییرات working-tree هستن، به branch گره نخوردن).
+- `.git/index.lock` هنوز روی دیسک باقی مونده و باید دستی پاک بشه قبل از هر عملیات git بعدی.
+- فایل‌های ۱۰گانه‌ی یافته #۲ (بالا) دست‌نخورده باقی موندن، دقیقاً همون‌طوری که این اجرا رو شروع کردم.
+
+**فایل‌های تغییرکرده:** `.casset/state/task-queue.md`, `.casset/state/changelog.md` (هر دو نوشته شدن، commit نشدن). هیچ کد اپلیکیشن تغییر نکرد.
+**تست:** اجرا نشد — نه به خاطر تصمیم، بلکه چون sandbox این محیط فقط Python 3.10.12 داره و پروژه `requires-python >=3.12` (`Django>=6.0` هم خودش `>=3.12` می‌خواد) — `pip install "Django>=6.0,<6.1"` صریحاً رد شد. `apt-get`/`sudo apt-get install python3.12` هم به خاطر نبود دسترسی root رد شد. این محدودیت شدیدتر از قبلیه (نبود Postgres) — کل سوییت اصلاً runnable نیست، نه فقط بخش‌های وابسته به دیتابیس واقعی.
+**محدودیت‌های این اجرا:** (۱) `git commit` ناموفق به خاطر `.git/index.lock` قابل‌حذف‌نبودن. (۲) اجرای تست‌سوییت واقعی به خاطر نبود Python 3.12+ در sandbox غیرممکن بود.
+**نیاز به تصمیم انسانی:** بله، سه مورد:
+  1. **رفع lock:** `.git\index.lock` رو دستی (از ویندوز) پاک کن، بعد یا خودت commit بزن (`git add .casset/state/task-queue.md .casset/state/changelog.md && git commit -m "docs(state): verify config/settings.py deletion already landed; flag uncommitted WIP"` روی branch `auto/2026-08-20-verify-settings-cleanup`) یا اجازه بده اجرای بعدی این کار رو تموم کنه.
+  2. **تصمیم درباره‌ی ۱۰ فایل کامیت‌نشده (یافته #۲):** این کار به نظر واقعی و ارزشمنده (سخت‌سازی Postgres که مستندات ادعای تکمیلش رو دارن، + آنالیتیکس creator studio). پیشنهاد می‌کنم با `git diff` بررسیش کنی و اگه درست به نظر میاد، خودت commit بزنی (شاید در چند commit موضوعی جدا: یکی Postgres hardening، یکی creator-studio analytics) — این خارج از scope این آیتم صف بود و من دست نزدم.
+  3. **محدودیت Python 3.12 در sandbox:** اگه می‌خوای اجراهای خودکار آینده واقعاً بتونن تست‌سوییت رو اجرا کنن، sandbox این scheduled task باید Python 3.12+ داشته باشه (یا محدودیت `requires-python` پروژه موقتاً پایین بیاد، که خودش یک تصمیم معماریه و نیاز به تایید داره).
+**اقدام بعدی پیشنهادی برای PYMN:** اول lock رو پاک کن و commit مستندات رو تموم کن (کم‌ریسک، فقط دو فایل docs). بعد جدا، به تغییرات کامیت‌نشده‌ی یافته #۲ نگاه کن — این احتمالاً کار واقعی و مهمیه که در خطر گم‌شدنه.
+
+---
+
 ## [2026-08-19 ~02:20] بررسی `config/settings.py` مرده — متوقف‌شده به دلیل مانع زیرساختی (بدون تغییر کد)
 
 **Branch:** هیچ‌کدام ساخته نشد (به دلیل زیر)
