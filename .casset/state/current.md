@@ -1,6 +1,16 @@
 # Casset Current State
 
-## v1 professional (2026-08-20)
+## v1.2.0 — "v1 professional" (2026-08-20) — CURRENT BASELINE
+
+**This is the reference point for all future work.** Tagged and pushed to
+`origin/master` on GitHub (`https://github.com/PYMN64/casset.git`) as
+annotated tag `v1.2.0`, commit `f396b3c`. Deployable with no separate
+frontend build (Django templates + hand-written `static/app.js`/`app.css`,
+no bundler). Before starting any new work, confirm the working tree is at or
+ahead of this tag (`git log`, `git tag`) — do not build on an older commit.
+Several stale local-only tags from earlier sessions (`v.2.0.0`, `v1.1.0`,
+`v1.1.0-stabilization`, `v2`, `v2-safe`) exist on disk but were never pushed
+and don't belong to this linear history — ignore them.
 
 Second major pass on top of the v1.0 baseline below, triggered by an explicit
 owner request for an end-to-end professional-grade review (player, profile,
@@ -76,9 +86,10 @@ found this session (one via code audit before writing code, one via the live-Pos
 itself — same class as item #13, in a view that had never been reachable before this session fixed its
 routing).
 Professional pass (player/profile/upload/admin dashboard, roadmap phase "فاز حرفه‌ای") **closed**
-2026-08-20 — items #29-#34 resolved. See the "v1 professional" section above for the summary; full
+2026-08-20 — items #29-#34 resolved. See the "v1.2.0" section above for the summary; full
 detail in changelog.md. 502→503 tests, live-Postgres-verified, ruff clean, manually QA'd in-browser
-across 3 real demo accounts (plain listener, creator, VIP).
+across 3 real demo accounts (plain listener, creator, VIP). **Tagged `v1.2.0` and pushed to
+`origin/master` on GitHub 2026-08-20 — this is the current baseline for all future work.**
 
 ## Repository strategy
 Keep the existing Django modular monolith. Stabilize and refactor critical domains instead of rewriting.
