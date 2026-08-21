@@ -57,6 +57,13 @@ html[data-theme="dark"]{
   --purple:  #8b5cf6;
   --purple2: #c4a6ff;
 
+  /* Accent used as TEXT, which is a different problem from accent used as
+     a fill. On this dark ground the light tint reads at 11.9:1; the light
+     theme needs a much darker orange for the same job. Every rule that
+     colours text with the brand must use this, never --accent/--accent2. */
+  --accent-text: #ffb978;
+  --purple-text: #c4a6ff;
+
   --good:    #34d399;
   --bad:     #fb7185;
   --gold:    #f5c451;
@@ -106,13 +113,24 @@ html[data-theme="light"]{
 
   --accent:  #e8641c;
   --accent2: #ff8a3d;
-  --on-accent:#ffffff;
+  /* Dark ink on the orange fill, not white.
+     White on #e8641c is 3.35:1 and on the gradient's lighter #ff8a3d stop
+     only 2.35:1 — both below the 4.5:1 minimum. #0a0712 on the same two
+     stops is 5.96:1 and 8.51:1. */
+  --on-accent:#0a0712;
   --purple:  #6d28d9;
   --purple2: #8b5cf6;
 
-  --good:    #0f9d63;
-  --bad:     #d3213f;
-  --gold:    #b8860b;
+  /* 5.02:1 on this theme's ground; the fill orange would be 3.18:1. */
+  --accent-text: #b8480a;
+  --purple-text: #5b21b6;
+
+  /* Darkened from #0f9d63 / #d3213f / #b8860b, which measured 3.31, 4.91
+     and 3.09 against the light ground — the wallet balance and status
+     pills are exactly the text that must not be borderline. */
+  --good:    #0a7a4c;
+  --bad:     #b81733;
+  --gold:    #8f6708;
 
   --surface-1: rgba(27,19,48,.025);
   --surface-2: rgba(27,19,48,.05);
@@ -133,9 +151,9 @@ html[data-theme="light"]{
   --panel-rgb:  255 255 255;
   --accent-rgb: 232 100 28;
   --purple-rgb: 109 40 217;
-  --good-rgb:   15 157 99;
-  --bad-rgb:    211 33 63;
-  --gold-rgb:   184 134 11;
+  --good-rgb:   10 122 76;
+  --bad-rgb:    184 23 51;
+  --gold-rgb:   143 103 8;
 
   color-scheme: light;
 }
