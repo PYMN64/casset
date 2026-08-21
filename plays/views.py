@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 from tracks.models import Track
 
 from .models import FraudFlag, PlayEvent
-from .services import try_award_point
+from .services import start_playback_session, try_award_point
 from .utils import ip_hash, ua_hash
 
 logger = logging.getLogger("casset.plays")
@@ -138,6 +138,16 @@ def register_play(request):
 
     track.refresh_from_db(fields=["play_count"])
 
+    # Record this playback attempt for fraud-signal granularity (S11) —
+    # deliberately not deduped like PlayEvent, see plays/services.py.
+    pe = PlayEvent.objects.filter(
+        track=track, user=request.user, ip_hash=iph, day_key=day_key
+    ).first()
+    try:
+        start_playback_session(track=track, user=request.user, ip_hash=iph, ua_hash=uah, play_event=pe)
+    except Exception:
+        logger.exception("start_playback_session failed track=%s", track_id)
+
     if created:
         # check_and_notify_milestone() existed since the Notification app was
         # built but was never actually called from anywhere — dead code.
@@ -195,6 +205,7 @@ def register_progress(request):
         return JsonResponse({"ok": False, "error": "track_not_playable"}, status=403)
 
     iph = ip_hash(request)
+    uah = ua_hash(request)
     day_key = _today_key()
 
     result = try_award_point(
@@ -203,6 +214,7 @@ def register_progress(request):
         day_key=day_key,
         progress_ratio=progress,
         listener_user=request.user,
+        ua_hash=uah,
     )
 
     return JsonResponse({

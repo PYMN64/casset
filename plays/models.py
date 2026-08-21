@@ -84,10 +84,11 @@ class PointLedger(models.Model):
         # the class docstring above always promised ("future").
         PAYOUT_DEDUCTION = "payout_deduction", "Payout deduction"
         # Blocked (delta=0, logged for audit)
-        BLOCKED_NO_EVENT  = "blocked_no_event",  "Blocked: no play event"
-        BLOCKED_TIME      = "blocked_time",      "Blocked: too fast"
-        BLOCKED_IP_LIMIT  = "blocked_ip_limit",  "Blocked: IP daily cap"
-        BLOCKED_DUPLICATE = "blocked_duplicate", "Blocked: already awarded"
+        BLOCKED_NO_EVENT   = "blocked_no_event",   "Blocked: no play event"
+        BLOCKED_TIME       = "blocked_time",       "Blocked: too fast"
+        BLOCKED_IP_LIMIT   = "blocked_ip_limit",   "Blocked: IP daily cap"
+        BLOCKED_DUPLICATE  = "blocked_duplicate",  "Blocked: already awarded"
+        BLOCKED_FRAUD_SIGNAL = "blocked_fraud_signal", "Blocked: fraud signal (S11)"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -176,6 +177,77 @@ class DailyTrackStat(models.Model):
 
     def __str__(self) -> str:
         return f"DailyTrackStat(track={self.track_id}, day={self.day})"
+
+
+class PlaybackSession(models.Model):
+    """One real playback attempt — from the player's first "play" tap to
+    however it resolved (qualified, flagged as a fraud signal, or simply
+    abandoned below the award threshold).
+
+    Distinct from `PlayEvent` (a once-per-day dedup row that decides
+    point-award eligibility): a listener can generate several
+    PlaybackSessions for the same track on the same day (replays, seeking
+    back to the start, a bot hammering play), and that finer granularity is
+    exactly what the fraud signals in services.py need — burst/short-session
+    detection is meaningless at PlayEvent's once-a-day resolution. This
+    model does not replace PlayEvent or its uniqueness constraint; it is an
+    additional, more granular audit trail layered on top of it (S11).
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        QUALIFIED = "qualified", "Qualified (point awarded)"
+        FLAGGED = "flagged", "Flagged (fraud signal / anomaly)"
+        CLOSED = "closed", "Closed (concluded without qualifying)"
+
+    track = models.ForeignKey(
+        "tracks.Track", on_delete=models.CASCADE, related_name="playback_sessions"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="playback_sessions",
+    )
+    play_event = models.ForeignKey(
+        PlayEvent,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sessions",
+        help_text="The daily-dedup PlayEvent this attempt counted toward, if any.",
+    )
+
+    ip_hash = models.CharField(max_length=64)
+    ua_hash = models.CharField(max_length=64, blank=True)
+    source = models.CharField(
+        max_length=32, default="web",
+        help_text="Where the play originated: web, embed, api, progress_fallback, backfill.",
+    )
+
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.OPEN)
+    disqualify_reason = models.CharField(
+        max_length=120, blank=True,
+        help_text="Set when status=flagged: which signal/gate rejected this session.",
+    )
+
+    max_progress_ratio = models.FloatField(default=0.0)
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["track", "user", "started_at"], name="session_track_user_ts"),
+            models.Index(fields=["ip_hash", "started_at"], name="session_ip_ts"),
+            models.Index(fields=["status", "started_at"], name="session_status_ts"),
+        ]
+
+    def __str__(self) -> str:
+        return f"PlaybackSession(track={self.track_id}, user={self.user_id}, status={self.status})"
 
 
 class FraudFlag(models.Model):

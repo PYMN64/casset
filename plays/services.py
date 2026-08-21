@@ -22,16 +22,16 @@ is complete and staff can understand every decision.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from django.db import transaction
-from django.db.models import F
+from django.db.models import DurationField, ExpressionWrapper, F
 from django.utils import timezone as dj_timezone
 
 from accounts.models import UserProfile
 from core.models import PlatformSetting
 
-from .models import FraudFlag, PlayEvent, PointLedger
+from .models import FraudFlag, PlaybackSession, PlayEvent, PointLedger
 
 logger = logging.getLogger("casset.plays")
 
@@ -45,6 +45,17 @@ _DEFAULT_IP_DAILY_AWARD_CAP = 50
 # Minimum ratio of track duration that must have elapsed before we trust
 # a progress report. Guards against bots sending fake progress instantly.
 _MIN_ELAPSED_RATIO = 0.50
+
+# Anti-fraud signals (S11) — heuristic starting thresholds, tunable later.
+# Burst: how many PlaybackSessions one IP has started in a short window.
+_BURST_WINDOW_SECONDS = 60
+_BURST_SOFT_THRESHOLD = 8    # flagged for review only, still allowed to award
+_BURST_HARD_THRESHOLD = 15   # blocked outright
+
+# Repeated very-short sessions from the same listener (bot-like replay spam).
+_SHORT_SESSION_SECONDS = 3
+_SHORT_SESSION_WINDOW_MINUTES = 5
+_SHORT_SESSION_HARD_COUNT = 3
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +73,12 @@ class AwardResult:
         return not self.awarded
 
 
+@dataclass
+class FraudSignalResult:
+    hard_block: bool
+    note: str = field(default="")
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -73,6 +90,7 @@ def try_award_point(
     day_key: str,
     progress_ratio: float,
     listener_user,
+    ua_hash: str = "",
 ) -> AwardResult:
     """Attempt to award 1 point to track.creator for a qualifying play.
 
@@ -80,6 +98,11 @@ def try_award_point(
     """
     setting = PlatformSetting.get_solo()
     threshold = setting.playback_threshold_ratio()
+
+    session = _touch_session(
+        track=track, listener_user=listener_user, ip_hash=ip_hash,
+        ua_hash=ua_hash, progress_ratio=progress_ratio,
+    )
 
     if progress_ratio < threshold:
         return AwardResult(awarded=False, reason="below_threshold")
@@ -92,6 +115,7 @@ def try_award_point(
             progress_ratio=progress_ratio,
             listener_user=listener_user,
             setting=setting,
+            session=session,
         )
     except Exception as exc:
         logger.exception(
@@ -106,15 +130,155 @@ def try_award_point(
 
 
 # ---------------------------------------------------------------------------
+# PlaybackSession lifecycle
+# ---------------------------------------------------------------------------
+
+def start_playback_session(
+    *, track, user, ip_hash: str, ua_hash: str, play_event=None, source: str = "web"
+) -> PlaybackSession:
+    """Record one playback attempt. Called once per register_play() call —
+    deliberately NOT deduped the way PlayEvent is: fraud signals need
+    attempt-level granularity, since a bot hammering play many times a
+    minute looks identical to a single legitimate play once daily dedup
+    collapses it into one PlayEvent row."""
+    return PlaybackSession.objects.create(
+        track=track, user=user, ip_hash=ip_hash, ua_hash=ua_hash,
+        play_event=play_event, source=source,
+    )
+
+
+def _touch_session(
+    *, track, listener_user, ip_hash: str, ua_hash: str, progress_ratio: float
+) -> PlaybackSession:
+    """Find the listener's most recent PlaybackSession for this track and
+    record this progress report against it. If none exists at all (a
+    progress report with no prior register_play() call — a broken client or
+    direct API probing), create a minimal flagged one so the report is still
+    auditable, mirroring the BLOCKED_NO_EVENT gate below but at the session
+    level."""
+    session = (
+        PlaybackSession.objects
+        .filter(track=track, user=listener_user)
+        .order_by("-started_at")
+        .first()
+    )
+    if session is None:
+        session = PlaybackSession.objects.create(
+            track=track, user=listener_user, ip_hash=ip_hash, ua_hash=ua_hash,
+            status=PlaybackSession.Status.FLAGGED,
+            disqualify_reason="no_prior_session",
+            source="progress_fallback",
+        )
+
+    session.max_progress_ratio = max(session.max_progress_ratio, progress_ratio)
+    session.last_seen_at = dj_timezone.now()
+    session.save(update_fields=["max_progress_ratio", "last_seen_at"])
+    return session
+
+
+def _close_session(session: PlaybackSession, *, status: str, reason: str = "") -> None:
+    session.status = status
+    session.disqualify_reason = reason[:120]
+    session.ended_at = dj_timezone.now()
+    session.save(update_fields=["status", "disqualify_reason", "ended_at"])
+
+
+# ---------------------------------------------------------------------------
+# Anti-fraud signals (S11)
+#
+# Constitution: client-reported progress alone is never proof of a valid
+# play, and fraud detection must affect Qualified Play (block or flag for
+# review) rather than unilaterally banning a user. These signals only ever
+# write an auditable PointLedger/FraudFlag row and (for hard blocks) close
+# the PlaybackSession as FLAGGED — they never touch User.is_active or any
+# account-level state (that stays a staff decision, moderation/services.py).
+# ---------------------------------------------------------------------------
+
+def evaluate_fraud_signals(*, session: PlaybackSession, ip_hash: str, listener_user) -> FraudSignalResult:
+    now = dj_timezone.now()
+
+    # Signal A — abnormal play-attempt rate from one IP, regardless of
+    # account (catches a bot rotating accounts behind one connection).
+    burst_window_start = now - timedelta(seconds=_BURST_WINDOW_SECONDS)
+    ip_session_count = PlaybackSession.objects.filter(
+        ip_hash=ip_hash, started_at__gte=burst_window_start,
+    ).count()
+
+    if ip_session_count >= _BURST_HARD_THRESHOLD:
+        note = f"ip_burst count={ip_session_count} window={_BURST_WINDOW_SECONDS}s"
+        _flag_fraud(
+            user=listener_user, track=session.track, ip_hash=ip_hash,
+            flag_type=FraudFlag.FlagType.PLAY_BURST, score=8, note=note,
+        )
+        return FraudSignalResult(hard_block=True, note=note)
+
+    if ip_session_count >= _BURST_SOFT_THRESHOLD:
+        note = f"ip_burst count={ip_session_count} window={_BURST_WINDOW_SECONDS}s"
+        _flag_fraud(
+            user=listener_user, track=session.track, ip_hash=ip_hash,
+            flag_type=FraudFlag.FlagType.PLAY_BURST, score=3, note=note,
+        )
+        # Soft signal only — surfaced to staff, does not block this award.
+
+    # Signal B — repeated very-short sessions from the same listener (play,
+    # immediately abandon, repeat — a bot-like replay pattern). Only counts
+    # sessions that already concluded (ended_at set), so it builds on top of
+    # gates that already closed a session (e.g. the time gate below), not on
+    # sessions still legitimately in progress.
+    short_window_start = now - timedelta(minutes=_SHORT_SESSION_WINDOW_MINUTES)
+    recent_short = (
+        PlaybackSession.objects
+        .filter(user=listener_user, started_at__gte=short_window_start, ended_at__isnull=False)
+        .annotate(
+            length=ExpressionWrapper(
+                F("ended_at") - F("started_at"), output_field=DurationField()
+            )
+        )
+        .filter(length__lt=timedelta(seconds=_SHORT_SESSION_SECONDS))
+        .count()
+    )
+
+    if recent_short >= _SHORT_SESSION_HARD_COUNT:
+        note = f"short_sessions count={recent_short} window={_SHORT_SESSION_WINDOW_MINUTES}m"
+        _flag_fraud(
+            user=listener_user, track=session.track, ip_hash=ip_hash,
+            flag_type=FraudFlag.FlagType.TIME_FRAUD, score=6, note=note,
+        )
+        return FraudSignalResult(hard_block=True, note=note)
+
+    return FraudSignalResult(hard_block=False)
+
+
+# ---------------------------------------------------------------------------
 # Internal pipeline
 # ---------------------------------------------------------------------------
 
 def _run_gating_pipeline(
-    *, track, ip_hash, day_key, progress_ratio, listener_user, setting
+    *, track, ip_hash, day_key, progress_ratio, listener_user, setting, session: PlaybackSession
 ) -> AwardResult:
     """Run all gates and write the appropriate PointLedger entry."""
 
     creator = track.creator
+
+    # Gate 0 - fraud signals (S11). Only evaluated for sessions still open —
+    # a session already resolved (qualified/flagged) doesn't need re-scoring
+    # on every idempotent duplicate progress ping.
+    if session.status == PlaybackSession.Status.OPEN:
+        fraud = evaluate_fraud_signals(session=session, ip_hash=ip_hash, listener_user=listener_user)
+        if fraud.hard_block:
+            logger.warning(
+                "BLOCKED_FRAUD_SIGNAL track=%s ip=%s reason=%s",
+                track.pk, ip_hash[:8], fraud.note,
+            )
+            _write_ledger(
+                user=creator, delta=0,
+                reason=PointLedger.Reason.BLOCKED_FRAUD_SIGNAL,
+                play_event=None, track=track, ip_hash=ip_hash, note=fraud.note,
+            )
+            _close_session(session, status=PlaybackSession.Status.FLAGGED, reason=fraud.note)
+            return AwardResult(
+                awarded=False, reason=PointLedger.Reason.BLOCKED_FRAUD_SIGNAL, note=fraud.note
+            )
 
     # Gate 1 - PlayEvent must exist for this specific listener (not just
     # this IP — two different users can share an IP/day/track now that
@@ -135,6 +299,9 @@ def _run_gating_pipeline(
             play_event=None, track=track, ip_hash=ip_hash,
             note="Progress received without prior PlayEvent registration.",
         )
+        if session.status == PlaybackSession.Status.OPEN:
+            _close_session(session, status=PlaybackSession.Status.FLAGGED,
+                            reason=PointLedger.Reason.BLOCKED_NO_EVENT)
         return AwardResult(awarded=False, reason=PointLedger.Reason.BLOCKED_NO_EVENT)
 
     # Gate 2 - Not already awarded
@@ -166,6 +333,9 @@ def _run_gating_pipeline(
                 user=listener_user, track=track, ip_hash=ip_hash,
                 flag_type=FraudFlag.FlagType.TIME_FRAUD, score=3, note=note,
             )
+            if session.status == PlaybackSession.Status.OPEN:
+                _close_session(session, status=PlaybackSession.Status.FLAGGED,
+                                reason=PointLedger.Reason.BLOCKED_TIME)
             return AwardResult(
                 awarded=False, reason=PointLedger.Reason.BLOCKED_TIME, note=note
             )
@@ -199,6 +369,8 @@ def _run_gating_pipeline(
             user=listener_user, track=track, ip_hash=ip_hash,
             flag_type=FraudFlag.FlagType.IP_DAY_LIMIT, score=5, note=note,
         )
+        # Not a per-session fraud pattern (the cap is platform/IP-wide, not
+        # this session's fault) — leave the session OPEN, un-flagged.
         return AwardResult(
             awarded=False, reason=PointLedger.Reason.BLOCKED_IP_LIMIT, note=note
         )
@@ -218,6 +390,12 @@ def _run_gating_pipeline(
             play_event=pe, track=track, ip_hash=ip_hash, note="",
         )
         UserProfile.objects.filter(user=creator).update(points=F("points") + 1)
+
+        if session.status == PlaybackSession.Status.OPEN:
+            session.status = PlaybackSession.Status.QUALIFIED
+            session.ended_at = dj_timezone.now()
+            session.play_event = pe
+            session.save(update_fields=["status", "ended_at", "play_event"])
 
     logger.info(
         "AWARDED track=%s creator=%s ip=%s day=%s",
