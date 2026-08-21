@@ -11,14 +11,15 @@
 
 ## صف
 
-- 🔄 in-review | فایل `config/settings.py` را با پکیج `config/settings/` مقایسه کن؛ اگر واقعاً مرده و بدون import فعال است، حذفش کن؛ `manage.py check` و کل تست‌سوییت را اجرا کن تا مطمئن شوی هیچ‌جا به آن ارجاع نمی‌دهد. — **یافته:** این حذف از قبل در commit `ea1d08b` ("chore: delete dead settings.py and stray repo-root dump files") روی همین branch (`stabilization/v1-baseline`) انجام و کامیت شده بود؛ صف هنوز `⬜ pending` مانده بود چون بعد از آن commit به‌روزرسانی نشده بود. این اجرا (branch `auto/2026-08-20-verify-settings-cleanup`) فقط دوباره تایید کرد: `config/settings.py` در فایل‌سیستم وجود ندارد، و هیچ `import config.settings` برهنه (بدون `.dev`/`.prod`) در هیچ‌کدام از اپ‌ها/`manage.py`/`wsgi.py`/`asgi.py` پیدا نشد. **نتوانستم** `manage.py check`/تست‌سوییت واقعی را در این sandbox اجرا کنم — جزئیات در گزارش. نیاز به تایید نهایی PYMN که این وضعیت را ✅ کند.
-- ⬜ pending | ریشه مخزن را پاکسازی کن: `db.sqlite3.backup*`, `db12agu2026.zip`, `folders.txt`, `project_structure.txt`, `__pycache__/`, `casset.egg-info/` را در `.gitignore` اضافه کن (فایل‌های موجود را حذف نکن مگر مطمئنی نیاز نیستند — فقط گزارش بده کدام‌ها safe-to-delete هستند).
-- ⬜ pending | `pyproject.toml` و `requirements_current.txt` را مقایسه کن؛ گزارش بده کدام یکی منسوخ است و چرا؛ کاری تغییر نده، فقط پیشنهاد بده.
-- ⬜ pending | پوشش تست فعلی را با `pytest --cov` اندازه بگیر (در صورت نبود pytest-cov، نصبش کن در محیط sandbox) و عدد baseline را در `.casset/state/current.md` ثبت کن.
-- ⬜ pending | `config/settings/base.py` را بررسی کن: آیا `SECRET_KEY`, `PLAY_IP_SALT`, `PLAY_UA_SALT` در نبود env واقعاً fail می‌کنند یا fallback بی‌صدا دارند؟ فقط گزارش بده، تغییر نده مگر آیتم بعدی صریحاً اجازه بدهد.
+_(همه‌ی آیتم‌های قبلی در ممیزی ۲۰۲۶-۰۸-۲۱ بررسی و به آرشیو منتقل شدند — جزئیات کامل در `.casset/state/audit-2026-08-21.md`)_
+
+- ⬜ pending | `config/settings/base.py` را بررسی کن: آیا `SECRET_KEY`, `PLAY_IP_SALT`, `PLAY_UA_SALT` در نبود env واقعاً fail می‌کنند یا fallback بی‌صدا دارند؟ فقط گزارش بده، تغییر نده مگر آیتم بعدی صریحاً اجازه بدهد. (این یکی تنها آیتم باز مانده — بررسی کد در ممیزی ۰۸-۲۱ انجام نشد، نیاز به بازبینی مستقیم `base.py` دارد. اولین آیتم S10 در سند فاز ۲.)
 
 ---
 
 ## آرشیو (تکمیل‌شده)
 
-_(هنوز خالی — بعد از هر تایید کاربر، آیتم به اینجا منتقل می‌شود)_
+- ✅ done (2026-08-21) | حذف `config/settings.py` — تایید نهایی: فایل در فایل‌سیستم وجود ندارد، هیچ import برهنه‌ای در کد پیدا نشد. بسته.
+- ✅ done (2026-08-21) | پاکسازی ریشه مخزن — **یافته ممیزی:** از قبل کامل انجام شده. `.gitignore` همین حالا `db.sqlite3.backup*`، `*.zip`، `__pycache__/`، `*.egg-info/` را پوشش می‌دهد و `git ls-files` تأیید کرد هیچ‌کدام tracked نیستند. فایل‌های `folders.txt`/`project_structure.txt` روی دیسک اصلاً وجود ندارند (قبلاً حذف شده‌اند). کاری لازم نبود.
+- ✅ done (2026-08-21) | مقایسه `pyproject.toml`/`requirements_current.txt` — **یافته:** فایل `requirements_current.txt` (و هر `requirements*.txt`) در ریشه مخزن وجود ندارد؛ `pyproject.toml` تنها منبع وابستگی‌هاست. موضوع منتفی است.
+- ✅ done (2026-08-21) | اندازه‌گیری پوشش تست — انجام شد روی سیستم واقعی PYMN: **۹۲٪** (۵۹۱ تست، `OK skipped=1`)، جایگزین عدد قدیمی ۸۱٪ در `current.md`.

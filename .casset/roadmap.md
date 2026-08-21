@@ -34,3 +34,8 @@ Built alongside and after the MVP critical path: comprehensive tests, CI/CD, lin
 
 ## Release gate
 The MVP is release-ready only when the full creator/listener flow completes without breaking: registration → verification → creator onboarding → upload → validation → moderation → publish → playback session → server validation → qualified play → analytics/points → creator dashboard.
+
+## Part 3 — Phase 2 (post-v2.0.0)
+MVP release gate above is met (v2.0.0, closed 2026-08-21). Full plan, competitive
+analysis and S10–S13 sequencing: `.casset/releases/v2.1.0-phase2-plan.md`. Audit
+that preceded it: `.casset/state/audit-2026-08-21.md`.

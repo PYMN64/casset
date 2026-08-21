@@ -1,5 +1,9 @@
 # Casset Current State
 
+> **۲۰۲۶-۰۸-۲۱ — ممیزی کامل انجام شد، فاز ۲ رسماً تعریف شد.** اول
+> `.casset/state/audit-2026-08-21.md` را بخوان، بعد
+> `.casset/releases/v2.1.0-phase2-plan.md`.
+
 ## v2.0.0 — "Orange Noir v2 / MVP قابل انتشار" (2026-08-21) — CURRENT BASELINE
 
 **این نقطهٔ مرجع همهٔ کارهای بعدی است.** تگ `v2.0.0`. قبل از شروع هر کار جدید
@@ -181,13 +185,15 @@ Agent system is designed but intentionally not activated as autonomous developme
 All architectural changes are recorded in `.casset/state/changelog.md`.
 Read that file at the start of every session to know what has changed and why.
 
-## Test coverage baseline (2026-08-19, pre-Phase-2-delivery)
-`coverage run --source=. manage.py test` → **81% overall** (242 tests, 2640 statements, 494 missed).
-Full HTML report regeneratable with `coverage html`; not committed (`.gitignore`d).
-Superseded by Phase 2 (242 → 286), Phase 3 (286 → 318), and Phase 4+5 (318 → 343) deliveries below;
-coverage not re-measured yet — `interactions` (0 → 42 tests) and `explore` (0 → 16 tests) in particular
-should now score far above the numbers listed here. Re-run `coverage html` before trusting these
-per-file numbers again.
+## Test coverage baseline (2026-08-21, post-audit, current)
+`coverage run --source=. manage.py test` → **92% overall**, 591 tests, `OK (skipped=1)`.
+Re-measured 2026-08-21 as part of the pre-Phase-2 audit (see `.casset/state/audit-2026-08-21.md`);
+supersedes the stale 81%/242-test number below, which predated Phase 2 through the professional pass.
+Full HTML report regeneratable with `coverage html` (not committed, `.gitignore`d).
+
+### (superseded) 2026-08-19 baseline
+`coverage run --source=. manage.py test` → 81% overall (242 tests, 2640 statements, 494 missed).
+Kept only for history — see the current number above.
 
 Notably low as of the 242-test baseline (real gaps, not noise):
 - `interactions/views.py` — 22% (likes/follows/comments — the social layer the product identity depends on; now covered by 34 tests, see changelog 2026-08-19 "فاز ۲ بازنگری‌شده تحویل شد")
