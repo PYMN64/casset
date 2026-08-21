@@ -17,7 +17,6 @@ from django.utils import timezone
 
 from .models import EmailVerification, UserProfile
 from .services import (
-    EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
     find_unverified_user_by_email,
     issue_email_verification,
     seconds_until_email_resend,

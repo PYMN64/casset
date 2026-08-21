@@ -95,6 +95,37 @@ def _safe_next(request, default: str = "") -> str:
     return default
 
 
+#: IP-level brute-force cap on the login form itself — catches one attacker
+#: spraying many usernames/passwords from a single address. Separate from
+#: the per-account cap below, which catches the opposite pattern (one
+#: targeted account attacked from many/rotating IPs).
+LOGIN_IP_LIMIT = 20
+LOGIN_IP_WINDOW_SECONDS = 600
+#: Per-account cap, counted on *failed* attempts only (see
+#: CassetLoginView.post) — a real user succeeding on the first or second
+#: try never comes close to this, so it doesn't lock out legitimate use.
+LOGIN_ACCOUNT_LIMIT = 5
+LOGIN_ACCOUNT_WINDOW_SECONDS = 900
+
+
+def _account_bucket_key(username: str) -> str:
+    normalized = (username or "").strip().lower()
+    return f"rl:login_acct:{hashlib.sha256(normalized.encode()).hexdigest()[:16]}"
+
+
+def _account_login_blocked(username: str) -> bool:
+    from django.core.cache import cache
+
+    return cache.get(_account_bucket_key(username), 0) >= LOGIN_ACCOUNT_LIMIT
+
+
+def _bump_account_login_failure(username: str) -> None:
+    from django.core.cache import cache
+
+    key = _account_bucket_key(username)
+    cache.set(key, cache.get(key, 0) + 1, timeout=LOGIN_ACCOUNT_WINDOW_SECONDS)
+
+
 def _seconds_until_resend(phone: str) -> int:
     """How long the user must still wait before another code can be sent.
 
@@ -132,6 +163,34 @@ class CassetLoginView(LoginView):
         # generic error alone.
         self._unverified_email = getattr(form, "unverified_email", None)
         return super().form_invalid(form)
+
+    def post(self, request, *args, **kwargs):
+        """Brute-force gate, ahead of authentication itself.
+
+        Two independent caps (see the module-level constants above): one
+        per IP regardless of which username is tried, one per account
+        regardless of which IP it comes from. Blocked requests never reach
+        Django's auth backend at all — an attacker can't distinguish
+        "rate limited" from "tried the password", which is the point.
+        """
+        username = (request.POST.get("username") or "").strip()
+
+        if _rate_limited(
+            request, "login_ip", limit=LOGIN_IP_LIMIT, window_seconds=LOGIN_IP_WINDOW_SECONDS
+        ) or (username and _account_login_blocked(username)):
+            messages.error(
+                request,
+                "تلاش‌های ورود ناموفق زیادی ثبت شده. چند دقیقه صبر کن و دوباره تلاش کن.",
+            )
+            form = self.get_form_class()(request)
+            return self.render_to_response(self.get_context_data(form=form), status=429)
+
+        response = super().post(request, *args, **kwargs)
+
+        if username and not request.user.is_authenticated:
+            _bump_account_login_failure(username)
+
+        return response
 
     def form_valid(self, form):
         """Honour the "remember me" checkbox.
@@ -173,6 +232,7 @@ def register_view(request):
                 request,
                 "accounts/register.html",
                 {"form": form, "google_enabled": oauth.is_configured()},
+                status=429,
             )
 
         # Inactive until the e-mail link is redeemed — the same enforcement
