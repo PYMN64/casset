@@ -45,8 +45,38 @@ class Report(models.Model):
         return f"Report#{self.pk} {self.target_type} {self.reason}"
 
 
+class AuditLogImmutableError(Exception):
+    """Raised on any attempt to update or delete an existing AuditLog row —
+    the audit trail is the record of who did what to whom; letting it be
+    edited or removed after the fact would defeat its only purpose."""
+
+
+class AuditLogQuerySet(models.QuerySet):
+    """Blocks the bulk paths (`.filter(...).update()/.delete()`) that bypass
+    a model instance's save()/delete() overrides below. Scoped to ORM usage
+    (raw SQL is out of reach for a Python-level guard) — matches how the
+    rest of the project enforces immutability elsewhere (e.g. PointLedger's
+    admin has no delete action; see plays/admin.py)."""
+
+    def update(self, **kwargs):
+        raise AuditLogImmutableError("AuditLog rows are immutable — bulk update is not allowed.")
+
+    def bulk_update(self, objs, fields, **kwargs):
+        raise AuditLogImmutableError("AuditLog rows are immutable — bulk update is not allowed.")
+
+    def delete(self):
+        raise AuditLogImmutableError("AuditLog rows are immutable — bulk delete is not allowed.")
+
+
 class AuditLog(models.Model):
-    """Immutable audit log for moderation and sensitive actions."""
+    """Immutable audit log for moderation and sensitive actions.
+
+    Enforced at the ORM level (S11): once a row has a pk, save() refuses to
+    write it again, and delete() always refuses — on both the instance and
+    the queryset (AuditLogQuerySet above), so `.filter(...).update()`/
+    `.delete()` are blocked the same as `instance.save()`/`instance.delete()`.
+    Only `objects.create(...)` (a fresh insert) is allowed.
+    """
 
     class TargetType(models.TextChoices):
         TRACK = "track", "Track"
@@ -66,9 +96,21 @@ class AuditLog(models.Model):
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    objects = AuditLogQuerySet.as_manager()
+
     class Meta:
         ordering = ['-created_at']
         indexes = [models.Index(fields=['target_type','action','created_at'])]
 
     def __str__(self):
         return f"Audit#{self.pk} {self.target_type}:{self.action}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise AuditLogImmutableError(
+                "AuditLog rows are immutable — cannot update an existing record."
+            )
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise AuditLogImmutableError("AuditLog rows are immutable — cannot delete a record.")
