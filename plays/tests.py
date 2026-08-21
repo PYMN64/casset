@@ -12,7 +12,12 @@ from core.test_utils import make_user
 from tracks.models import Track
 
 from .models import DailyTrackStat, FraudFlag, PlaybackSession, PlayEvent, PointLedger
-from .services import start_playback_session, try_award_point
+from .services import (
+    aggregate_daily_stats,
+    get_creator_stats_series,
+    start_playback_session,
+    try_award_point,
+)
 
 User = get_user_model()
 
@@ -543,6 +548,21 @@ class AggregateStatsCommandTests(TestCase):
         self.assertEqual(stat.plays, 2)
         self.assertEqual(stat.unique_plays, 2)
 
+    def test_points_awarded_counts_actual_awards_not_just_authenticated_plays(self):
+        """Regression (S11): the old query filtered on `user__isnull=False`,
+        which is always true (every write path requires auth) and so always
+        equalled `plays` regardless of whether a point was actually awarded.
+        It must count point_awarded=True specifically."""
+        _make_play_event(self.track, self.creator, ip_hash="ip1", day_key=self.day, point_awarded=True)
+        _make_play_event(self.track, self.creator, ip_hash="ip2", day_key=self.day, point_awarded=False)
+        _make_play_event(self.track, self.creator, ip_hash="ip3", day_key=self.day, point_awarded=False)
+
+        self._run()
+
+        stat = DailyTrackStat.objects.get(track=self.track, day=self.day)
+        self.assertEqual(stat.plays, 3)
+        self.assertEqual(stat.points_awarded, 1)
+
     def test_rerunning_the_same_day_updates_in_place_not_duplicates(self):
         _make_play_event(self.track, self.creator, ip_hash="ip1", day_key=self.day)
         self._run()
@@ -737,3 +757,155 @@ class FraudSignalTests(TestCase):
             )
         _, result = self._play_and_progress("ip_final")
         self.assertTrue(result.awarded)
+
+
+# ---------------------------------------------------------------------------
+# aggregate_daily_stats() service function (S11)
+# ---------------------------------------------------------------------------
+
+class AggregateDailyStatsServiceTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("agg_svc_creator")
+        self.track = _make_track(self.creator, title="AggSvc")
+
+    def test_returns_number_of_track_rows_written(self):
+        day = dj_timezone.localdate() - timedelta(days=5)
+        _make_play_event(self.track, self.creator, ip_hash="ipx", day_key=day.isoformat())
+        written = aggregate_daily_stats(day)
+        self.assertEqual(written, 1)
+        self.assertTrue(DailyTrackStat.objects.filter(track=self.track, day=day).exists())
+
+
+# ---------------------------------------------------------------------------
+# get_creator_stats_series() — DailyTrackStat-backed dashboard series (S11)
+# ---------------------------------------------------------------------------
+
+class GetCreatorStatsSeriesTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("stats_creator")
+        self.other_creator = make_user("stats_other")
+        self.track = _make_track(self.creator, title="StatsTrack")
+        self.other_track = _make_track(self.other_creator, title="OtherTrack")
+
+    def test_daily_series_is_zero_filled_for_days_with_no_data(self):
+        series = get_creator_stats_series(creator=self.creator, granularity="daily")
+        self.assertEqual(len(series), 30)
+        self.assertTrue(all(row["plays"] == 0 for row in series))
+
+    def test_daily_series_reflects_historical_dailytrackstat_row(self):
+        day = dj_timezone.localdate() - timedelta(days=3)
+        DailyTrackStat.objects.create(track=self.track, day=day, plays=7, unique_plays=5, points_awarded=2)
+
+        series = get_creator_stats_series(creator=self.creator, granularity="daily")
+        row = next(r for r in series if r["label"] == day.isoformat())
+        self.assertEqual(row["plays"], 7)
+        self.assertEqual(row["points"], 2)
+
+    def test_today_is_computed_live_not_from_a_stale_dailytrackstat_row(self):
+        """DailyTrackStat is only ever aggregated for days that already
+        ended (plays/tasks.py runs it for "yesterday") — a row for *today*
+        should never be trusted, even if one somehow exists."""
+        today = dj_timezone.localdate()
+        DailyTrackStat.objects.create(track=self.track, day=today, plays=999, unique_plays=999, points_awarded=999)
+        _make_play_event(self.track, self.creator, ip_hash="ip_today", day_key=today.isoformat(), point_awarded=True)
+
+        series = get_creator_stats_series(creator=self.creator, granularity="daily")
+        row = next(r for r in series if r["label"] == today.isoformat())
+        self.assertEqual(row["plays"], 1)
+        self.assertEqual(row["points"], 1)
+
+    def test_other_creators_tracks_are_excluded(self):
+        day = dj_timezone.localdate() - timedelta(days=2)
+        DailyTrackStat.objects.create(track=self.other_track, day=day, plays=50, unique_plays=50, points_awarded=10)
+
+        series = get_creator_stats_series(creator=self.creator, granularity="daily")
+        row = next(r for r in series if r["label"] == day.isoformat())
+        self.assertEqual(row["plays"], 0)
+
+    def test_weekly_granularity_sums_days_into_buckets(self):
+        today = dj_timezone.localdate()
+        DailyTrackStat.objects.create(track=self.track, day=today - timedelta(days=1), plays=3, unique_plays=3, points_awarded=1)
+        DailyTrackStat.objects.create(track=self.track, day=today - timedelta(days=2), plays=4, unique_plays=4, points_awarded=2)
+
+        series = get_creator_stats_series(creator=self.creator, granularity="weekly")
+        self.assertEqual(sum(row["plays"] for row in series), 7)
+        self.assertEqual(sum(row["points"] for row in series), 3)
+
+    def test_monthly_granularity_groups_by_calendar_month(self):
+        series = get_creator_stats_series(creator=self.creator, granularity="monthly")
+        self.assertTrue(len(series) >= 1)
+        for row in series:
+            self.assertRegex(row["label"], r"^\d{4}-\d{2}$")
+
+    def test_unknown_granularity_falls_back_to_daily(self):
+        series = get_creator_stats_series(creator=self.creator, granularity="yearly")
+        self.assertEqual(len(series), 30)
+
+
+# ---------------------------------------------------------------------------
+# api_creator_stats view (S11)
+# ---------------------------------------------------------------------------
+
+class ApiCreatorStatsViewTests(TestCase):
+    def setUp(self):
+        self.creator = _make_user("api_stats_creator")
+        self.track = _make_track(self.creator, title="ApiStatsTrack")
+
+    def test_requires_auth(self):
+        resp = self.client.get(reverse("api_creator_stats"))
+        self.assertEqual(resp.status_code, 401)
+
+    def test_default_range_is_daily(self):
+        self.client.login(username="api_stats_creator", password="pass12345")
+        resp = self.client.get(reverse("api_creator_stats"))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["range"], "daily")
+        self.assertEqual(len(data["series"]), 30)
+
+    def test_weekly_range_param(self):
+        self.client.login(username="api_stats_creator", password="pass12345")
+        resp = self.client.get(reverse("api_creator_stats"), {"range": "weekly"})
+        self.assertEqual(resp.json()["range"], "weekly")
+
+    def test_invalid_range_falls_back_to_daily(self):
+        self.client.login(username="api_stats_creator", password="pass12345")
+        resp = self.client.get(reverse("api_creator_stats"), {"range": "bogus"})
+        self.assertEqual(resp.json()["range"], "daily")
+
+    def test_only_shows_the_logged_in_creators_own_tracks(self):
+        other = _make_user("api_stats_other")
+        other_track = _make_track(other, title="OtherApiTrack")
+        day = dj_timezone.localdate() - timedelta(days=1)
+        DailyTrackStat.objects.create(track=other_track, day=day, plays=99, unique_plays=99, points_awarded=99)
+
+        self.client.login(username="api_stats_creator", password="pass12345")
+        resp = self.client.get(reverse("api_creator_stats"))
+        row = next(r for r in resp.json()["series"] if r["label"] == day.isoformat())
+        self.assertEqual(row["plays"], 0)
+
+
+# ---------------------------------------------------------------------------
+# aggregate_yesterday_track_stats Celery task (S11)
+# ---------------------------------------------------------------------------
+
+class AggregateYesterdayTrackStatsTaskTests(TestCase):
+    """CELERY_TASK_ALWAYS_EAGER runs .delay() in-process in dev/test (see
+    plays/tasks.py docstring) — the beat schedule itself is never exercised
+    here, only that the task correctly aggregates "yesterday"."""
+
+    def test_aggregates_yesterdays_playevents(self):
+        from .tasks import aggregate_yesterday_track_stats
+
+        creator = make_user("task_creator")
+        track = _make_track(creator, title="TaskTrack")
+        yesterday = dj_timezone.localdate() - timedelta(days=1)
+        _make_play_event(track, creator, ip_hash="ipy", day_key=yesterday.isoformat(), point_awarded=True)
+
+        written = aggregate_yesterday_track_stats()
+
+        self.assertEqual(written, 1)
+        stat = DailyTrackStat.objects.get(track=track, day=yesterday)
+        self.assertEqual(stat.plays, 1)
+        self.assertEqual(stat.points_awarded, 1)

@@ -348,6 +348,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "core.backup_database",
         "schedule": crontab(hour=BACKUP_SCHEDULE_HOUR, minute=BACKUP_SCHEDULE_MINUTE),
     },
+    "aggregate-yesterday-track-stats": {
+        "task": "plays.aggregate_yesterday_track_stats",
+        "schedule": crontab(hour=0, minute=15),  # after local midnight, before the backup
+    },
 }
 
 # ---------------------------------------------------------------------------

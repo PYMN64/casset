@@ -56,11 +56,15 @@
   <div>
     <section class="card chart-card">
       <div class="section-head mt-0">
-        <h2>روند پخش روزانه</h2>
-        <span class="muted t-xs">پخش معتبر و امتیاز</span>
+        <h2>روند پخش</h2>
+        <div class="cluster">
+          <button type="button" class="pill pill--active" data-stats-range="daily">روزانه</button>
+          <button type="button" class="pill" data-stats-range="weekly">هفتگی</button>
+          <button type="button" class="pill" data-stats-range="monthly">ماهانه</button>
+        </div>
       </div>
       {% if daily %}
-        <div class="chart-wrap"><canvas id="studioChart" aria-label="نمودار پخش روزانه"></canvas></div>
+        <div class="chart-wrap"><canvas id="studioChart" aria-label="نمودار پخش"></canvas></div>
       {% else %}
         <div class="empty">
           <div class="empty__icon"><svg class="icon"><use href="#i-trend"/></svg></div>
@@ -227,19 +231,19 @@
 (function () {
   var canvas = document.getElementById("studioChart");
   if (!canvas || typeof Chart === "undefined") return;
-  var data = JSON.parse(document.getElementById("studioData").textContent);
+  var dailyData = JSON.parse(document.getElementById("studioData").textContent);
   var css = getComputedStyle(document.documentElement);
   Chart.defaults.font.family = "Vazirmatn, system-ui, sans-serif";
   Chart.defaults.color = css.getPropertyValue("--text").trim();
 
-  new Chart(canvas, {
+  var chart = new Chart(canvas, {
     type: "bar",
     data: {
-      labels: data.labels,
+      labels: dailyData.labels,
       datasets: [
-        { label: "پخش", data: data.plays, backgroundColor: css.getPropertyValue("--accent").trim(),
+        { label: "پخش", data: dailyData.plays, backgroundColor: css.getPropertyValue("--accent").trim(),
           borderRadius: 4, maxBarThickness: 18 },
-        { label: "امتیاز", data: data.points, backgroundColor: css.getPropertyValue("--gold").trim(),
+        { label: "امتیاز", data: dailyData.points, backgroundColor: css.getPropertyValue("--gold").trim(),
           borderRadius: 4, maxBarThickness: 18 }
       ]
     },
@@ -251,6 +255,43 @@
         y: { beginAtZero: true, grid: { color: css.getPropertyValue("--line").trim() }, ticks: { precision: 0 } }
       }
     }
+  });
+
+  /* Weekly/monthly bars come from DailyTrackStat (plays/services.py::
+     get_creator_stats_series), not the live 30-day PlayEvent query above —
+     that table exists precisely so longer windows stay fast (S11). */
+  var rangeCache = { daily: dailyData };
+  function applyRange(range, data) {
+    chart.data.labels = data.labels;
+    chart.data.datasets[0].data = data.plays;
+    chart.data.datasets[1].data = data.points;
+    chart.update();
+  }
+  document.querySelectorAll("[data-stats-range]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var range = btn.getAttribute("data-stats-range");
+      document.querySelectorAll("[data-stats-range]").forEach(function (b) {
+        b.classList.toggle("pill--active", b === btn);
+      });
+      if (rangeCache[range]) {
+        applyRange(range, rangeCache[range]);
+        return;
+      }
+      fetch("{% url 'api_creator_stats' %}?range=" + range, {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (resp) {
+          if (!resp.ok) return;
+          var data = {
+            labels: resp.series.map(function (row) { return row.label; }),
+            plays: resp.series.map(function (row) { return row.plays; }),
+            points: resp.series.map(function (row) { return row.points; }),
+          };
+          rangeCache[range] = data;
+          applyRange(range, data);
+        });
+    });
   });
 })();
 </script>

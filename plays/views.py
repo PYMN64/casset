@@ -10,12 +10,12 @@ from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.http import JsonResponse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from tracks.models import Track
 
 from .models import FraudFlag, PlayEvent
-from .services import start_playback_session, try_award_point
+from .services import get_creator_stats_series, start_playback_session, try_award_point
 from .utils import ip_hash, ua_hash
 
 logger = logging.getLogger("casset.plays")
@@ -222,3 +222,26 @@ def register_progress(request):
         "awarded": result.awarded,
         "reason": result.reason,
     })
+
+
+@require_GET
+def api_creator_stats(request):
+    """Plays/points series for the logged-in creator's own tracks, sourced
+    from DailyTrackStat (S11) — for the studio dashboard's trend chart.
+
+    GET params:
+        range (str): "daily" (last 30 days), "weekly" (last 12 weeks), or
+            "monthly" (last 12 months). Defaults to "daily".
+
+    Returns JSON:
+        {ok, range, series: [{label, plays, unique_plays, points}, ...]}
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "auth_required"}, status=401)
+
+    granularity = request.GET.get("range", "daily")
+    if granularity not in ("daily", "weekly", "monthly"):
+        granularity = "daily"
+
+    series = get_creator_stats_series(creator=request.user, granularity=granularity)
+    return JsonResponse({"ok": True, "range": granularity, "series": series})

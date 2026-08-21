@@ -31,7 +31,7 @@ from django.utils import timezone as dj_timezone
 from accounts.models import UserProfile
 from core.models import PlatformSetting
 
-from .models import FraudFlag, PlaybackSession, PlayEvent, PointLedger
+from .models import DailyTrackStat, FraudFlag, PlaybackSession, PlayEvent, PointLedger
 
 logger = logging.getLogger("casset.plays")
 
@@ -439,3 +439,130 @@ def _flag_fraud(
         )
     except Exception as exc:
         logger.error("Failed to write FraudFlag: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# DailyTrackStat — aggregation + creator-facing dashboard series (S11)
+#
+# Constitution: DailyTrackStat is a derived cache, always rebuildable from
+# PlayEvent (never written to directly outside this function). Dashboards
+# read from it instead of scanning raw PlayEvent so a creator with years of
+# history doesn't pay for a full table scan on every page load.
+# ---------------------------------------------------------------------------
+
+def aggregate_daily_stats(day) -> int:
+    """(Re)build DailyTrackStat for one calendar day from PlayEvent. Safe to
+    re-run any number of times for the same day — upserts per track, never
+    appends duplicates. Returns the number of track/day rows written.
+
+    Used by both `aggregate_stats` (manual/backfill) and the daily Celery
+    beat task (plays/tasks.py) so there is exactly one implementation.
+    """
+    from django.db.models import Count, Q
+
+    day_key = day.isoformat()
+    rows = (
+        PlayEvent.objects.filter(day_key=day_key)
+        .values("track_id")
+        .annotate(
+            plays=Count("id"),
+            unique_plays=Count("ip_hash", distinct=True),
+            # point_awarded=True, not user__isnull=False — every write path
+            # requires auth today, so the latter is always true and silently
+            # equals `plays`, which is wrong (real bug found in S11 review).
+            points_awarded=Count("id", filter=Q(point_awarded=True)),
+        )
+    )
+
+    written = 0
+    with transaction.atomic():
+        for row in rows:
+            DailyTrackStat.objects.update_or_create(
+                track_id=row["track_id"],
+                day=day,
+                defaults={
+                    "plays": row["plays"],
+                    "unique_plays": row["unique_plays"],
+                    "points_awarded": row["points_awarded"],
+                },
+            )
+            written += 1
+    return written
+
+
+_STATS_GRANULARITIES = {
+    "daily": 30,
+    "weekly": 12,
+    "monthly": 12,
+}
+
+
+def get_creator_stats_series(*, creator, granularity: str = "daily") -> list[dict]:
+    """Creator-facing plays/points series, sourced from the pre-aggregated
+    DailyTrackStat table (fast regardless of how much PlayEvent history has
+    piled up) plus a small live top-up for *today*, which aggregate_stats
+    only ever computes as of yesterday. Always zero-fills days/weeks/months
+    with no data instead of omitting them — a quiet week should read as
+    zeros, not a shorter chart.
+    """
+    from django.db.models import Count, Q, Sum
+
+    if granularity not in _STATS_GRANULARITIES:
+        granularity = "daily"
+    periods = _STATS_GRANULARITIES[granularity]
+
+    today = dj_timezone.localdate()
+    days_back = periods if granularity == "daily" else periods * (7 if granularity == "weekly" else 31)
+    start_day = today - timedelta(days=days_back - 1)
+
+    # Zero-filled day-level scaffold for the whole window.
+    daily_totals: dict = {}
+    d = start_day
+    while d <= today:
+        daily_totals[d] = {"plays": 0, "unique_plays": 0, "points": 0}
+        d += timedelta(days=1)
+
+    historical = (
+        DailyTrackStat.objects
+        .filter(track__creator=creator, day__gte=start_day, day__lt=today)
+        .values("day")
+        .annotate(plays=Sum("plays"), unique_plays=Sum("unique_plays"), points=Sum("points_awarded"))
+    )
+    for row in historical:
+        if row["day"] in daily_totals:
+            daily_totals[row["day"]] = {
+                "plays": row["plays"] or 0,
+                "unique_plays": row["unique_plays"] or 0,
+                "points": row["points"] or 0,
+            }
+
+    # Today isn't in DailyTrackStat yet — compute it live so "today" never
+    # shows as a false zero. Always overrides any stale row for today.
+    today_live = PlayEvent.objects.filter(
+        track__creator=creator, day_key=today.isoformat(),
+    ).aggregate(
+        plays=Count("id"),
+        unique_plays=Count("ip_hash", distinct=True),
+        points=Count("id", filter=Q(point_awarded=True)),
+    )
+    daily_totals[today] = {
+        "plays": today_live["plays"] or 0,
+        "unique_plays": today_live["unique_plays"] or 0,
+        "points": today_live["points"] or 0,
+    }
+
+    buckets: dict = {}
+    for d, v in sorted(daily_totals.items()):
+        if granularity == "daily":
+            key = d.isoformat()
+        elif granularity == "weekly":
+            iso_year, iso_week, _ = d.isocalendar()
+            key = f"{iso_year}-W{iso_week:02d}"
+        else:
+            key = f"{d.year}-{d.month:02d}"
+        bucket = buckets.setdefault(key, {"plays": 0, "unique_plays": 0, "points": 0})
+        bucket["plays"] += v["plays"]
+        bucket["unique_plays"] += v["unique_plays"]
+        bucket["points"] += v["points"]
+
+    return [{"label": k, **buckets[k]} for k in sorted(buckets)]
