@@ -139,6 +139,61 @@
         </div>
       {% endif %}
     </section>
+
+    <!-- ============ Geography / device breakdown (S12) ============ -->
+    <section class="card mt-4">
+      <div class="section-head mt-0">
+        <h2>جغرافیا و دستگاه شنونده‌ها</h2>
+        <span class="muted t-xs">۳۰ روز اخیر · فقط آمار تجمیعی، بدون IP/دستگاه خام</span>
+      </div>
+      {% if geo_breakdown.countries or geo_breakdown.devices %}
+        <div class="grid-2">
+          <div>
+            <b class="t-sm">کشور</b>
+            {% if geo_breakdown.countries %}
+              <div class="table-wrap mt-2">
+                <table class="table">
+                  <thead><tr><th>کد کشور</th><th>تعداد پخش</th></tr></thead>
+                  <tbody>
+                    {% for row in geo_breakdown.countries %}
+                      <tr><td class="num" dir="ltr">{{ row.code }}</td><td class="num">{{ row.count }}</td></tr>
+                    {% endfor %}
+                    {% if geo_breakdown.unknown_country_count %}
+                      <tr><td class="muted">نامشخص</td><td class="num">{{ geo_breakdown.unknown_country_count }}</td></tr>
+                    {% endif %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <p class="muted t-sm mb-0 mt-2">داده‌ی جغرافیایی هنوز موجود نیست.</p>
+            {% endif %}
+          </div>
+          <div>
+            <b class="t-sm">نوع دستگاه</b>
+            {% if geo_breakdown.devices %}
+              <div class="table-wrap mt-2">
+                <table class="table">
+                  <thead><tr><th>دستگاه</th><th>تعداد پخش</th></tr></thead>
+                  <tbody>
+                    {% for row in geo_breakdown.devices %}
+                      <tr><td>{{ row.label }}</td><td class="num">{{ row.count }}</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <p class="muted t-sm mb-0 mt-2">داده‌ی دستگاه هنوز موجود نیست.</p>
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div class="empty">
+          <div class="empty__icon"><svg class="icon"><use href="#i-trend"/></svg></div>
+          <div class="empty__title">هنوز داده‌ای نیست</div>
+          <p class="empty__text">وقتی آثارت پخش شوند، تفکیک کشور/دستگاه اینجا نشان داده می‌شود.</p>
+        </div>
+      {% endif %}
+    </section>
   </div>
 
   <aside>

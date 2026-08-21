@@ -14,8 +14,14 @@ from django.views.decorators.http import require_GET, require_POST
 
 from tracks.models import Track
 
+from .geo import resolve_country_code, resolve_device_type
 from .models import FraudFlag, PlayEvent
-from .services import get_creator_stats_series, start_playback_session, try_award_point
+from .services import (
+    get_creator_geo_device_breakdown,
+    get_creator_stats_series,
+    start_playback_session,
+    try_award_point,
+)
 from .utils import ip_hash, ua_hash
 
 logger = logging.getLogger("casset.plays")
@@ -144,7 +150,11 @@ def register_play(request):
         track=track, user=request.user, ip_hash=iph, day_key=day_key
     ).first()
     try:
-        start_playback_session(track=track, user=request.user, ip_hash=iph, ua_hash=uah, play_event=pe)
+        start_playback_session(
+            track=track, user=request.user, ip_hash=iph, ua_hash=uah, play_event=pe,
+            country_code=resolve_country_code(request),
+            device_type=resolve_device_type(request.META.get("HTTP_USER_AGENT", "")),
+        )
     except Exception:
         logger.exception("start_playback_session failed track=%s", track_id)
 
@@ -215,6 +225,8 @@ def register_progress(request):
         progress_ratio=progress,
         listener_user=request.user,
         ua_hash=uah,
+        country_code=resolve_country_code(request),
+        device_type=resolve_device_type(request.META.get("HTTP_USER_AGENT", "")),
     )
 
     return JsonResponse({
@@ -245,3 +257,31 @@ def api_creator_stats(request):
 
     series = get_creator_stats_series(creator=request.user, granularity=granularity)
     return JsonResponse({"ok": True, "range": granularity, "series": series})
+
+
+@require_GET
+def api_creator_geo_device(request):
+    """Geography/device breakdown for the logged-in creator's own tracks
+    (S12) — for the studio dashboard.
+
+    Returns ONLY aggregate counts (country/device), never a raw IP or
+    User-Agent — see plays/services.py::get_creator_geo_device_breakdown.
+
+    GET params:
+        days (int): lookback window, defaults to 30, clamped to [1, 365].
+
+    Returns JSON:
+        {ok, days, countries: [{code, count}], unknown_country_count,
+         devices: [{type, label, count}]}
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "auth_required"}, status=401)
+
+    try:
+        days = int(request.GET.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+    days = max(1, min(days, 365))
+
+    breakdown = get_creator_geo_device_breakdown(request.user, days=days)
+    return JsonResponse({"ok": True, **breakdown})

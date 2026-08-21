@@ -91,6 +91,8 @@ def try_award_point(
     progress_ratio: float,
     listener_user,
     ua_hash: str = "",
+    country_code: str = "",
+    device_type: str = "",
 ) -> AwardResult:
     """Attempt to award 1 point to track.creator for a qualifying play.
 
@@ -102,6 +104,7 @@ def try_award_point(
     session = _touch_session(
         track=track, listener_user=listener_user, ip_hash=ip_hash,
         ua_hash=ua_hash, progress_ratio=progress_ratio,
+        country_code=country_code, device_type=device_type,
     )
 
     if progress_ratio < threshold:
@@ -134,21 +137,29 @@ def try_award_point(
 # ---------------------------------------------------------------------------
 
 def start_playback_session(
-    *, track, user, ip_hash: str, ua_hash: str, play_event=None, source: str = "web"
+    *, track, user, ip_hash: str, ua_hash: str, play_event=None, source: str = "web",
+    country_code: str = "", device_type: str = "",
 ) -> PlaybackSession:
     """Record one playback attempt. Called once per register_play() call —
     deliberately NOT deduped the way PlayEvent is: fraud signals need
     attempt-level granularity, since a bot hammering play many times a
     minute looks identical to a single legitimate play once daily dedup
-    collapses it into one PlayEvent row."""
+    collapses it into one PlayEvent row.
+
+    country_code/device_type (S12) are coarse values already resolved by the
+    caller from plays/geo.py — this function never sees a raw IP or User-Agent.
+    """
     return PlaybackSession.objects.create(
         track=track, user=user, ip_hash=ip_hash, ua_hash=ua_hash,
         play_event=play_event, source=source,
+        country_code=country_code,
+        device_type=device_type or PlaybackSession.DeviceType.UNKNOWN,
     )
 
 
 def _touch_session(
-    *, track, listener_user, ip_hash: str, ua_hash: str, progress_ratio: float
+    *, track, listener_user, ip_hash: str, ua_hash: str, progress_ratio: float,
+    country_code: str = "", device_type: str = "",
 ) -> PlaybackSession:
     """Find the listener's most recent PlaybackSession for this track and
     record this progress report against it. If none exists at all (a
@@ -168,6 +179,8 @@ def _touch_session(
             status=PlaybackSession.Status.FLAGGED,
             disqualify_reason="no_prior_session",
             source="progress_fallback",
+            country_code=country_code,
+            device_type=device_type or PlaybackSession.DeviceType.UNKNOWN,
         )
 
     session.max_progress_ratio = max(session.max_progress_ratio, progress_ratio)
@@ -566,3 +579,67 @@ def get_creator_stats_series(*, creator, granularity: str = "daily") -> list[dic
         bucket["points"] += v["points"]
 
     return [{"label": k, **buckets[k]} for k in sorted(buckets)]
+
+
+# ---------------------------------------------------------------------------
+# Geography/device breakdown for the creator dashboard (S12)
+#
+# Constitution/privacy: this reads PlaybackSession.country_code/device_type
+# — coarse, already-derived values (plays/geo.py) — and returns ONLY grouped
+# counts. It never selects ip_hash/ua_hash or per-session rows, so there is
+# no way for this function (or the API view that calls it) to leak a raw
+# IP/User-Agent, even by accident.
+# ---------------------------------------------------------------------------
+
+_GEO_BREAKDOWN_CACHE_TTL_SECONDS = 15 * 60  # dashboard analytics, not real-time
+_GEO_BREAKDOWN_TOP_COUNTRIES = 20
+
+
+def get_creator_geo_device_breakdown(creator, *, days: int = 30) -> dict:
+    """Aggregate-only geography/device breakdown for one creator's tracks
+    over the last `days` days, cached for _GEO_BREAKDOWN_CACHE_TTL_SECONDS
+    so a dashboard refresh doesn't re-scan PlaybackSession on every request.
+    """
+    from django.core.cache import cache
+    from django.db.models import Count
+
+    cache_key = f"plays:geo_device_breakdown:{creator.pk}:{days}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    since = dj_timezone.now() - timedelta(days=days)
+    qs = PlaybackSession.objects.filter(track__creator=creator, started_at__gte=since)
+
+    country_rows = (
+        qs.exclude(country_code="")
+        .values("country_code")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:_GEO_BREAKDOWN_TOP_COUNTRIES]
+    )
+    unknown_country_count = qs.filter(country_code="").count()
+
+    device_rows = (
+        qs.values("device_type")
+        .annotate(count=Count("id"))
+        .order_by("-count")
+    )
+    device_labels = dict(PlaybackSession.DeviceType.choices)
+
+    result = {
+        "days": days,
+        "countries": [
+            {"code": row["country_code"], "count": row["count"]} for row in country_rows
+        ],
+        "unknown_country_count": unknown_country_count,
+        "devices": [
+            {
+                "type": row["device_type"],
+                "label": device_labels.get(row["device_type"], row["device_type"]),
+                "count": row["count"],
+            }
+            for row in device_rows
+        ],
+    }
+    cache.set(cache_key, result, _GEO_BREAKDOWN_CACHE_TTL_SECONDS)
+    return result

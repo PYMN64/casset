@@ -134,13 +134,14 @@ class FraudFlagAdmin(admin.ModelAdmin):
 @admin.register(PlaybackSession)
 class PlaybackSessionAdmin(admin.ModelAdmin):
     list_display = (
-        "id", "track", "user", "status", "source",
+        "id", "track", "user", "status", "source", "country_code", "device_type",
         "max_progress_ratio", "started_at", "ended_at", "disqualify_reason",
     )
-    list_filter = ("status", "source", "started_at")
+    list_filter = ("status", "source", "device_type", "country_code", "started_at")
     search_fields = ("track__title", "user__username", "ip_hash")
     readonly_fields = (
         "track", "user", "play_event", "ip_hash", "ua_hash", "source",
+        "country_code", "device_type",
         "status", "disqualify_reason", "max_progress_ratio",
         "started_at", "last_seen_at", "ended_at",
     )

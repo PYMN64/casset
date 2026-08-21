@@ -11,9 +11,11 @@ from accounts.models import UserProfile
 from core.test_utils import make_user
 from tracks.models import Track
 
+from .geo import resolve_country_code, resolve_device_type
 from .models import DailyTrackStat, FraudFlag, PlaybackSession, PlayEvent, PointLedger
 from .services import (
     aggregate_daily_stats,
+    get_creator_geo_device_breakdown,
     get_creator_stats_series,
     start_playback_session,
     try_award_point,
@@ -909,3 +911,243 @@ class AggregateYesterdayTrackStatsTaskTests(TestCase):
         stat = DailyTrackStat.objects.get(track=track, day=yesterday)
         self.assertEqual(stat.plays, 1)
         self.assertEqual(stat.points_awarded, 1)
+
+
+# ---------------------------------------------------------------------------
+# plays/geo.py — device/country resolution (S12)
+# ---------------------------------------------------------------------------
+
+class ResolveDeviceTypeTests(TestCase):
+    def test_empty_user_agent_is_unknown(self):
+        self.assertEqual(resolve_device_type(""), PlaybackSession.DeviceType.UNKNOWN)
+        self.assertEqual(resolve_device_type(None), PlaybackSession.DeviceType.UNKNOWN)
+
+    def test_iphone_is_mobile(self):
+        ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148"
+        self.assertEqual(resolve_device_type(ua), PlaybackSession.DeviceType.MOBILE)
+
+    def test_android_with_mobile_token_is_mobile(self):
+        ua = "Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile Safari/537.36"
+        self.assertEqual(resolve_device_type(ua), PlaybackSession.DeviceType.MOBILE)
+
+    def test_ipad_is_tablet(self):
+        ua = "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Safari/605.1.15"
+        self.assertEqual(resolve_device_type(ua), PlaybackSession.DeviceType.TABLET)
+
+    def test_android_without_mobile_token_is_tablet(self):
+        ua = "Mozilla/5.0 (Linux; Android 14; SM-X200) AppleWebKit/537.36 Safari/537.36"
+        self.assertEqual(resolve_device_type(ua), PlaybackSession.DeviceType.TABLET)
+
+    def test_desktop_chrome_is_desktop(self):
+        ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+        self.assertEqual(resolve_device_type(ua), PlaybackSession.DeviceType.DESKTOP)
+
+    def test_known_bot_is_bot(self):
+        ua = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+        self.assertEqual(resolve_device_type(ua), PlaybackSession.DeviceType.BOT)
+
+
+class ResolveCountryCodeTests(TestCase):
+    def _req(self, **meta):
+        from django.test import RequestFactory
+        return RequestFactory().get("/", **meta)
+
+    def test_untrusted_proxy_headers_returns_empty(self):
+        """TRUST_PROXY_HEADERS defaults to off — a header must never be
+        trusted just because it's present, mirroring plays/utils.py's
+        X-Forwarded-For gate."""
+        req = self._req(HTTP_CF_IPCOUNTRY="IR")
+        self.assertEqual(resolve_country_code(req), "")
+
+    def test_trusted_cloudflare_header_is_used(self):
+        from django.test import override_settings
+
+        req = self._req(HTTP_CF_IPCOUNTRY="ir")
+        with override_settings(TRUST_PROXY_HEADERS=True):
+            self.assertEqual(resolve_country_code(req), "IR")
+
+    def test_trusted_generic_header_is_used_when_cloudflare_absent(self):
+        from django.test import override_settings
+
+        req = self._req(HTTP_X_COUNTRY_CODE="DE")
+        with override_settings(TRUST_PROXY_HEADERS=True):
+            self.assertEqual(resolve_country_code(req), "DE")
+
+    def test_implausible_header_value_is_rejected(self):
+        from django.test import override_settings
+
+        req = self._req(HTTP_CF_IPCOUNTRY="XX; DROP TABLE users")
+        with override_settings(TRUST_PROXY_HEADERS=True):
+            self.assertEqual(resolve_country_code(req), "")
+
+    def test_missing_header_returns_empty_even_when_trusted(self):
+        from django.test import override_settings
+
+        req = self._req()
+        with override_settings(TRUST_PROXY_HEADERS=True):
+            self.assertEqual(resolve_country_code(req), "")
+
+
+# ---------------------------------------------------------------------------
+# register_play/register_progress wiring for country/device (S12)
+# ---------------------------------------------------------------------------
+
+class RegisterPlayGeoDeviceWiringTests(TestCase):
+    def setUp(self):
+        self.creator = _make_user("wire_creator")
+        self.track = _make_track(self.creator)
+
+    def test_register_play_stores_resolved_device_type(self):
+        self.client.login(username="wire_creator", password="pass12345")
+        self.client.post(
+            reverse("api_play"), {"track_id": self.track.id},
+            HTTP_USER_AGENT="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) Mobile/15E148",
+        )
+        session = PlaybackSession.objects.filter(track=self.track).latest("started_at")
+        self.assertEqual(session.device_type, PlaybackSession.DeviceType.MOBILE)
+        self.assertEqual(session.country_code, "")  # TRUST_PROXY_HEADERS off in tests
+
+    def test_register_play_stores_country_only_when_proxy_trusted(self):
+        from django.test import override_settings
+
+        self.client.login(username="wire_creator", password="pass12345")
+        with override_settings(TRUST_PROXY_HEADERS=True):
+            self.client.post(
+                reverse("api_play"), {"track_id": self.track.id},
+                HTTP_CF_IPCOUNTRY="IR",
+            )
+        session = PlaybackSession.objects.filter(track=self.track).latest("started_at")
+        self.assertEqual(session.country_code, "IR")
+
+
+# ---------------------------------------------------------------------------
+# get_creator_geo_device_breakdown() service (S12)
+# ---------------------------------------------------------------------------
+
+class GetCreatorGeoDeviceBreakdownTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.creator = make_user("geo_creator")
+        self.other_creator = make_user("geo_other")
+        self.track = _make_track(self.creator, title="GeoTrack")
+        self.other_track = _make_track(self.other_creator, title="OtherGeoTrack")
+
+    def _session(self, track, **kw):
+        defaults = dict(track=track, user=self.creator, ip_hash="ip1", ua_hash="ua1")
+        defaults.update(kw)
+        return PlaybackSession.objects.create(**defaults)
+
+    def test_counts_are_grouped_by_country_and_device(self):
+        self._session(self.track, country_code="IR", device_type=PlaybackSession.DeviceType.MOBILE)
+        self._session(self.track, country_code="IR", device_type=PlaybackSession.DeviceType.DESKTOP)
+        self._session(self.track, country_code="DE", device_type=PlaybackSession.DeviceType.MOBILE)
+
+        result = get_creator_geo_device_breakdown(self.creator)
+
+        countries = {row["code"]: row["count"] for row in result["countries"]}
+        self.assertEqual(countries, {"IR": 2, "DE": 1})
+        devices = {row["type"]: row["count"] for row in result["devices"]}
+        self.assertEqual(devices["mobile"], 2)
+        self.assertEqual(devices["desktop"], 1)
+
+    def test_empty_country_code_counted_as_unknown_not_a_country_row(self):
+        self._session(self.track, country_code="", device_type=PlaybackSession.DeviceType.DESKTOP)
+        result = get_creator_geo_device_breakdown(self.creator)
+        self.assertEqual(result["unknown_country_count"], 1)
+        self.assertEqual(result["countries"], [])
+
+    def test_other_creators_sessions_are_excluded(self):
+        self._session(self.other_track, user=self.other_creator, country_code="US")
+        result = get_creator_geo_device_breakdown(self.creator)
+        self.assertEqual(result["countries"], [])
+        self.assertEqual(result["unknown_country_count"], 0)
+
+    def test_sessions_outside_the_window_are_excluded(self):
+        from django.utils import timezone as tz
+        old = self._session(self.track, country_code="IR")
+        PlaybackSession.objects.filter(pk=old.pk).update(
+            started_at=tz.now() - timedelta(days=90)
+        )
+        result = get_creator_geo_device_breakdown(self.creator, days=30)
+        self.assertEqual(result["countries"], [])
+
+    def test_response_never_contains_raw_hash_fields(self):
+        """Constitution/privacy: only aggregate counts leave this function —
+        never a raw ip_hash/ua_hash value or a per-session row."""
+        self._session(self.track, country_code="IR", ip_hash="super-secret-ip-hash")
+        result = get_creator_geo_device_breakdown(self.creator)
+        blob = str(result)
+        self.assertNotIn("super-secret-ip-hash", blob)
+        self.assertNotIn("ip_hash", blob)
+        self.assertNotIn("ua_hash", blob)
+
+    def test_result_is_cached_between_calls(self):
+        self._session(self.track, country_code="IR")
+        first = get_creator_geo_device_breakdown(self.creator)
+        # A session created after the first (cached) call must NOT change
+        # the second call's result within the TTL window.
+        self._session(self.track, country_code="IR")
+        second = get_creator_geo_device_breakdown(self.creator)
+        self.assertEqual(first, second)
+        self.assertEqual(second["countries"][0]["count"], 1)
+
+
+# ---------------------------------------------------------------------------
+# api_creator_geo_device view (S12)
+# ---------------------------------------------------------------------------
+
+class ApiCreatorGeoDeviceViewTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.creator = _make_user("api_geo_creator")
+        self.track = _make_track(self.creator, title="ApiGeoTrack")
+
+    def test_requires_auth(self):
+        resp = self.client.get(reverse("api_creator_geo_device"))
+        self.assertEqual(resp.status_code, 401)
+
+    def test_returns_aggregate_breakdown_for_own_tracks(self):
+        PlaybackSession.objects.create(
+            track=self.track, user=self.creator, ip_hash="ip1", ua_hash="ua1",
+            country_code="IR", device_type=PlaybackSession.DeviceType.MOBILE,
+        )
+        self.client.login(username="api_geo_creator", password="pass12345")
+        resp = self.client.get(reverse("api_creator_geo_device"))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["countries"], [{"code": "IR", "count": 1}])
+        self.assertEqual(data["devices"][0]["type"], "mobile")
+
+    def test_response_body_never_leaks_raw_ip_or_ua_hash(self):
+        PlaybackSession.objects.create(
+            track=self.track, user=self.creator,
+            ip_hash="leak-me-ip-hash-value", ua_hash="leak-me-ua-hash-value",
+            country_code="IR",
+        )
+        self.client.login(username="api_geo_creator", password="pass12345")
+        resp = self.client.get(reverse("api_creator_geo_device"))
+        body = resp.content.decode()
+        self.assertNotIn("leak-me-ip-hash-value", body)
+        self.assertNotIn("leak-me-ua-hash-value", body)
+        self.assertNotIn("ip_hash", body)
+        self.assertNotIn("ua_hash", body)
+
+    def test_days_param_is_clamped(self):
+        self.client.login(username="api_geo_creator", password="pass12345")
+        resp = self.client.get(reverse("api_creator_geo_device"), {"days": "99999"})
+        self.assertEqual(resp.json()["days"], 365)
+        resp = self.client.get(reverse("api_creator_geo_device"), {"days": "-5"})
+        self.assertEqual(resp.json()["days"], 1)
+
+    def test_only_shows_the_logged_in_creators_own_tracks(self):
+        other = _make_user("api_geo_other")
+        other_track = _make_track(other, title="OtherApiGeoTrack")
+        PlaybackSession.objects.create(
+            track=other_track, user=other, ip_hash="ip1", ua_hash="ua1", country_code="FR",
+        )
+        self.client.login(username="api_geo_creator", password="pass12345")
+        resp = self.client.get(reverse("api_creator_geo_device"))
+        self.assertEqual(resp.json()["countries"], [])

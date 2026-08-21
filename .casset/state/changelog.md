@@ -17,6 +17,63 @@
 > **قانون:** هر Claude که تغییری روی پروژه می‌ده، باید یک entry جدید بالای خط
 > `## [2026-08-17] اسکن کامل پروژه — باگ‌های کریتیکال، Security، تست و نقص‌ها
 
+## [2026-08-22] S12 — آنالیتیکس سازنده + شخصی‌سازی سبک — ✅ بسته شد
+
+**نوع:** Architecture + Feature
+**برنچ:** `feature/s12-analytics-personalization` (بر اساس `master` بعد از S11، commit `b41099f`)
+**فایل‌های تغییرکرده:** `plays/models.py`, `plays/geo.py` (جدید),
+`plays/services.py`, `plays/views.py`, `plays/urls.py`, `plays/admin.py`,
+`plays/migrations/0006_playbacksession_country_code_and_more.py`,
+`plays/tests.py`, `accounts/views.py`, `templates/accounts/creator_studio.html`,
+`explore/services.py`, `explore/views.py`, `explore/tests.py`
+
+**تصمیم:** پیاده‌سازی دقیقاً ۲ آیتم S12 طبق `.casset/releases/v2.1.0-phase2-plan.md`
+§۵ — بدون scope creep:
+
+1. **breakdown جغرافیا/دستگاه برای Creator.** بدون وابستگی GeoIP جدید — کشور
+   فقط از یک هدر CDN معتبر (`CF-IPCountry` و مشابه) و فقط با
+   `TRUST_PROXY_HEADERS=1` (همان گیت امنیتی موجود `X-Forwarded-For`)؛ دستگاه
+   از یک regex ساده روی User-Agent (`plays/geo.py`). هر دو در همان لحظه‌ی
+   request استخراج و روی `PlaybackSession` (مدل S11) ذخیره می‌شوند — IP/UA
+   خام هیچ‌جا ذخیره نمی‌شوند، همان‌طور که از قبل هم نمی‌شدند.
+   `plays/services.py::get_creator_geo_device_breakdown` فقط شمارش تجمیعی
+   برمی‌گرداند (کش ۱۵ دقیقه‌ای)، هرگز `ip_hash`/`ua_hash` — با تست مستقیم
+   تایید شد که یک hash واقعی هرگز در پاسخ سرویس/API ظاهر نمی‌شود. Endpoint
+   جدید `GET /api/v1/creator/stats/geo/` + دو جدول ساده در
+   `creator_studio.html`.
+2. **لایه‌ی توصیه‌ی سبک روی Discover.** `discover_view` از قبل یک نسخه‌ی
+   ابتدایی inline داشت (۳ ژانر اخیر یا fallback trending) — این تسک آن را
+   با `explore/services.py::get_personalized_recommendations` جایگزین کرد:
+   امتیاز = وزن ژانر (از `PlayEvent` خام کاربر، با `Counter` پایتون به‌جای
+   `annotate` روی M2M که ریسک fan-out دارد) + محبوبیت نرمال‌شده + تازگی
+   (نیمه‌عمر ۱۴ روزه) — کاملاً توضیح‌پذیر، عمداً نه ML (طبق محدودیت صریح
+   نقشه‌ی فاز ۲ §۴.۳). Fallback «محبوب‌ترین‌های اخیر» برای کاربر جدید/ناشناس.
+   کش ۲۰ دقیقه‌ای؛ تست با `CaptureQueriesContext` تایید کرد بدون N+1 (≤۱۰
+   کوئری) و فراخوانی کش‌شده صفر کوئری می‌زند.
+
+**اثر:** **۶۹۴ تست سبز روی SQLite** (۶۶۰ baseline + ۳۴ تست S12)، **۶۹۵ تست
+روی PostgreSQL واقعی محلی — این‌بار تایید کامل موفق شد** (S10/S11 هر دو به
+محدودیت محیطی `.pgdata` stale خورده بودند؛ این‌بار همان دایرکتوری gitignored
+حذف/بازسازی شد و اجرا کامل و تمیز بود)، پوشش تست از ۹۲٪ به **۹۳٪**،
+`ruff check .` تمیز، بدون migration drift. تایید دستی end-to-end در مرورگر:
+یک پخش واقعی از طریق همان مسیر HTTP که پلیر واقعی صدا می‌زند ثبت شد،
+`PlaybackSession` با `device_type="desktop"` صحیح (از User-Agent واقعی
+مرورگر) و `country_code=""` صحیح (چون `TRUST_PROXY_HEADERS` در dev خاموش
+است) تایید شد، و داشبورد استودیو + صفحه‌ی Discover (هم برای کاربر با
+تاریخچه، هم کاربر ناشناس) بدون خطا رندر شدند. یک نکته‌ی عملیاتی (نه باگ)
+کشف شد: `LocMemCache` به‌ازای هر پردازش پایتون جداست، پس `cache.clear()` از
+یک `manage.py shell` جدا کش سرور dev در حال اجرا را پاک نمی‌کند — در prod
+(Redis، کش مشترک) این مسئله وجود ندارد. همان ۵ شکست پیش‌موجود و نامرتبط
+`core.tests_settings_secrets` (Winsock محلی ویندوز) — دوباره روی `master`
+(قبل از S12) هم مستقیماً تایید شد که از قبل وجود داشتند.
+
+**وضعیت CLAUDE.md:** بخش کاری فعال (`.casset/releases/v2.1.0-phase2-plan.md`)
+— S12 از دو آیتم فاز ۲ به «بسته» تغییر کرد؛ S13 (اتصال بانکی واقعی تسویه،
+منتظر قرارداد بانکی PYMN) آخرین آیتم فاز ۲ است. جزئیات کامل هر تسک با شاهد
+تست: `.casset/execution/logs/s12-log.md`.
+
+---
+
 ## [2026-08-21] S10 — بستن شکاف‌های امنیتی/عملیاتی فاز ۲ — ✅ بسته شد
 
 **نوع:** Architecture + Config + Docs

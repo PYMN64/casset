@@ -1,31 +1,37 @@
 # Casset Current State
 
-> **۲۰۲۶-۰۸-۲۲ — S11 بسته شد.** طبق قانون طلایی `CLAUDE.md` بخش ۵، این بلوک
+> **۲۰۲۶-۰۸-۲۲ — S12 بسته شد.** طبق قانون طلایی `CLAUDE.md` بخش ۵، این بلوک
 > بعد از هر تسک/اسپرینت جایگزین می‌شود (نه اضافه، جایگزینی کامل):
 >
-> **آخرین تسک تمام‌شده:** هر ۴ آیتم S11 — `PlaybackSession` رسمی + اتصال به
-> `register_play`/`register_progress`، سیگنال ضدتقلب (Gate ۰: IP burst،
-> پخش کوتاه تکراری)، Immutable بودن `AuditLog` در سطح ORM، اتصال
-> `DailyTrackStat` به داشبورد استودیوی سازنده (endpoint + Celery beat روزانه +
-> دکمه‌های روزانه/هفتگی/ماهانه). جزئیات کامل: `.casset/execution/logs/s11-log.md`.
-> **فایل‌های تغییریافته:** `plays/models.py`, `plays/services.py`,
-> `plays/views.py`, `plays/urls.py`, `plays/tasks.py` (جدید),
-> `plays/admin.py`, `plays/management/commands/aggregate_stats.py`,
-> `plays/migrations/0004_*`, `plays/migrations/0005_*` (data migration)،
-> `moderation/models.py`, `config/settings/base.py`,
-> `templates/accounts/creator_studio.html`, تست‌های هر سه اپ.
-> **تست:** ۶۶۰ تست سبز روی SQLite (از ۶۴۵)، پوشش ۹۲٪ (بدون افت)،
-> `ruff check .` تمیز، بدون migration drift. تایید دستی end-to-end در
-> مرورگر برای بخش داشبورد. ۵ شکست پیش‌موجود و نامرتبط
-> (`core.tests_settings_secrets`, مشکل Winsock محلی ویندوز) — جزئیات در لاگ.
-> **وضعیت commit:** merge شده روی `master` و push شده به `origin/master`
-> (طبق تایید صریح کاربر در چت، به‌جای برنچ جداگانه + PR طبق بریف اولیه).
-> **قدم بعدی پیشنهادی:** شروع S12 — آنالیتیکس عمیق‌تر سازنده (breakdown
-> جغرافیا/دستگاه) + لایه‌ی توصیه‌ی سبک روی Discover، طبق
-> `.casset/releases/v2.1.0-phase2-plan.md` بخش S12.
-> **نکات باز:** تایید کامل روی PostgreSQL واقعی این نشست ممکن نشد (محدودیت
-> محیطی pgserver محلی) — قبل از merge/deploy بعدی، `scripts/local_postgres.py
-> test` را روی یک محیط با دسترسی کامل اجرا کن.
+> **آخرین تسک تمام‌شده:** هر ۲ آیتم S12 — breakdown جغرافیا/دستگاه برای
+> داشبورد Creator (`PlaybackSession.country_code`/`device_type` جدید،
+> `plays/geo.py`، endpoint `GET /api/v1/creator/stats/geo/`، فقط داده‌ی
+> تجمیعی هرگز hash خام) + لایه‌ی توصیه‌ی سبک روی Discover
+> (`explore/services.py::get_personalized_recommendations` — امتیاز
+> ژانر+محبوبیت+تازگی، توضیح‌پذیر نه ML، جایگزین بلوک inline قدیمی
+> `discover_view`). جزئیات کامل: `.casset/execution/logs/s12-log.md`.
+> **فایل‌های تغییریافته:** `plays/models.py`, `plays/geo.py` (جدید),
+> `plays/services.py`, `plays/views.py`, `plays/urls.py`, `plays/admin.py`,
+> `plays/migrations/0006_*`, `accounts/views.py`,
+> `templates/accounts/creator_studio.html`, `explore/services.py`,
+> `explore/views.py`, تست‌های `plays`/`explore`.
+> **تست:** ۶۹۴ تست سبز روی SQLite (از ۶۶۰)، **۶۹۵ روی PostgreSQL واقعی محلی
+> — تایید کامل این‌بار موفق شد** (S10/S11 به محدودیت محیطی خورده بودند)،
+> پوشش ۹۳٪ (از ۹۲٪)، `ruff check .` تمیز، بدون migration drift. تایید دستی
+> end-to-end در مرورگر برای هر دو تسک (پخش واقعی → PlaybackSession →
+> داشبورد؛ Discover برای کاربر با تاریخچه و کاربر ناشناس). ۵ شکست پیش‌موجود
+> و نامرتبط (`core.tests_settings_secrets`, مشکل Winsock محلی ویندوز، دوباره
+> روی `master` هم تایید شد) — جزئیات در لاگ.
+> **وضعیت commit:** روی برنچ `feature/s12-analytics-personalization`،
+> منتظر تایید کاربر برای push/PR.
+> **قدم بعدی پیشنهادی:** S13 — اتصال بانکی واقعی تسویه؛ منتظر قرارداد بانکی
+> PYMN. از نظر فنی `PointLedger`/`PayoutRequest` از قبل آماده‌اند، شروع فنی
+> نیازی به پیش‌نیاز اضافه ندارد.
+> **نکات باز:** هیچ. PostgreSQL این‌بار کامل تایید شد؛ نکته‌ی عملیاتی کشف‌شده
+> (نه باگ) در لاگ S12: `LocMemCache` به‌ازای هر پردازش جداست — `cache.clear()`
+> از `manage.py shell` کش سرور dev در حال اجرا را پاک نمی‌کند، فقط ری‌استارت
+> سرور یا اجرای دستور از همان پردازش این کار را می‌کند. در prod (Redis، کش
+> مشترک) این مسئله اصلاً وجود ندارد.
 >
 > قبلی از این بلوک: `.casset/state/audit-2026-08-21.md` را بخوان، بعد
 > `.casset/releases/v2.1.0-phase2-plan.md`.
@@ -211,12 +217,20 @@ Agent system is designed but intentionally not activated as autonomous developme
 All architectural changes are recorded in `.casset/state/changelog.md`.
 Read that file at the start of every session to know what has changed and why.
 
-## Test coverage baseline (2026-08-22, post-S11, current)
-`coverage run --source=. manage.py test` → **92% overall**, 660 tests, `OK (skipped=1)`.
+## Test coverage baseline (2026-08-22, post-S12, current)
+`coverage run --source=. manage.py test` → **93% overall**, 694 tests, `OK (skipped=1)`.
+Up from 660/92% (post-S11) after S12 (creator geo/device analytics breakdown +
+lightweight Discover recommendation layer) added 34 tests with no coverage regression —
+see `.casset/execution/logs/s12-log.md`. Also verified against a real local PostgreSQL
+server this time (695 tests, one more than SQLite for the Postgres-only full-text-search
+test) — S10/S11 both hit an environment limitation here; S12 didn't.
+Full HTML report regeneratable with `coverage html` (not committed, `.gitignore`d).
+
+### (superseded) 2026-08-22 post-S11 baseline
+`coverage run --source=. manage.py test` → 92% overall, 660 tests, `OK (skipped=1)`.
 Up from 645/92% (post-S10) after S11 (PlaybackSession, play-event fraud signals, AuditLog
 ORM-level immutability, DailyTrackStat wired into the creator studio dashboard) added 15 tests
 with no coverage regression — see `.casset/execution/logs/s11-log.md`.
-Full HTML report regeneratable with `coverage html` (not committed, `.gitignore`d).
 
 ### (superseded) 2026-08-21 post-S10 baseline
 `coverage run --source=. manage.py test` → 92% overall, 629 tests, `OK (skipped=1)`.

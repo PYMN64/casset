@@ -784,6 +784,12 @@ def creator_studio_view(request):
         PayoutRequest.objects.filter(user=request.user).order_by("-created_at")[:10]
     )
 
+    # Geography/device breakdown (S12) — aggregate-only, cached in the
+    # service layer. See plays/services.py::get_creator_geo_device_breakdown.
+    from plays.services import get_creator_geo_device_breakdown
+
+    geo_breakdown = get_creator_geo_device_breakdown(request.user, days=30)
+
     totals = {
         "plays": sum(d["plays"] for d in daily),
         "points": sum(d["points"] for d in daily),
@@ -813,6 +819,7 @@ def creator_studio_view(request):
             "sort": sort,
             "recent_ledger": recent_ledger,
             "recent_payouts": recent_payouts,
+            "geo_breakdown": geo_breakdown,
             "nav_active": "studio",
         },
     )

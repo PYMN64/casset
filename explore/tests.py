@@ -300,3 +300,120 @@ class ApiStationViewTests(TestCase):
             reverse("api_station", args=[self.creator.username]), {"exclude": self.track.id}
         )
         self.assertEqual(resp.json()["items"], [])
+
+
+# ---------------------------------------------------------------------------
+# get_personalized_recommendations() — lightweight Discover recs (S12)
+# ---------------------------------------------------------------------------
+
+class PersonalizedRecommendationsServiceTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+        self.listener = make_user("rec_listener")
+        self.creator = make_user("rec_creator")
+        self.genre_electronic = Genre.objects.create(name="Electronic", slug="electronic")
+        self.genre_jazz = Genre.objects.create(name="Jazz", slug="jazz")
+
+        self.played_track = make_track(self.creator, title="Played Electronic")
+        self.played_track.genres.add(self.genre_electronic)
+        make_play_event(self.played_track, user=self.listener, ip_hash="rec_l1")
+
+        self.candidate_electronic = make_track(self.creator, title="New Electronic")
+        self.candidate_electronic.genres.add(self.genre_electronic)
+
+        self.unrelated_jazz = make_track(self.creator, title="Unrelated Jazz")
+        self.unrelated_jazz.genres.add(self.genre_jazz)
+
+    def test_user_with_genre_history_gets_genre_matching_recommendations(self):
+        result = services.get_personalized_recommendations(self.listener, limit=6)
+        result_ids = {t.id for t in result}
+        self.assertIn(self.candidate_electronic.id, result_ids)
+        self.assertNotIn(self.unrelated_jazz.id, result_ids)
+
+    def test_already_played_track_is_not_recommended_again(self):
+        result = services.get_personalized_recommendations(self.listener, limit=6)
+        self.assertNotIn(self.played_track.id, {t.id for t in result})
+
+    def test_new_user_without_history_gets_nonempty_fallback(self):
+        newbie = make_user("rec_newbie")
+        result = services.get_personalized_recommendations(newbie, limit=6)
+        self.assertGreater(len(result), 0)
+        # No history at all -> the fallback path, not the genre-scored one:
+        # every published track is eligible, including the jazz one.
+        self.assertIn(self.unrelated_jazz.id, {t.id for t in result})
+
+    def test_anonymous_user_gets_nonempty_fallback(self):
+        result = services.get_personalized_recommendations(None, limit=6)
+        self.assertGreater(len(result), 0)
+
+    def test_result_is_cached_between_calls(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        first = services.get_personalized_recommendations(self.listener, limit=6)
+
+        # A new, much more "attractive" candidate appears after the first
+        # (now cached) call — it must NOT show up until the TTL expires.
+        late_track = make_track(self.creator, title="Added After Cache")
+        late_track.genres.add(self.genre_electronic)
+        Track.objects.filter(pk=late_track.pk).update(play_count=999999)
+
+        second = services.get_personalized_recommendations(self.listener, limit=6)
+        self.assertEqual([t.id for t in first], [t.id for t in second])
+        self.assertNotIn(late_track.id, {t.id for t in second})
+
+    def test_query_count_stays_bounded_no_n_plus_one(self):
+        from django.core.cache import cache
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        cache.clear()
+        with CaptureQueriesContext(connection) as ctx:
+            services.get_personalized_recommendations(self.listener, limit=6)
+        # Should be a small constant number of queries regardless of how
+        # many candidate tracks/genres exist — not one query per track.
+        self.assertLessEqual(len(ctx.captured_queries), 10)
+
+    def test_cached_call_issues_zero_queries(self):
+        from django.core.cache import cache
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        cache.clear()
+        services.get_personalized_recommendations(self.listener, limit=6)
+        with CaptureQueriesContext(connection) as ctx:
+            services.get_personalized_recommendations(self.listener, limit=6)
+        self.assertEqual(len(ctx.captured_queries), 0)
+
+
+class DiscoverRecommendationsIntegrationTests(TestCase):
+    """Confirms discover_view actually renders the service's output (not
+    the old inline block it replaced) end-to-end through the real request."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+        self.listener = make_user("disc_rec_listener")
+        self.creator = make_user("disc_rec_creator")
+        self.genre = Genre.objects.create(name="Pop", slug="pop")
+
+        self.played = make_track(self.creator, title="Played Pop")
+        self.played.genres.add(self.genre)
+        make_play_event(self.played, user=self.listener, ip_hash="disc_rec1")
+
+        self.candidate = make_track(self.creator, title="Candidate Pop")
+        self.candidate.genres.add(self.genre)
+
+    def test_discover_view_recommended_reflects_genre_history(self):
+        self.client.login(username="disc_rec_listener", password="pass12345")
+        resp = self.client.get(reverse("discover"))
+        recommended_ids = {t.id for t in resp.context["recommended"]}
+        self.assertIn(self.candidate.id, recommended_ids)
+
+    def test_anonymous_discover_view_gets_nonempty_recommended(self):
+        make_track(self.creator, title="Any Public Track")
+        resp = self.client.get(reverse("discover"))
+        self.assertGreater(len(list(resp.context["recommended"])), 0)

@@ -123,35 +123,13 @@ def discover_view(request):
                 .order_by("-published_at", "-created_at")[:20]
             )
 
-    # Lightweight recommendations: last played genres or fallback to trending.
-    # (Regression fix: this block used to sit accidentally nested inside the
-    # `for pin in pins_qs` loop above, so it only ran when there was at least
-    # one active FeaturedPin — completely unrelated to why it should run.)
-    recommended = []
-    if request.user.is_authenticated:
-        recent_genres = (
-            Genre.objects.filter(tracks__play_events__user=request.user)
-            .distinct()
-            .annotate(c=Count("id"))
-            .order_by("-c")[:3]
-        )
-        if recent_genres:
-            recommended = (
-                apply_type(
-                    Track.objects.filter(
-                        status=Track.Status.APPROVED,
-                        visibility=Track.Visibility.PUBLIC,
-                        genres__in=list(recent_genres),
-                    )
-                )
-                .select_related("creator")
-                .prefetch_related("genres")
-                .distinct()
-                .order_by("-play_count")[:6]
-            )
-
-    if not recommended:
-        recommended = trending_tracks[:6]
+    # Lightweight, explainable recommendations (S12) — genre affinity +
+    # popularity + freshness, computed and cached in the service layer.
+    # See explore/services.py::get_personalized_recommendations for the
+    # scoring model and its own fallback for users with no play history.
+    recommended = services.get_personalized_recommendations(
+        request.user, content_type=selected_type, limit=6,
+    )
 
     # Suggested creators — the other half of the "reason to come back" loop:
     # followed_feed only has content once you follow someone, so new/quiet

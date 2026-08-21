@@ -200,6 +200,13 @@ class PlaybackSession(models.Model):
         FLAGGED = "flagged", "Flagged (fraud signal / anomaly)"
         CLOSED = "closed", "Closed (concluded without qualifying)"
 
+    class DeviceType(models.TextChoices):
+        DESKTOP = "desktop", "Desktop"
+        MOBILE = "mobile", "Mobile"
+        TABLET = "tablet", "Tablet"
+        BOT = "bot", "Bot/crawler"
+        UNKNOWN = "unknown", "Unknown"
+
     track = models.ForeignKey(
         "tracks.Track", on_delete=models.CASCADE, related_name="playback_sessions"
     )
@@ -224,6 +231,18 @@ class PlaybackSession(models.Model):
     source = models.CharField(
         max_length=32, default="web",
         help_text="Where the play originated: web, embed, api, progress_fallback, backfill.",
+    )
+
+    # S12 — coarse, privacy-safe analytics signals. Derived once at request
+    # time from data already collected for fraud-hashing above (plays/geo.py)
+    # — never the raw IP or full User-Agent string, only a 2-letter country
+    # code (empty when unknown/untrusted) and a coarse device category.
+    country_code = models.CharField(
+        max_length=2, blank=True, default="",
+        help_text="ISO 3166-1 alpha-2, derived from a trusted CDN geo header. Empty if unknown.",
+    )
+    device_type = models.CharField(
+        max_length=16, choices=DeviceType.choices, default=DeviceType.UNKNOWN,
     )
 
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.OPEN)
