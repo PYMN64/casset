@@ -602,3 +602,64 @@ class SetVerifiedTests(TestCase):
         self.client.post(reverse("staff:toggle_verified", args=[self.creator.id]))
         self.creator.profile.refresh_from_db()
         self.assertFalse(self.creator.profile.is_verified)
+
+
+# ---------------------------------------------------------------------------
+# AuditLog immutability (S11)
+# ---------------------------------------------------------------------------
+
+class AuditLogImmutabilityTests(TestCase):
+    """Editing or deleting an existing AuditLog row must fail explicitly —
+    the audit trail is worthless if it can be quietly rewritten."""
+
+    def setUp(self):
+        self.actor = make_user("audit_actor")
+        self.log = AuditLog.objects.create(
+            actor=self.actor,
+            target_type=AuditLog.TargetType.PROFILE,
+            action="test_action",
+            metadata={"k": "v"},
+        )
+
+    def test_creating_a_new_row_still_works(self):
+        self.assertIsNotNone(self.log.pk)
+        self.assertEqual(AuditLog.objects.count(), 1)
+
+    def test_instance_save_on_existing_row_raises(self):
+        from moderation.models import AuditLogImmutableError
+
+        self.log.action = "tampered"
+        with self.assertRaises(AuditLogImmutableError):
+            self.log.save()
+        self.log.refresh_from_db()
+        self.assertEqual(self.log.action, "test_action")
+
+    def test_instance_delete_raises(self):
+        from moderation.models import AuditLogImmutableError
+
+        with self.assertRaises(AuditLogImmutableError):
+            self.log.delete()
+        self.assertEqual(AuditLog.objects.count(), 1)
+
+    def test_queryset_bulk_update_raises(self):
+        from moderation.models import AuditLogImmutableError
+
+        with self.assertRaises(AuditLogImmutableError):
+            AuditLog.objects.filter(pk=self.log.pk).update(action="tampered")
+        self.log.refresh_from_db()
+        self.assertEqual(self.log.action, "test_action")
+
+    def test_queryset_bulk_delete_raises(self):
+        from moderation.models import AuditLogImmutableError
+
+        with self.assertRaises(AuditLogImmutableError):
+            AuditLog.objects.filter(pk=self.log.pk).delete()
+        self.assertEqual(AuditLog.objects.count(), 1)
+
+    def test_admin_has_no_add_change_delete_permission(self):
+        from django.contrib import admin as django_admin
+
+        model_admin = django_admin.site._registry[AuditLog]
+        self.assertFalse(model_admin.has_add_permission(None))
+        self.assertFalse(model_admin.has_change_permission(None))
+        self.assertFalse(model_admin.has_delete_permission(None))

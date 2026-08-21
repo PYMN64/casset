@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.db.models import Sum
 from django.utils.html import format_html
 
-from .models import DailyTrackStat, FraudFlag, PlayEvent, PointLedger
+from .models import DailyTrackStat, FraudFlag, PlaybackSession, PlayEvent, PointLedger
 
 # ---------------------------------------------------------------------------
 # PlayEvent
@@ -119,6 +119,32 @@ class FraudFlagAdmin(admin.ModelAdmin):
     def note_short(self, obj):
         return obj.note[:60] + "..." if len(obj.note) > 60 else obj.note
     note_short.short_description = "Note"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+# ---------------------------------------------------------------------------
+# PlaybackSession
+# ---------------------------------------------------------------------------
+
+@admin.register(PlaybackSession)
+class PlaybackSessionAdmin(admin.ModelAdmin):
+    list_display = (
+        "id", "track", "user", "status", "source",
+        "max_progress_ratio", "started_at", "ended_at", "disqualify_reason",
+    )
+    list_filter = ("status", "source", "started_at")
+    search_fields = ("track__title", "user__username", "ip_hash")
+    readonly_fields = (
+        "track", "user", "play_event", "ip_hash", "ua_hash", "source",
+        "status", "disqualify_reason", "max_progress_ratio",
+        "started_at", "last_seen_at", "ended_at",
+    )
+    ordering = ("-started_at",)
 
     def has_add_permission(self, request):
         return False

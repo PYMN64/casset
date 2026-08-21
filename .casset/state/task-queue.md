@@ -13,11 +13,16 @@
 
 _(همه‌ی آیتم‌های قبلی در ممیزی ۲۰۲۶-۰۸-۲۱ بررسی و به آرشیو منتقل شدند — جزئیات کامل در `.casset/state/audit-2026-08-21.md`)_
 
-_(صف فعلاً خالی است — هر ۵ آیتم S10 در همین Sprint بسته شدند، به آرشیو زیر نگاه کن.)_
+_(صف فعلاً خالی است — هر ۴ آیتم S11 در همین Sprint بسته شدند، به آرشیو زیر نگاه کن.)_
 
 ---
 
 ## آرشیو (تکمیل‌شده)
+
+- ✅ done (2026-08-22, S11) | مدل رسمی `PlaybackSession` — session جدید به‌ازای هر تلاش پخش (نه فقط هر روز)؛ `register_play`/`register_progress` بدون تغییر شکل API وصل شدند؛ data migration از `PlayEvent` موجود. ۶ تست.
+- ✅ done (2026-08-22, S11) | سیگنال ضدتقلب روی play events — Gate ۰ جدید: نرخ IP غیرعادی (نرم/سخت) + پخش کوتاه تکراری از یک کاربر؛ بلاک فقط `PointLedger`/`PlaybackSession`، هیچ‌وقت مسدودسازی حساب. ۶ تست.
+- ✅ done (2026-08-22, S11) | Immutable بودن `AuditLog` در سطح ORM — `save`/`delete` رد می‌شوند روی رکورد موجود؛ `QuerySet.update()/.delete()/.bulk_update()` هم مسدود. ۶ تست.
+- ✅ done (2026-08-22, S11) | اتصال `DailyTrackStat` به داشبورد — باگ واقعی `points_awarded` رفع شد؛ Celery beat روزانه؛ endpoint `GET /api/v1/creator/stats/`؛ دکمه‌های روزانه/هفتگی/ماهانه در `creator_studio.html`. ۱۵ تست، تایید دستی end-to-end در مرورگر.
 
 - ✅ done (2026-08-21, S10) | تأیید ایمیل برای ثبت‌نام با رمز — `accounts.models.EmailVerification` + `issue_email_verification`/`verify_email_token` در `services.py`، گیت روی `is_active` (همان مکانیزم تعلیق حساب). ۱۴ تست.
 - ✅ done (2026-08-21, S10) | Rate limit لاگین/ثبت‌نام — IP-wide (۲۰/۱۰د) + per-account روی شکست (۵/۱۵د) در `CassetLoginView.post`؛ ۶ تست.

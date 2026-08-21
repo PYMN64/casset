@@ -10,12 +10,12 @@ from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.http import JsonResponse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from tracks.models import Track
 
 from .models import FraudFlag, PlayEvent
-from .services import try_award_point
+from .services import get_creator_stats_series, start_playback_session, try_award_point
 from .utils import ip_hash, ua_hash
 
 logger = logging.getLogger("casset.plays")
@@ -138,6 +138,16 @@ def register_play(request):
 
     track.refresh_from_db(fields=["play_count"])
 
+    # Record this playback attempt for fraud-signal granularity (S11) —
+    # deliberately not deduped like PlayEvent, see plays/services.py.
+    pe = PlayEvent.objects.filter(
+        track=track, user=request.user, ip_hash=iph, day_key=day_key
+    ).first()
+    try:
+        start_playback_session(track=track, user=request.user, ip_hash=iph, ua_hash=uah, play_event=pe)
+    except Exception:
+        logger.exception("start_playback_session failed track=%s", track_id)
+
     if created:
         # check_and_notify_milestone() existed since the Notification app was
         # built but was never actually called from anywhere — dead code.
@@ -195,6 +205,7 @@ def register_progress(request):
         return JsonResponse({"ok": False, "error": "track_not_playable"}, status=403)
 
     iph = ip_hash(request)
+    uah = ua_hash(request)
     day_key = _today_key()
 
     result = try_award_point(
@@ -203,6 +214,7 @@ def register_progress(request):
         day_key=day_key,
         progress_ratio=progress,
         listener_user=request.user,
+        ua_hash=uah,
     )
 
     return JsonResponse({
@@ -210,3 +222,26 @@ def register_progress(request):
         "awarded": result.awarded,
         "reason": result.reason,
     })
+
+
+@require_GET
+def api_creator_stats(request):
+    """Plays/points series for the logged-in creator's own tracks, sourced
+    from DailyTrackStat (S11) — for the studio dashboard's trend chart.
+
+    GET params:
+        range (str): "daily" (last 30 days), "weekly" (last 12 weeks), or
+            "monthly" (last 12 months). Defaults to "daily".
+
+    Returns JSON:
+        {ok, range, series: [{label, plays, unique_plays, points}, ...]}
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "auth_required"}, status=401)
+
+    granularity = request.GET.get("range", "daily")
+    if granularity not in ("daily", "weekly", "monthly"):
+        granularity = "daily"
+
+    series = get_creator_stats_series(creator=request.user, granularity=granularity)
+    return JsonResponse({"ok": True, "range": granularity, "series": series})

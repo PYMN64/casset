@@ -1,7 +1,33 @@
 # Casset Current State
 
-> **۲۰۲۶-۰۸-۲۱ — ممیزی کامل انجام شد، فاز ۲ رسماً تعریف شد.** اول
-> `.casset/state/audit-2026-08-21.md` را بخوان، بعد
+> **۲۰۲۶-۰۸-۲۲ — S11 بسته شد.** طبق قانون طلایی `CLAUDE.md` بخش ۵، این بلوک
+> بعد از هر تسک/اسپرینت جایگزین می‌شود (نه اضافه، جایگزینی کامل):
+>
+> **آخرین تسک تمام‌شده:** هر ۴ آیتم S11 — `PlaybackSession` رسمی + اتصال به
+> `register_play`/`register_progress`، سیگنال ضدتقلب (Gate ۰: IP burst،
+> پخش کوتاه تکراری)، Immutable بودن `AuditLog` در سطح ORM، اتصال
+> `DailyTrackStat` به داشبورد استودیوی سازنده (endpoint + Celery beat روزانه +
+> دکمه‌های روزانه/هفتگی/ماهانه). جزئیات کامل: `.casset/execution/logs/s11-log.md`.
+> **فایل‌های تغییریافته:** `plays/models.py`, `plays/services.py`,
+> `plays/views.py`, `plays/urls.py`, `plays/tasks.py` (جدید),
+> `plays/admin.py`, `plays/management/commands/aggregate_stats.py`,
+> `plays/migrations/0004_*`, `plays/migrations/0005_*` (data migration)،
+> `moderation/models.py`, `config/settings/base.py`,
+> `templates/accounts/creator_studio.html`, تست‌های هر سه اپ.
+> **تست:** ۶۶۰ تست سبز روی SQLite (از ۶۴۵)، پوشش ۹۲٪ (بدون افت)،
+> `ruff check .` تمیز، بدون migration drift. تایید دستی end-to-end در
+> مرورگر برای بخش داشبورد. ۵ شکست پیش‌موجود و نامرتبط
+> (`core.tests_settings_secrets`, مشکل Winsock محلی ویندوز) — جزئیات در لاگ.
+> **وضعیت commit:** merge شده روی `master` و push شده به `origin/master`
+> (طبق تایید صریح کاربر در چت، به‌جای برنچ جداگانه + PR طبق بریف اولیه).
+> **قدم بعدی پیشنهادی:** شروع S12 — آنالیتیکس عمیق‌تر سازنده (breakdown
+> جغرافیا/دستگاه) + لایه‌ی توصیه‌ی سبک روی Discover، طبق
+> `.casset/releases/v2.1.0-phase2-plan.md` بخش S12.
+> **نکات باز:** تایید کامل روی PostgreSQL واقعی این نشست ممکن نشد (محدودیت
+> محیطی pgserver محلی) — قبل از merge/deploy بعدی، `scripts/local_postgres.py
+> test` را روی یک محیط با دسترسی کامل اجرا کن.
+>
+> قبلی از این بلوک: `.casset/state/audit-2026-08-21.md` را بخوان، بعد
 > `.casset/releases/v2.1.0-phase2-plan.md`.
 
 ## v2.0.0 — "Orange Noir v2 / MVP قابل انتشار" (2026-08-21) — CURRENT BASELINE
@@ -185,12 +211,18 @@ Agent system is designed but intentionally not activated as autonomous developme
 All architectural changes are recorded in `.casset/state/changelog.md`.
 Read that file at the start of every session to know what has changed and why.
 
-## Test coverage baseline (2026-08-21, post-S10, current)
-`coverage run --source=. manage.py test` → **92% overall**, 629 tests, `OK (skipped=1)`.
+## Test coverage baseline (2026-08-22, post-S11, current)
+`coverage run --source=. manage.py test` → **92% overall**, 660 tests, `OK (skipped=1)`.
+Up from 645/92% (post-S10) after S11 (PlaybackSession, play-event fraud signals, AuditLog
+ORM-level immutability, DailyTrackStat wired into the creator studio dashboard) added 15 tests
+with no coverage regression — see `.casset/execution/logs/s11-log.md`.
+Full HTML report regeneratable with `coverage html` (not committed, `.gitignore`d).
+
+### (superseded) 2026-08-21 post-S10 baseline
+`coverage run --source=. manage.py test` → 92% overall, 629 tests, `OK (skipped=1)`.
 Up from 591/92% (pre-Phase-2 audit baseline) after S10 (email verification, login/register
 rate limiting, settings fail-fast confirmation, scheduled backup, CI) added 37 tests with no
-coverage regression — see `.casset/execution/logs/s10-log.md` and the changelog entry above.
-Full HTML report regeneratable with `coverage html` (not committed, `.gitignore`d).
+coverage regression — see `.casset/execution/logs/s10-log.md`.
 
 ### (superseded) 2026-08-21 pre-S10 baseline
 `coverage run --source=. manage.py test` → 92% overall, 591 tests, `OK (skipped=1)`.
