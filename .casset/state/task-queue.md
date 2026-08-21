@@ -13,11 +13,17 @@
 
 _(همه‌ی آیتم‌های قبلی در ممیزی ۲۰۲۶-۰۸-۲۱ بررسی و به آرشیو منتقل شدند — جزئیات کامل در `.casset/state/audit-2026-08-21.md`)_
 
-- ⬜ pending | `config/settings/base.py` را بررسی کن: آیا `SECRET_KEY`, `PLAY_IP_SALT`, `PLAY_UA_SALT` در نبود env واقعاً fail می‌کنند یا fallback بی‌صدا دارند؟ فقط گزارش بده، تغییر نده مگر آیتم بعدی صریحاً اجازه بدهد. (این یکی تنها آیتم باز مانده — بررسی کد در ممیزی ۰۸-۲۱ انجام نشد، نیاز به بازبینی مستقیم `base.py` دارد. اولین آیتم S10 در سند فاز ۲.)
+_(صف فعلاً خالی است — هر ۵ آیتم S10 در همین Sprint بسته شدند، به آرشیو زیر نگاه کن.)_
 
 ---
 
 ## آرشیو (تکمیل‌شده)
+
+- ✅ done (2026-08-21, S10) | تأیید ایمیل برای ثبت‌نام با رمز — `accounts.models.EmailVerification` + `issue_email_verification`/`verify_email_token` در `services.py`، گیت روی `is_active` (همان مکانیزم تعلیق حساب). ۱۴ تست.
+- ✅ done (2026-08-21, S10) | Rate limit لاگین/ثبت‌نام — IP-wide (۲۰/۱۰د) + per-account روی شکست (۵/۱۵د) در `CassetLoginView.post`؛ ۶ تست.
+- ✅ done (2026-08-21, S10) | بررسی `SECRET_KEY`/`PLAY_IP_SALT`/`PLAY_UA_SALT` — **نتیجه: از قبل درست fail-fast بود** (`_require_secret` در `base.py`)، فقط تست تاییدی (واحد + subprocess-integration واقعی روی `config.settings.prod`) اضافه شد، کد تغییر نکرد. ۶ تست.
+- ✅ done (2026-08-21, S10) | بک‌آپ خودکار زمان‌بندی‌شده — `core/backup.py` + Celery beat (`core.backup_database`، روزانه ۰۳:۰۰ قابل‌تنظیم) آپلود به Object Storage پیکربندی‌شده (`default_storage`)؛ دستور دستی `backup_db` دست‌نخورده ماند. ۱۱ تست.
+- ✅ done (2026-08-21, S10) | CI واقعی + `.gitattributes` — `.github/workflows/ci.yml` (ruff + migrations check + full test + coverage)، `.gitattributes` با `* text=auto eol=lf`. ۸ خطای ruff از قبل موجود در اسکریپت‌های avatar هم مکانیکی رفع شد تا gate سبز باشد.
 
 - ✅ done (2026-08-21) | حذف `config/settings.py` — تایید نهایی: فایل در فایل‌سیستم وجود ندارد، هیچ import برهنه‌ای در کد پیدا نشد. بسته.
 - ✅ done (2026-08-21) | پاکسازی ریشه مخزن — **یافته ممیزی:** از قبل کامل انجام شده. `.gitignore` همین حالا `db.sqlite3.backup*`، `*.zip`، `__pycache__/`، `*.egg-info/` را پوشش می‌دهد و `git ls-files` تأیید کرد هیچ‌کدام tracked نیستند. فایل‌های `folders.txt`/`project_structure.txt` روی دیسک اصلاً وجود ندارند (قبلاً حذف شده‌اند). کاری لازم نبود.
