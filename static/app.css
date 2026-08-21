@@ -363,7 +363,14 @@ h2{ font-size: 20px; font-weight: 900; }
   display:none;
   position: sticky;
   top: 92px;
-  height: calc(100vh - 92px - 16px);
+  /* Fixed sticky height with no scroll used to clip the VIP card and the
+     now-playing hint off the bottom on shorter laptop viewports whenever
+     the nav had enough links to fill the box (base.html renders 4-8
+     depending on auth state). overflow-y:auto lets the box itself scroll
+     instead of silently pushing content past the visible viewport. */
+  max-height: calc(100vh - 92px - 16px);
+  overflow-y: auto;
+  scrollbar-width: thin;
   align-self: start;
   border:1px solid var(--line);
   border-radius: var(--radius-3);

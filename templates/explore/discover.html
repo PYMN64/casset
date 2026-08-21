@@ -46,8 +46,9 @@
     <div class="creator-strip">
       {% for u in suggested_creators %}
         <a class="creator-chip" href="{{ u.profile.profile_url }}">
-          <span class="creator-chip__av"
-                {% if u.profile.avatar %}style="background-image:url('{{ u.profile.avatar|thumbnail_url:'160x160' }}')"{% endif %}></span>
+          <span class="creator-chip__av" aria-hidden="true"
+                {% if u.profile.avatar %}style="background-image:url('{{ u.profile.avatar|thumbnail_url:'160x160' }}')"{% else %}data-empty="1"{% endif %}
+                >{% if not u.profile.avatar %}{{ u.profile.public_name|slice:":1"|upper }}{% endif %}</span>
           <span class="creator-chip__name">{{ u.profile.public_name }}</span>
         </a>
       {% endfor %}
