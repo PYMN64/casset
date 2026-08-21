@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}تایید ایمیل | کست{% endblock %}
+
+{% block content %}
+<div class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      <span class="auth__mark" aria-hidden="true"><svg class="icon"><use href="#i-alert"/></svg></span>
+      کست
+    </div>
+    <h1 class="auth__title">لینک تایید نامعتبر است</h1>
+
+    <div class="notice notice--bad" role="alert">
+      <svg class="icon"><use href="#i-alert"/></svg>
+      <div>
+        {% if error == "expired" %}
+          این لینک منقضی شده است. یک لینک تازه درخواست کن.
+        {% else %}
+          این لینک تایید معتبر نیست یا قبلاً استفاده شده است.
+        {% endif %}
+      </div>
+    </div>
+
+    <a class="btn btn--primary btn--block" href="{% url 'resend_verification_email' %}">
+      ارسال دوباره ایمیل تایید
+    </a>
+    <div class="auth__foot"><a href="{% url 'login' %}">بازگشت به ورود</a></div>
+  </div>
+</div>
+{% endblock %}

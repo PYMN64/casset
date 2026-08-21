@@ -60,7 +60,36 @@ class LoginForm(AuthenticationForm):
     error_messages = {
         **AuthenticationForm.error_messages,
         "inactive": "این حساب تعلیق شده است.",
+        "email_unverified": "ایمیل شما هنوز تایید نشده است. صندوق ایمیلت را بررسی کن.",
     }
+
+    def confirm_login_allowed(self, user):
+        """A password account whose e-mail is unverified is also
+        `is_active=False` (see accounts/views.py::register_view), but that
+        must not surface as the generic "account suspended" message — the
+        fix is completely different (check your inbox / resend), so it
+        needs its own error and a link the view can act on.
+
+        Gated on `email_verifications.exists()`, not just
+        `not profile.email_verified`: an account created before this
+        feature existed (or through admin/seed/OTP/Google, which never
+        issue this token) also has no verified-at timestamp, but was never
+        asked to verify anything — a manual suspension of one of those
+        must still show the plain "suspended" message, not send a
+        long-standing user into a verify-your-email dead end.
+        """
+        profile = getattr(user, "profile", None)
+        if (
+            profile is not None
+            and profile.auth_provider == UserProfile.AuthProvider.PASSWORD
+            and not profile.email_verified
+            and user.email_verifications.exists()
+        ):
+            self.unverified_email = user.email
+            raise forms.ValidationError(
+                self.error_messages["email_unverified"], code="email_unverified",
+            )
+        super().confirm_login_allowed(user)
 
 
 class ProfileSettingsForm(forms.ModelForm):
@@ -121,6 +150,15 @@ class ProfileSettingsForm(forms.ModelForm):
         if commit:
             profile.save()
         return profile
+
+
+class ResendVerificationForm(forms.Form):
+    email = forms.EmailField(
+        label="ایمیل",
+        widget=forms.EmailInput(attrs={
+            "autocomplete": "email", "placeholder": "you@example.com", "dir": "ltr",
+        }),
+    )
 
 
 class PhoneStartForm(forms.Form):

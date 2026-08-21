@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}ایمیل تایید ارسال شد | کست{% endblock %}
+{% block meta_description %}حساب کست خود را با تایید ایمیل فعال کن.{% endblock %}
+
+{% block content %}
+<div class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      <span class="auth__mark" aria-hidden="true"><svg class="icon"><use href="#i-mail"/></svg></span>
+      کست
+    </div>
+    <h1 class="auth__title">یک قدم مانده</h1>
+    <p class="auth__sub">حساب تو ساخته شد. برای فعال‌سازی، ایمیل تایید را دنبال کن.</p>
+
+    <div class="notice notice--good">
+      <svg class="icon"><use href="#i-mail"/></svg>
+      <div>
+        یک ایمیل تایید به <strong dir="ltr">{{ email }}</strong> ارسال شد.
+        صندوق ورودی (و پوشه‌ی هرزنامه) را بررسی کن. لینک تا ۲۴ ساعت معتبر است.
+      </div>
+    </div>
+
+    <div class="auth__foot">
+      ایمیل نرسید؟ <a href="{% url 'resend_verification_email' %}">ارسال دوباره</a>
+    </div>
+    <div class="auth__foot"><a href="{% url 'login' %}">بازگشت به ورود</a></div>
+  </div>
+</div>
+{% endblock %}

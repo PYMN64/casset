@@ -1,0 +1,26 @@
+# Casset — normalize line endings to LF on checkout for every text file,
+# regardless of the contributor's OS/editor. This closes the class of bug
+# documented in .casset/state/audit-2026-08-21.md (235 files falsely shown
+# as "modified" purely from CRLF line endings, with zero real content
+# changes) for good, instead of relying on everyone's local git config.
+* text=auto eol=lf
+
+# Binary assets — never let git's own text-detection heuristic touch these,
+# regardless of the blanket rule above.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.mp3 binary
+*.wav binary
+*.ogg binary
+*.flac binary
+*.pdf binary
+*.sqlite3 binary
+*.sqlite3.backup* binary

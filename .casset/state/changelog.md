@@ -17,6 +17,85 @@
 > **قانون:** هر Claude که تغییری روی پروژه می‌ده، باید یک entry جدید بالای خط
 > `## [2026-08-17] اسکن کامل پروژه — باگ‌های کریتیکال، Security، تست و نقص‌ها
 
+## [2026-08-21] S10 — بستن شکاف‌های امنیتی/عملیاتی فاز ۲ — ✅ بسته شد
+
+**نوع:** Architecture + Config + Docs
+**برنچ:** `claude/s10-security-ops-r0osad` (بر اساس `master` بعد از تگ `v2.0.0`)
+**فایل‌های تغییرکرده:** `accounts/{models,services,forms,views,urls,tests}.py`,
+`accounts/migrations/0006_emailverification.py`,
+`accounts/tests_{email_verification,rate_limit}.py`,
+`templates/accounts/{login,verify_email_sent,verify_email_result,verify_email_resend,verification_email,verification_email_subject}.{html,txt}`,
+`config/settings/base.py`, `core/{backup,tasks}.py`, `core/tests_{backup,settings_secrets}.py`,
+`.casset/ops/backup.md`, `.env.example`, `.github/workflows/ci.yml`, `.gitattributes`,
+`accounts/management/commands/generate_avatars.py`, `scripts/generate_avatars.py`
+
+**تصمیم:** پیاده‌سازی دقیقاً ۵ آیتم S10 طبق `.casset/releases/v2.1.0-phase2-plan.md`
+§۵ — همان ترتیب، بدون scope creep:
+
+1. **تأیید ایمیل ثبت‌نام با رمز.** `UserProfile.email_verified_at` از قبل
+   وجود داشت (برای گوگل)؛ به‌جای فیلد بولی جدید، همان reuse شد. مدل جدید
+   `EmailVerification` (شکل مشابه `PhoneOTP`: token هش‌شده sha256، انقضای
+   ۲۴ساعته، یک‌بارمصرف). ثبت‌نام با رمز حالا حساب را `is_active=False`
+   می‌سازد (**همان** مکانیزمی که تعلیق حساب استفاده می‌کند — نه یک لایه
+   موازی)، لاگین می‌گیرد فقط بعد از verify. **باگ واقعی در حین توسعه پیدا و
+   رفع شد:** چک اولیه‌ی `confirm_login_allowed` بر اساس `not email_verified`
+   تنها، تست موجود `test_suspended_user_blocked_with_persian_message` را
+   می‌شکست — یک حساب legacy که مستقیم `is_active=False` شده (نه از مسیر
+   ثبت‌نام جدید) پیام «ایمیل تایید نشده» می‌گرفت به‌جای «حساب تعلیق شده».
+   رفع شد با گیت اضافه `user.email_verifications.exists()` — فقط حسابی که
+   واقعاً از مسیر ثبت‌نام جدید یک ردیف EmailVerification گرفته این پیام را
+   می‌بیند.
+2. **Rate limit لاگین/ثبت‌نام.** بدون وابستگی جدید (نه در pyproject بود، نه
+   اضافه شد) — همان الگوی cache-counter که OTP از قبل دارد
+   (`accounts/views.py::_rate_limited`) تعمیم یافت: یک سقف IP-wide (۲۰
+   درخواست/۱۰دقیقه) + یک سقف per-account روی **فقط تلاش‌های ناموفق**
+   (۵/۱۵دقیقه، تا کاربر واقعی که یکی-دوبار اشتباه تایپ کرده قفل نشود).
+   هر دو قبل از رسیدن به auth backend چک می‌شوند و ۴۲۹ با پیام فارسی
+   برمی‌گردانند، نه یک صفحه خطای خام.
+3. **بررسی SECRET_KEY/PLAY_IP_SALT/PLAY_UA_SALT.** نتیجه: **از قبل درست
+   fail-fast بود** (`config/settings/base.py::_require_secret`) — این
+   آیتم در سند فاز ۲ به‌عنوان «بررسی نشده» علامت‌گذاری شده بود، نه «باگ
+   شناخته‌شده». صرفاً تست تاییدی اضافه شد: واحد مستقیم روی `_require_secret`
+   + یک تست subprocess که واقعاً `config.settings.prod` را در یک پردازش
+   جدا با env ناقص بالا می‌آورد و ImproperlyConfigured واقعی را تایید
+   می‌کند (نه فقط شبیه‌سازی).
+4. **بک‌آپ خودکار.** `backup_db` (دستور دستی موجود، فقط دیسک محلی) دست‌نخورده
+   ماند؛ یک مسیر جدید و مستقل اضافه شد: `core/backup.py::run_database_backup`
+   + Celery beat (`core.backup_database`، پیش‌فرض روزانه ۰۳:۰۰، قابل‌تنظیم با
+   `BACKUP_SCHEDULE_HOUR`/`MINUTE`) که pg_dump را در یک دایرکتوری موقت اجرا
+   و نتیجه را در Object Storage پیکربندی‌شده‌ی پروژه (`default_storage` —
+   همان S3-compatible backend مدیا) زیر `backups/` آپلود می‌کند، بعد فایل
+   موقت را حذف. شکست (pg_dump غایب/خطا/موتور غیر-Postgres) `BackupError`
+   پرتاب می‌کند — Celery این را FAILED ثبت می‌کند، نه no-op خاموش.
+5. **CI واقعی + `.gitattributes`.** `.github/workflows/ci.yml` — روی هر PR و
+   push به `master`: نصب (`pip install -e ".[dev]"`)، `ruff check .`،
+   `makemigrations --check --dry-run`، `manage.py check`،
+   `coverage run --source=. manage.py test` + گزارش + آپلود artifact. Python
+   3.12 (کف بازه‌ی `pyproject.toml`). `.gitattributes` با
+   `* text=auto eol=lf` + مارک `binary` صریح روی فایل‌های مدیا/فونت — دقیقاً
+   راه‌حلی که ممیزی ۲۰۲۶-۰۸-۲۱ برای مشکل «۲۳۵ فایل CRLF کاذب» پیشنهاد داده
+   بود. فعال‌کردن این gate نیاز داشت ۸ خطای ruff از قبل موجود (ترتیب import،
+   یک import بلااستفاده) در `scripts/generate_avatars.py` و نسخه‌ی
+   `accounts/management/commands` آن مکانیکی رفع شود — بدون تغییر رفتار.
+
+**اثر:** **۶۲۹ تست سبز** روی SQLite (۵۹۲ baseline + ۳۷ تست S10)، `ruff check .`
+تمیز در کل مخزن، پوشش تست همچنان **۹۲٪** (بدون افت). تایید روی PostgreSQL
+واقعی (طبق روال همیشگی پروژه) این‌بار **انجام نشد** — محیط sandbox این نشست
+TCP loopback را برای سرور `pgserver` مسدود می‌کند (سرور بالا آمد و از طریق
+Unix socket واقعاً پاسخ داد؛ فقط `127.0.0.1:5432` قابل‌دسترس نبود)، یک
+محدودیت محیطی مستند، نه یک باگ. هیچ‌کدام از کد جدید این Sprint از SQL خام یا
+aggregate خاص دیتابیس استفاده نمی‌کند (کلاس باگی که این تایید قبلاً لو داده
+بود، مثل مورد #۱۳ تاریخی) — ریسک واقعی کم است، ولی توصیه می‌شود قبل از merge
+نهایی، `python scripts/local_postgres.py test` یک‌بار دیگر در محیطی با
+دسترسی TCP کامل اجرا شود.
+
+**وضعیت CLAUDE.md:** بخش کاری فعال (`.casset/releases/v2.1.0-phase2-plan.md`)
+— S10 از پنج مورد فاز ۲ به «بسته» تغییر کرد؛ S11 (PlaybackSession رسمی، سیگنال
+ضدتقلب، audit log immutability، اتصال DailyTrackStat) بعدی است. جزئیات کامل
+هر تسک با شاهد تست: `.casset/execution/logs/s10-log.md`.
+
+---
+
 ## [2026-08-21] فاز ۱ رسماً بسته شد؛ پاکسازی مستندات + ورود به فاز ۲ — ✅ بسته شد
 
 **نوع:** Docs + Config + Housekeeping (بدون تغییر کد منطق برنامه)

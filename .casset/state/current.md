@@ -185,11 +185,17 @@ Agent system is designed but intentionally not activated as autonomous developme
 All architectural changes are recorded in `.casset/state/changelog.md`.
 Read that file at the start of every session to know what has changed and why.
 
-## Test coverage baseline (2026-08-21, post-audit, current)
-`coverage run --source=. manage.py test` → **92% overall**, 591 tests, `OK (skipped=1)`.
+## Test coverage baseline (2026-08-21, post-S10, current)
+`coverage run --source=. manage.py test` → **92% overall**, 629 tests, `OK (skipped=1)`.
+Up from 591/92% (pre-Phase-2 audit baseline) after S10 (email verification, login/register
+rate limiting, settings fail-fast confirmation, scheduled backup, CI) added 37 tests with no
+coverage regression — see `.casset/execution/logs/s10-log.md` and the changelog entry above.
+Full HTML report regeneratable with `coverage html` (not committed, `.gitignore`d).
+
+### (superseded) 2026-08-21 pre-S10 baseline
+`coverage run --source=. manage.py test` → 92% overall, 591 tests, `OK (skipped=1)`.
 Re-measured 2026-08-21 as part of the pre-Phase-2 audit (see `.casset/state/audit-2026-08-21.md`);
 supersedes the stale 81%/242-test number below, which predated Phase 2 through the professional pass.
-Full HTML report regeneratable with `coverage html` (not committed, `.gitignore`d).
 
 ### (superseded) 2026-08-19 baseline
 `coverage run --source=. manage.py test` → 81% overall (242 tests, 2640 statements, 494 missed).

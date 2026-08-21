@@ -327,6 +327,168 @@ def resolve_google_user(identity: dict):
     return user, created
 
 
+
+# ===========================================================================
+# Email verification (password sign-up only — Google already proves the
+# address, and phone OTP doesn't use one). See accounts/views.py::
+# register_view / verify_email_view / resend_verification_email_view.
+# ===========================================================================
+
+#: How long a verification link stays usable. Longer than the OTP TTL on
+#: purpose: this arrives by e-mail, which people check less immediately
+#: than an SMS, and the account is merely inert (not published/dangerous)
+#: while unverified.
+EMAIL_VERIFICATION_TTL = timedelta(hours=24)
+#: Minimum gap between two verification e-mails to the same account.
+EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS = 60
+
+
+def _hash_email_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def send_verification_email(user, request, token: str) -> None:
+    """E-mail *user* a verification link built from a live request, so it
+    points at whatever host actually served the request — the same
+    approach Django's own PasswordResetForm uses via get_current_site.
+
+    Never raises: like send_otp_sms, a delivery failure must not break
+    sign-up. It's logged so a provider/SMTP outage is visible in
+    ops/Sentry rather than silent.
+    """
+    from django.core.mail import send_mail
+    from django.template.loader import render_to_string
+    from django.urls import reverse
+    from django.utils.encoding import force_bytes
+    from django.utils.http import urlsafe_base64_encode
+
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    path = reverse("verify_email", kwargs={"uidb64": uid, "token": token})
+    context = {"user": user, "verify_url": request.build_absolute_uri(path)}
+    subject = render_to_string("accounts/verification_email_subject.txt", context).strip()
+    body = render_to_string("accounts/verification_email.txt", context)
+    try:
+        send_mail(subject, body, None, [user.email], fail_silently=False)
+    except Exception:
+        logger.exception("send_verification_email: failed for user=%s", user.id)
+
+
+def issue_email_verification(user, request) -> str:
+    """Create and send a fresh e-mail verification token for *user*.
+
+    Returns the plaintext token — production callers only need the side
+    effect (the e-mail); tests use the return value to verify without
+    parsing an outbox message.
+    """
+    from .models import EmailVerification
+
+    token = secrets.token_urlsafe(32)
+    EmailVerification.objects.create(
+        user=user,
+        token_hash=_hash_email_token(token),
+        expires_at=timezone.now() + EMAIL_VERIFICATION_TTL,
+    )
+    send_verification_email(user, request, token)
+    return token
+
+
+def seconds_until_email_resend(user) -> int:
+    """Mirrors `_seconds_until_resend` for phone OTP, keyed to a user
+    instead of a phone number."""
+    from .models import EmailVerification
+
+    last = EmailVerification.objects.filter(user=user).order_by("-created_at").first()
+    if not last:
+        return 0
+    elapsed = (timezone.now() - last.created_at).total_seconds()
+    return max(0, int(EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS - elapsed))
+
+
+def find_unverified_user_by_email(email: str):
+    """Look up an account eligible for a *resend* of its verification link.
+
+    Returns None for "no such account", "already verified", or "not a
+    password account" alike — the caller (resend view) must show the same
+    generic message in every case, or the endpoint becomes an oracle for
+    testing which e-mails have an account on Casset.
+    """
+    from .models import UserProfile
+
+    email = (email or "").strip().lower()
+    if not email:
+        return None
+
+    user_model = get_user_model()
+    user = (
+        user_model.objects.filter(email__iexact=email, is_active=False)
+        .select_related("profile")
+        .order_by("id")
+        .first()
+    )
+    if not user:
+        return None
+
+    profile = getattr(user, "profile", None)
+    if profile is None or profile.auth_provider != UserProfile.AuthProvider.PASSWORD:
+        return None
+    if profile.email_verified:
+        return None
+    return user
+
+
+def verify_email_token(uidb64: str, token: str):
+    """Redeem an e-mail verification link.
+
+    Returns (ok, user_or_none, error_code). error_code is one of
+    "bad_link" or "expired". Burns the row inside a transaction so the
+    same link cannot be redeemed twice by concurrent requests; clicking an
+    already-used-but-valid link again is treated as success (idempotent —
+    the account is already verified) rather than an error.
+    """
+    from django.utils.encoding import force_str
+    from django.utils.http import urlsafe_base64_decode
+
+    from .models import EmailVerification, UserProfile
+
+    user_model = get_user_model()
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = user_model.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, user_model.DoesNotExist):
+        return False, None, "bad_link"
+
+    token_hash = _hash_email_token(token)
+    with transaction.atomic():
+        record = (
+            EmailVerification.objects.select_for_update()
+            .filter(user=user, token_hash=token_hash)
+            .first()
+        )
+        if not record:
+            return False, None, "bad_link"
+
+        if record.is_used:
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            if profile.email_verified:
+                return True, user, ""
+            return False, None, "bad_link"
+
+        if record.expires_at < timezone.now():
+            return False, None, "expired"
+
+        record.is_used = True
+        record.save(update_fields=["is_used"])
+
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    profile.email_verified_at = timezone.now()
+    profile.save(update_fields=["email_verified_at"])
+
+    user.is_active = True
+    user.save(update_fields=["is_active"])
+
+    return True, user, ""
+
+
 def attach_phone_to_user(user, phone: str):
     """Bind a freshly-verified phone number to an existing account.
 

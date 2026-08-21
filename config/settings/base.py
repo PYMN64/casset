@@ -336,10 +336,17 @@ CELERY_TIMEZONE = TIME_ZONE
 # Periodic tasks (needs a separate `celery -A config beat` process in prod;
 # CELERY_TASK_ALWAYS_EAGER dev/test doesn't run these on a schedule at all —
 # call the task function directly in a shell/test instead).
+BACKUP_SCHEDULE_HOUR = int(os.getenv("BACKUP_SCHEDULE_HOUR", "3"))
+BACKUP_SCHEDULE_MINUTE = int(os.getenv("BACKUP_SCHEDULE_MINUTE", "0"))
+
 CELERY_BEAT_SCHEDULE = {
     "creator-weekly-digest": {
         "task": "notifications.send_creator_weekly_digest",
         "schedule": crontab(day_of_week="monday", hour=6, minute=0),  # 09:30 Asia/Tehran-ish
+    },
+    "daily-database-backup": {
+        "task": "core.backup_database",
+        "schedule": crontab(hour=BACKUP_SCHEDULE_HOUR, minute=BACKUP_SCHEDULE_MINUTE),
     },
 }
 

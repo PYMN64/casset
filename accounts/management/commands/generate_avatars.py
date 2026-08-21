@@ -1,9 +1,10 @@
-from django.core.management.base import BaseCommand
+import random
+from io import BytesIO
+
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
+from django.core.management.base import BaseCommand
 from PIL import Image, ImageDraw
-from io import BytesIO
-import random
 
 COLORS = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',

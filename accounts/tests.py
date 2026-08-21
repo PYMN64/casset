@@ -48,6 +48,10 @@ class RegisterViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
 
     def test_valid_registration_creates_user_and_profile(self):
+        """Registration creates the account inactive and renders the
+        "check your inbox" page directly (200), not a redirect into a
+        logged-in session — the account isn't usable until the e-mail
+        verification link is redeemed (see accounts/tests_email_verification.py)."""
         resp = self.client.post(reverse("register"), {
             "username": "newuser1",
             "password1": "V3ryStr0ngPass!",
@@ -55,10 +59,12 @@ class RegisterViewTests(TestCase):
             "email": "new@example.com",
             "accept_terms": "on",
         })
-        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.status_code, 200)
         user = User.objects.get(username="newuser1")
         self.assertTrue(UserProfile.objects.filter(user=user).exists())
         self.assertEqual(user.profile.auth_provider, UserProfile.AuthProvider.PASSWORD)
+        self.assertFalse(user.is_active)
+        self.assertFalse(resp.wsgi_request.user.is_authenticated)
 
     def test_registration_refused_without_accepting_terms(self):
         """The consent checkbox is a gate, not decoration."""

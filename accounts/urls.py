@@ -20,7 +20,9 @@ from .views import (
     profile_legacy_redirect,
     public_profile,
     register_view,
+    resend_verification_email_view,
     settings_view,
+    verify_email_view,
 )
 
 urlpatterns = [
@@ -90,6 +92,8 @@ urlpatterns = [
     ),
 
     path("register/", register_view, name="register"),
+    path("verify-email/resend/", resend_verification_email_view, name="resend_verification_email"),
+    path("verify-email/<uidb64>/<token>/", verify_email_view, name="verify_email"),
     path("dashboard/", dashboard_view, name="dashboard"),
     path("settings/", settings_view, name="settings"),
     path("settings/deactivate/", deactivate_account, name="deactivate_account"),
