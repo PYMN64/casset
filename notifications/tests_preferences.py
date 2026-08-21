@@ -6,6 +6,7 @@ keeps growing. These tests assert that, and assert the two verbs that must
 never be suppressible really are not.
 """
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from core.test_utils import make_user
@@ -18,6 +19,8 @@ from .services import (
     notify_track_liked,
     notify_track_rejected,
 )
+
+User = get_user_model()
 
 
 class NotificationPreferenceTests(TestCase):
@@ -97,6 +100,25 @@ class NotificationPreferenceTests(TestCase):
 
         self.assertEqual(self._unread("track_approved"), 1)
         self.assertEqual(self._unread("track_rejected"), 1)
+
+    def test_opt_out_applies_to_a_recipient_object_loaded_before_the_row(self):
+        """Regression: the gate used to read recipient.notification_preference,
+        a reverse OneToOne whose "no row" result Django caches on the
+        instance. A recipient loaded before the preference existed was then
+        answered from that stale cache and the opt-out was ignored — which
+        is precisely the shape a real request takes when the user saves
+        settings and something notifies them moments later.
+        """
+        stale = User.objects.get(pk=self.creator.pk)
+        # Prime the descriptor cache while no row exists.
+        self.assertIsNone(getattr(stale, "notification_preference", None))
+
+        pref = NotificationPreference.for_user(self.creator)
+        pref.track_liked = False
+        pref.save()
+
+        notify_track_liked(liker=self.actor, track=self.track)
+        self.assertEqual(self._unread("track_liked"), 0)
 
     def test_allows_reports_true_for_unknown_verbs(self):
         """A verb added later must default to delivered, not silently

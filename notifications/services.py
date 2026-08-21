@@ -196,11 +196,24 @@ def _allowed(recipient, verb) -> bool:
     """
     from .models import NotificationPreference
 
-    pref = getattr(recipient, "notification_preference", None)
+    if verb in NotificationPreference.ALWAYS_ON:
+        return True
+
+    # Queried, not read off the instance.
+    #
+    # `recipient.notification_preference` is a reverse OneToOne, and Django
+    # caches its result — including the "no row" outcome — on the instance.
+    # A recipient object loaded before the row was written (or one that
+    # touched the descriptor earlier in the request) would then be answered
+    # from that stale cache and the opt-out would be ignored. Caught in
+    # exactly that shape during flow QA. One indexed lookup on a unique
+    # column is a cheap price for an answer that is always current, and
+    # this path already does a select_for_update plus an insert.
+    pref = NotificationPreference.objects.filter(user_id=recipient.pk).first()
     if pref is None:
         # Never create rows on the notification hot path; absence is a
         # valid, permissive state (see NotificationPreference docstring).
-        return verb in NotificationPreference.ALWAYS_ON or _default_allows(verb)
+        return _default_allows(verb)
     return pref.allows(verb)
 
 
