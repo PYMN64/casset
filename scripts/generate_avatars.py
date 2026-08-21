@@ -4,20 +4,21 @@ Generate avatars and profile covers for all existing users.
 Fast & simple: uses initials + random colors.
 """
 import os
+import random
 import sys
-import django
 from io import BytesIO
 from pathlib import Path
+
+import django
 
 # Django setup
 sys.path.insert(0, str(Path(__file__).parent.parent))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.dev')
 django.setup()
 
-from django.contrib.auth.models import User
-from django.core.files.base import ContentFile
-from PIL import Image, ImageDraw, ImageFont
-import random
+from django.contrib.auth.models import User  # noqa: E402
+from django.core.files.base import ContentFile  # noqa: E402
+from PIL import Image, ImageDraw  # noqa: E402
 
 COLORS = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
