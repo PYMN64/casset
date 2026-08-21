@@ -28,16 +28,21 @@ from .forms import (
     PhoneVerifyForm,
     ProfileSettingsForm,
     RegisterForm,
+    ResendVerificationForm,
 )
 from .models import PhoneOTP, UserProfile
 from .services import (
     OTP_ERROR_MESSAGES,
     OTP_RESEND_COOLDOWN_SECONDS,
     attach_phone_to_user,
+    find_unverified_user_by_email,
+    issue_email_verification,
     issue_otp,
     normalize_phone,
     resolve_google_user,
+    seconds_until_email_resend,
     unique_username,
+    verify_email_token,
     verify_otp,
 )
 
@@ -117,7 +122,16 @@ class CassetLoginView(LoginView):
         ctx = super().get_context_data(**kwargs)
         ctx["google_enabled"] = oauth.is_configured()
         ctx["next"] = _safe_next(self.request)
+        ctx["unverified_email"] = getattr(self, "_unverified_email", None)
         return ctx
+
+    def form_invalid(self, form):
+        # Set by LoginForm.confirm_login_allowed when the reason a password
+        # account can't log in is an unverified e-mail, not suspension —
+        # the template uses this to offer a "resend" link instead of the
+        # generic error alone.
+        self._unverified_email = getattr(form, "unverified_email", None)
+        return super().form_invalid(form)
 
     def form_valid(self, form):
         """Honour the "remember me" checkbox.
@@ -153,18 +167,74 @@ def register_view(request):
 
     form = RegisterForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        user = form.save()
+        if _rate_limited(request, "register", limit=10, window_seconds=600):
+            messages.error(request, "درخواست‌های زیادی از این آدرس ارسال شده. کمی صبر کن.")
+            return render(
+                request,
+                "accounts/register.html",
+                {"form": form, "google_enabled": oauth.is_configured()},
+            )
+
+        # Inactive until the e-mail link is redeemed — the same enforcement
+        # mechanism account suspension already uses (blocks password login
+        # via AllowAllUsersModelBackend + LoginForm.confirm_login_allowed,
+        # and every other entry point already checks is_active explicitly).
+        # No login() call here: a password account isn't usable yet.
+        user = form.save(commit=False)
+        user.is_active = False
+        user.save()
         profile, _ = UserProfile.objects.get_or_create(user=user)
         profile.auth_provider = UserProfile.AuthProvider.PASSWORD
         profile.save(update_fields=["auth_provider"])
-        login(request, user)
-        return redirect("onboarding")
+        issue_email_verification(user, request)
+        return render(request, "accounts/verify_email_sent.html", {"email": user.email})
 
     return render(
         request,
         "accounts/register.html",
         {"form": form, "google_enabled": oauth.is_configured()},
     )
+
+
+# ---------------------------------------------------------------------------
+# Email verification (password sign-up only)
+# ---------------------------------------------------------------------------
+
+def verify_email_view(request, uidb64, token):
+    if request.user.is_authenticated:
+        return redirect("discover")
+
+    ok, user, err = verify_email_token(uidb64, token)
+    if ok:
+        login(request, user)
+        messages.success(request, "ایمیل شما تایید شد ✅ خوش آمدی!")
+        return redirect("onboarding")
+
+    return render(request, "accounts/verify_email_result.html", {"error": err})
+
+
+def resend_verification_email_view(request):
+    if request.user.is_authenticated:
+        return redirect("discover")
+
+    form = ResendVerificationForm(request.POST or None)
+    sent = False
+
+    if request.method == "POST" and form.is_valid():
+        if _rate_limited(request, "resend_verify_email", limit=5, window_seconds=600):
+            messages.error(request, "درخواست‌های زیادی از این آدرس ارسال شده. کمی صبر کن.")
+        else:
+            user = find_unverified_user_by_email(form.cleaned_data["email"])
+            if user is not None and seconds_until_email_resend(user) == 0:
+                issue_email_verification(user, request)
+            # Same outcome whether or not the account exists/is eligible —
+            # otherwise this endpoint becomes an oracle for which e-mails
+            # have an account on Casset (the same reasoning Django's own
+            # PasswordResetView follows).
+            sent = True
+            form = ResendVerificationForm()
+
+    return render(request, "accounts/verify_email_resend.html", {"form": form, "sent": sent})
 
 
 # ---------------------------------------------------------------------------

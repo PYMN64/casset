@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}ارسال دوباره ایمیل تایید | کست{% endblock %}
+
+{% block content %}
+<div class="auth">
+  <div class="auth__card">
+    <div class="auth__brand">
+      <span class="auth__mark" aria-hidden="true"><svg class="icon"><use href="#i-mail"/></svg></span>
+      کست
+    </div>
+    <h1 class="auth__title">ارسال دوباره ایمیل تایید</h1>
+    <p class="auth__sub">ایمیل حساب خود را وارد کن تا لینک تایید تازه‌ای برایت بفرستیم.</p>
+
+    {% if sent %}
+      <div class="notice notice--good">
+        <svg class="icon"><use href="#i-mail"/></svg>
+        <div>اگر حسابی با این ایمیل نیاز به تایید داشته باشد، یک لینک تازه برایش ارسال شد.</div>
+      </div>
+      <div class="auth__foot"><a href="{% url 'login' %}">بازگشت به ورود</a></div>
+    {% else %}
+      <form method="post" class="auth__form" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="notice notice--bad mb-3" role="alert">
+            <svg class="icon"><use href="#i-alert"/></svg>
+            <div>{% for error in form.non_field_errors %}{{ error }}{% endfor %}</div>
+          </div>
+        {% endif %}
+        {% include "partials/_field.html" with field=form.email %}
+        <button class="btn btn--primary btn--block" type="submit">ارسال لینک تایید</button>
+      </form>
+      <div class="auth__foot"><a href="{% url 'login' %}">بازگشت به ورود</a></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

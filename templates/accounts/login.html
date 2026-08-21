@@ -24,6 +24,13 @@
         </div>
       {% endif %}
 
+      {% if unverified_email %}
+        <div class="notice notice--warn mb-3">
+          <svg class="icon"><use href="#i-mail"/></svg>
+          <div><a href="{% url 'resend_verification_email' %}">ارسال دوباره ایمیل تایید</a></div>
+        </div>
+      {% endif %}
+
       <div class="form-field{% if form.username.errors %} form-field--invalid{% endif %}">
         <label class="form-field__label" for="{{ form.username.id_for_label }}">نام کاربری</label>
         {{ form.username }}

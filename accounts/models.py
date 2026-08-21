@@ -223,3 +223,29 @@ class PhoneOTP(models.Model):
 
     def __str__(self) -> str:
         return f"PhoneOTP({self.phone_number}, used={self.is_used})"
+
+
+class EmailVerification(models.Model):
+    """One-time link for verifying a password-signup account's e-mail.
+
+    Shaped like `PhoneOTP` (hashed secret, expiry, one-time use) but keyed
+    to the user directly rather than to a contact address: unlike phone
+    OTP, the account already exists by the time this is issued, since
+    email/password sign-up creates the row first and verifies after.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="email_verifications"
+    )
+    token_hash = models.CharField(max_length=128)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "is_used"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"EmailVerification(user={self.user_id}, used={self.is_used})"

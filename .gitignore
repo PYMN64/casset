@@ -15,6 +15,7 @@ htmlcov/
 
 # Virtual env
 .venv/
+.venv312/
 venv/
 env/
 
