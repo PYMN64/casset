@@ -160,6 +160,11 @@ html[data-theme="light"]{
 
 *{ box-sizing:border-box; }
 html,body{ height:100%; }
+/* A horizontal scrollbar on a phone is always a bug, never a feature.
+   Belt to the min-width braces above: if a component ever overflows
+   again it gets clipped rather than shifting the whole layout sideways
+   (which, in RTL, silently scrolls the page away from its own content). */
+html{ overflow-x: hidden; }
 body{
   margin:0;
   font-family:var(--font);
@@ -294,6 +299,12 @@ h2{ font-size: 20px; font-weight: 900; }
 
 .search{
   flex:1;
+  /* min-width:0 is what actually lets this shrink.
+     A flex item defaults to min-width:auto, and a text input's intrinsic
+     width is ~20 characters — so on a 375px screen the brand, the search
+     box and the actions could not fit, the header overflowed by 49px, and
+     every page got a horizontal scrollbar on every phone. */
+  min-width: 0;
   display:flex;
   align-items:center;
   gap:10px;
@@ -306,6 +317,7 @@ h2{ font-size: 20px; font-weight: 900; }
   border:0;
   outline:0;
   width:100%;
+  min-width: 0;
   background: transparent;
   color: var(--text);
   font-family: var(--font);
@@ -331,6 +343,14 @@ h2{ font-size: 20px; font-weight: 900; }
   font-weight:800;
 }
 .chip .icon{ width:18px;height:18px; color: var(--accent); }
+
+/* Below the tablet breakpoint the header cannot hold the brand, a search
+   box and the account controls at once — it overflowed by ~40px once a
+   logged-in user's avatar chip appeared. The bottom nav already carries a
+   dedicated Search entry, so the header's copy is the one to drop. */
+@media (max-width: 739px){
+  .topbar .search{ display: none; }
+}
 
 .appshell{
   max-width: calc(var(--container) + 56px);
@@ -398,7 +418,7 @@ h2{ font-size: 20px; font-weight: 900; }
   .bottomnav{ display:none; }
   .appshell{
     display:grid;
-    grid-template-columns: 260px 1fr;
+    grid-template-columns: 260px minmax(0, 1fr);
     gap: 16px;
   }
   .sidebar{ display:block; }
@@ -462,7 +482,7 @@ h2{ font-size: 20px; font-weight: 900; }
   gap: 14px;
 }
 @media (min-width: 740px){
-  .grid{ grid-template-columns: 1.35fr .65fr; }
+  .grid{ grid-template-columns: minmax(0, 1.35fr) minmax(0, .65fr); }
 }
 
 .list{ display:flex; flex-direction:column; gap:10px; margin-top: 12px; }
@@ -884,17 +904,34 @@ label{ font-weight: 800; }
   border-top: 1px solid var(--line);
   background: rgb(var(--panel-rgb) / .82);
   backdrop-filter: blur(14px);
+  max-width: 100vw;
+  overflow: hidden;
 }
 .bottomnav__link{
-  width: 25%;
+  /* flex-basis 0, not width:25%.
+     The old rule hardcoded a four-item bar; with five items it summed to
+     125% and, because a flex item cannot shrink below its min-content
+     width, the nav ended up 424px wide inside a 375px viewport — giving
+     every page on every phone a horizontal scrollbar. Equal shares of
+     whatever space exists, with min-width:0 so the labels may truncate,
+     makes the bar exactly viewport-wide for any number of items. */
+  flex: 1 1 0;
+  min-width: 0;
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
   gap: 6px;
+  padding: 0 2px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 900;
+}
+.bottomnav__link span{
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .bottomnav__link .icon{ width: 20px; height: 20px; color: var(--accent); opacity:.9; }
 .bottomnav__link:hover{ color: var(--text); }

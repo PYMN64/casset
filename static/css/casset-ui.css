@@ -75,16 +75,23 @@
 .measure { max-width: 62ch; }
 .center-col { max-width: 560px; margin-inline: auto; }
 
+/* minmax(0, 1fr), never a bare 1fr.
+   `1fr` is shorthand for `minmax(auto, 1fr)`, and that `auto` minimum
+   resolves to the item's MIN-CONTENT width — so one wide child (a data
+   table, a long unbroken string) silently widens the whole track and
+   pushes the page sideways, even when the child has its own
+   overflow:auto scroller. Pinning the minimum to 0 is what actually lets
+   a grid column be narrower than its contents. */
 .grid-auto {
   display: grid;
   gap: var(--sp-3);
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
-.grid-2 { display: grid; gap: var(--sp-4); grid-template-columns: 1fr; }
-.grid-3 { display: grid; gap: var(--sp-3); grid-template-columns: 1fr; }
+.grid-2 { display: grid; gap: var(--sp-4); grid-template-columns: minmax(0, 1fr); }
+.grid-3 { display: grid; gap: var(--sp-3); grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 740px){
-  .grid-2 { grid-template-columns: 1.4fr .8fr; }
-  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-2 { grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (min-width: 1280px){
   .appshell, .topbar__inner, .playerbar__inner { max-width: calc(var(--container-wide) + 56px); }
@@ -392,10 +399,10 @@ html[dir="rtl"] .switch:has(input:checked) .switch__knob { transform: translateX
 /* ---------------------------------------------------------------------
    9. Stat / metric cards + wallet
    ------------------------------------------------------------------ */
-.stat-grid { display: grid; gap: var(--sp-3); grid-template-columns: repeat(2, 1fr); margin-bottom: var(--sp-4); }
-@media (min-width: 900px){ .stat-grid { grid-template-columns: repeat(4, 1fr); } }
-.stat-grid--3 { grid-template-columns: repeat(2, 1fr); }
-@media (min-width: 900px){ .stat-grid--3 { grid-template-columns: repeat(3, 1fr); } }
+.stat-grid { display: grid; gap: var(--sp-3); grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: var(--sp-4); }
+@media (min-width: 900px){ .stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.stat-grid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 900px){ .stat-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 .stat-card {
   background: var(--panel2); border: 1px solid var(--line);
@@ -439,10 +446,10 @@ html[dir="rtl"] .switch:has(input:checked) .switch__knob { transform: translateX
    ------------------------------------------------------------------ */
 .tcard-grid {
   display: grid; gap: var(--sp-3);
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-@media (min-width: 740px){ .tcard-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 1024px){ .tcard-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 740px){ .tcard-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px){ .tcard-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 .tcard {
   background: var(--panel); border: 1px solid var(--line);
@@ -559,7 +566,7 @@ html[dir="rtl"] .switch:has(input:checked) .switch__knob { transform: translateX
 /* ---------------------------------------------------------------------
    14. Pricing (VIP)
    ------------------------------------------------------------------ */
-.price-grid { display: grid; gap: var(--sp-4); grid-template-columns: 1fr; }
+.price-grid { display: grid; gap: var(--sp-4); grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 780px){ .price-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
 .price {
   position: relative; display: flex; flex-direction: column;
@@ -1081,9 +1088,9 @@ input[type="file"]::file-selector-button:hover { filter: brightness(1.05); }
 /* Staff dashboard tweaks */
 .queue-card { display: block; transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease); }
 .queue-card:hover { border-color: rgb(var(--accent-rgb) / .45); transform: translateY(-2px); }
-.chart-grid { grid-template-columns: 1fr; }
-@media (min-width: 900px){ .chart-grid { grid-template-columns: 1fr 1fr; } }
-.aside-stats { grid-template-columns: 1fr 1fr; }
+.chart-grid { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px){ .chart-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.aside-stats { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 
 /* The inline <symbol> sprite is markup, not content: take it out of flow
    entirely rather than relying on an inline style attribute. */

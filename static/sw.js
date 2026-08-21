@@ -26,7 +26,10 @@
                                            server
    ===================================================================== */
 
-const VERSION = "v3";
+// Bump on every release that changes a cached asset. In production
+// ManifestStaticFilesStorage makes asset URLs content-addressed, so this
+// mainly rolls the page and API caches.
+const VERSION = "v4";
 const STATIC_CACHE = `casset-static-${VERSION}`;
 const PAGE_CACHE = `casset-pages-${VERSION}`;
 const API_CACHE = `casset-api-${VERSION}`;
