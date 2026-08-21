@@ -5,12 +5,17 @@
 >
 > منبع کامل‌تر و مفصل‌تر: `.casset/execution/90-day-roadmap.md` (همین ریپو) و صفحه Notion "Casset — Project Brain v1.0".
 
-> **نسخه‌ی مبنا (Baseline) فعلی: `v1.2.0`** (تگ گیت‌هاب، commit `f396b3c`، ثبت‌شده ۲۰۲۶-۰۸-۲۰) —
-> اولین نسخه‌ی کاملاً قابل‌استقرار بعد از بازبینی جامع «فاز حرفه‌ای» (پلیر/پروفایل/آپلود/داشبورد ادمین).
-> بدون فرانت‌اند بیلد جدا (Django templates + `static/app.js` دستی)، ۵۰۲ تست سبز (SQLite) + ۵۰۳ تست
-> سبز (PostgreSQL واقعی)، `ruff` تمیز. **هر تغییر بعدی روی این تگ اعمال می‌شه** — قبل از هر کار جدید،
-> `git log`/`git tag` رو چک کن تا مطمئن بشی روی همین baseline یا جلوتر از اون هستی، نه یک commit قدیمی‌تر.
-> جزئیات کامل: `.casset/state/changelog.md` (entry «فاز حرفه‌ای») و `.casset/state/current.md`.
+> **نسخه‌ی مبنا (Baseline) فعلی: `v2.0.0`** — «Orange Noir v2 / MVP قابل انتشار»، ثبت‌شده ۲۰۲۶-۰۸-۲۱.
+> بازطراحی کامل فرانت‌اند روی همان Django templates (بدون بازنویسی، بدون بیلد فرانت جدا) به‌علاوه‌ی
+> ورود با گوگل، قانون انتشاردهنده، و تنظیمات اعلان. **۵۹۱ تست سبز** روی SQLite و روی PostgreSQL
+> واقعی، `ruff` تمیز، `check --deploy` زیر تنظیمات prod تمیز. **هر تغییر بعدی روی این تگ اعمال می‌شه**
+> — قبل از هر کار جدید `git log`/`git tag` رو چک کن.
+>
+> **سند مرجع این فاز: `.casset/releases/v2.0.0-mvp.md`** — کامل‌ترین توضیح هر تصمیم، هر باگ واقعی که
+> رفع شد، و راهنمای استقرار. قبل از کار روی رنگ‌ها یا گریدها حتماً بخوانش.
+> خلاصه‌ی معماری: `.casset/state/changelog.md` (entry بالای فایل) و `.casset/state/current.md`.
+>
+> نسخه‌ی قبلی `v1.2.0` (commit `f396b3c`) — «فاز حرفه‌ای».
 > **توجه:** چند تگ محلی قدیمی/ناهماهنگ (`v.2.0.0`, `v1.1.0`, `v1.1.0-stabilization`, `v2`, `v2-safe`) از
 > جلسات قبلی روی دیسک هستن که هیچ‌وقت push نشدن و به این خط تاریخچه‌ی خطی مربوط نیستن — نادیده بگیر؛
 > فقط تگ‌های `vX.Y.Z` که در `git ls-remote --tags origin` هم هستن معتبرن.
@@ -84,6 +89,16 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 | 32 | ~~`plays/utils.py::get_client_ip` فقط `REMOTE_ADDR` رو می‌خوند — پشت هر CDN/reverse-proxy واقعی همه‌ی بازدیدکننده‌ها یک IP می‌شدن و کل منطق ضد-تقلب IP-based (کلاهک روزانه، dedup) عملاً از کار می‌افتاد. `PlayEvent` uniqueness هم شامل `user` نبود — دو کاربر متفاوت پشت یک IP/NAT در یک روز فقط یک PlayEvent می‌گرفتن (دومی silently drop می‌شد)~~ | — | ✅ حل‌شده — `TRUST_PROXY_HEADERS` (env، پیش‌فرض خاموش) برای فعال‌سازی امن `X-Forwarded-For` پشت پراکسی قابل‌اعتماد؛ `PlayEvent` uniqueness به `(track, user, ip_hash, day_key)` تغییر کرد (migration جدید) + `services.py` گیت اول رو با `user=listener_user` هم فیلتر می‌کنه. ۵ تست رگرسیون جدید. |
 | 33 | ~~پلیر global (`playerbar`) کنترل صدا (volume/mute)، نوار پیشرفت زمانی (seek قابل لمس/کیبورد)، دکمه‌ی skip ±۱۰ ثانیه، shortcut صفحه‌کلید، و reorder صف نداشت — روی موبایل (که waveform مخفیه) اصلاً هیچ راهی برای seek کردن وجود نداشت~~ | — | ✅ حل‌شده (فاز حرفه‌ای) — اسکرابر native range همیشه‌نمایان (لمس/کیبورد رایگان)، volume popover، skip ±۱۰، shortcutهای کامل (space/arrows/m/n/p)، reorder صف با ▲▼، و یک نمای «Now Playing» تمام‌صفحه جدید (`#npView`). |
 | 34 | ~~`templates/staff/creator_detail.html` به `t.publish_at` ارجاع می‌داد که روی مدل `Track` اصلاً وجود نداره (فیلد واقعی `published_at` است) — ستون «انتشار» در پنل staff همیشه خالی بود~~ | — | ✅ حل‌شده — به `published_at` اصلاح شد؛ کل صفحه هم‌زمان به تم تیره‌ی سایت (به‌جای رنگ‌های hardcoded روشن `#eee`/`#fafafa`) بازطراحی شد. |
+| 35 | ~~**باگ بحرانی خاموش:** `core/middleware.py` سیاست `style-src 'self'` اعمال می‌کرد و همان سیاست، استایل‌شیت Google Fonts را که `base.html` صدا می‌زد بلاک می‌کرد — یعنی **فونت Vazirmatn روی هیچ مرورگری لود نمی‌شد** و کل سایت با فونت پیش‌فرض سیستم رندر می‌شد. در بازبینی چشمی دیده نمی‌شد چون فونت جایگزین هم فارسی را نشان می‌دهد.~~ | — | ✅ حل‌شده (۲۰۲۶-۰۸-۲۱) — فونت self-host شد (`static/css/fonts.css`، سه زیرمجموعه woff2). CSP به‌جای بازتر شدن **سخت‌تر** شد: `font-src 'self'`، `frame-ancestors 'none'` (به‌جز embed)، `base-uri`/`form-action`/`object-src` قفل. |
+| 36 | ~~**XSS ذخیره‌شده:** `json.dumps` کاراکترهای `<`/`>`/`&` را escape نمی‌کند، پس اثری با عنوان `</script><img onerror=…>` از بلوک `<script type="application/ld+json">` فرار می‌کرد — روی صفحه‌ی خود اثر و هر صفحه‌ای که فهرستش می‌کرد.~~ | — | ✅ حل‌شده — `core/structured_data.py::_dump` همان سه escape را می‌زند که `django.utils.html.json_script` می‌زند؛ داده دقیقاً round-trip می‌شود (escape، نه حذف). تست رگرسیون هر دو را چک می‌کند. |
+| 37 | ~~کامنت `{# … #}` در جنگو **تک‌خطی** است؛ چهار قالب (از جمله `base.html`) کامنت چندخطی داشتند و بقیه‌ی خطوط **روی همه‌ی صفحات به‌عنوان متن چاپ می‌شد**~~ | — | ✅ حل‌شده — تبدیل به `{% comment %}` + دو تست نگهبان در `core/tests_smoke.py` (اسکن سورس + ادعا روی خروجی رندرشده). |
+| 38 | ~~**اسکرول افقی روی موبایل در همه‌ی صفحات** (۴۲۴px در ویوپورت ۳۷۵px). سه علت مستقل: `min-width:auto` روی `.search` (عرض ذاتی input)، `width:25%` روی نوار پایینِ پنج‌آیتمی، و `1fr` خام در گریدها که به min-content حل می‌شود~~ | — | ✅ حل‌شده — `min-width:0`، `flex:1 1 0`، و **`minmax(0, 1fr)` در همه‌ی گریدها**. به‌علاوه `html{overflow-x:hidden}` به‌عنوان پشتیبان. در RTL این باگ خودش را پنهان می‌کند. |
+| 39 | ~~تم روشن استاندارد WCAG AA را رد می‌کرد: سفید روی دکمه‌ی اصلی **۲.۳۵:۱**، اکسنت به‌عنوان متن ۳.۱۸:۱، موجودی کیف پول ۳.۰۹:۱~~ | — | ✅ حل‌شده — توکن «رنگ به‌عنوان fill» از «رنگ به‌عنوان متن» جدا شد (`--accent-text`/`--purple-text`)، جوهر دکمه در تم روشن تیره شد، رنگ‌های وضعیت تیره‌تر. کمترین کنتراست حالا **۵.۰۲:۱**. |
+| 40 | ~~مودال تایید با `form.submit()` کار می‌کرد که رویداد `submit` را شلیک **نمی‌کند** — هندلرهای delegated در `app.js` اجرا نمی‌شدند و کاربر بعد از تایید حذف، روی JSON خام می‌افتاد~~ | — | ✅ حل‌شده — `requestSubmit()`. به‌علاوه endpointها برای POST فرم ساده redirect می‌دهند تا مسیر بدون-JS مستقل درست باشد. |
+| 41 | ~~درگ‌اند‌دراپ پلی‌لیست به `api_playlist_reorder` یک بدنه‌ی JSON می‌فرستاد ولی آن endpoint فقط جابه‌جایی تک‌پله‌ای می‌فهمید — هر درگ ۴۰۰ می‌گرفت~~ | — | ✅ حل‌شده — پذیرش `{"order": [...]}` با چک مالکیت: همه‌ی idها مال خود کاربر و مال یک پلی‌لیست، بدون تکرار؛ لیست نیمه‌معتبر **کاملاً** رد می‌شود. |
+| 42 | ~~opt-out اعلان از `recipient.notification_preference` خوانده می‌شد — یک reverse OneToOne که جنگو نتیجه‌اش (از جمله «ردیف نیست») را روی instance کش می‌کند. کاربری که قبل از نوشتن ردیف لود شده بود، opt-outش **بی‌صدا نادیده گرفته می‌شد**~~ | — | ✅ حل‌شده — کوئری مستقیم در `notifications/services.py::_allowed`. توسط `scripts/qa/journey_qa.py` پیدا شد، نه تست واحد. |
+| 43 | ~~فایل‌های استاتیک هش نشده بودند و service worker استراتژی cache-first داشت — یعنی **یک دیپلوی به کاربر نمی‌رسید** تا `VERSION` داخل `sw.js` دستی بامپ شود~~ | — | ✅ حل‌شده — `ManifestStaticFilesStorage` در prod، و SW فقط **مسیر** precache می‌کند نه asset. `collectstatic` حالا الزامی است. همین اجرا یک `sourceMappingURL` مرده‌ی Chart.js را هم لو داد. |
+| 44 | ~~ورود با گوگل فقط یک placeholder بود (`google_login_placeholder` که پیام «به‌زودی» می‌داد)~~ | — | ✅ حل‌شده — `accounts/oauth.py`: OIDC authorization-code با PKCE(S256)، state گره‌خورده به session، nonce، و اعتبارسنجی کامل claimها. بدون وابستگی جدید؛ **allauth عمداً استفاده نشد** (دلیل در سند release بخش ۳.۱). ۳۸ تست، عمدتاً حالت‌های منفی. |
 
 > وقتی هرکدوم از این موارد رفع شد، این جدول باید در همین فایل آپدیت بشه (ردیف حذف یا وضعیت به ✅ تغییر کنه).
 
@@ -93,7 +108,7 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 
 | اپ | نقش | بلوغ فعلی |
 |---|---|---|
-| `accounts` | کاربر، پروفایل، OTP (SMS واقعی)، آنبوردینگ Creator، تعلیق حساب، آنالیتیکس + درآمد Creator، **نشان تایید‌شده** | ✅ خوب — `accounts/services.py` جدید: provider abstraction برای OTP SMS (Kavenegar واقعی / Console dev). `creator_studio_view`/`creator_studio.html` حالا علاوه بر شنونده اول‌بار/برگشتی، یک بخش شفاف «موجودی + تراکنش‌های اخیر PointLedger + سوابق payout» هم داره. `UserProfile.is_verified` (فاز دوم) — بج اعتماد staff-only، از طریق `moderation/services.py::set_verified` + دکمه در `staff:creator_detail`. |
+| `accounts` | کاربر، پروفایل، OTP (SMS واقعی)، **ورود با گوگل**، **قانون انتشاردهنده**، بازیابی رمز، آنبوردینگ، تعلیق حساب، آنالیتیکس + درآمد Creator، نشان تاییدشده | ✅ خوب — `accounts/services.py` جدید: provider abstraction برای OTP SMS (Kavenegar واقعی / Console dev). `creator_studio_view`/`creator_studio.html` حالا علاوه بر شنونده اول‌بار/برگشتی، یک بخش شفاف «موجودی + تراکنش‌های اخیر PointLedger + سوابق payout» هم داره. `UserProfile.is_verified` (فاز دوم) — بج اعتماد staff-only، از طریق `moderation/services.py::set_verified` + دکمه در `staff:creator_detail`. |
 | `tracks` | آلبوم/ترک، ژانر، تگ، چرخه انتشار، **پادکست (Show/RSS)، waveform واقعی، Embed** | ✅ کامل (فاز دوم) — `Album` با `content_type=podcast` به‌عنوان «Show» بازاستفاده شد (بدون مدل جدید): `show_detail` + `feeds.py::ShowRSSFeed` (RSS استاندارد با namespace itunes — پیش‌نیاز واقعی توزیع در اپل/گوگل پادکست). `audio_processing.py` با `soundfile` (بدون نیاز به ffmpeg سیستمی) peak واقعی صدا استخراج می‌کنه، از طریق Celery (`tasks.py::generate_waveform_task`) حین آپلود؛ پلیربار الان یک waveform واقعی قابل‌کلیک/seek داره، نه فقط تزئینی. `track_embed` یک صفحه‌ی مینیمال برای `<iframe>` بیرون از سایت است (`@xframe_options_exempt`). **فاز حرفه‌ای:** خودسرویس Unpublish/Publish (`toggle_track_visibility`، بدون فیلد جدید — از `Visibility.PRIVATE` موجود استفاده می‌کنه). |
 | `uploads` | آپلود فایل، ارسال برای بررسی | ✅ کامل شد (فاز حرفه‌ای) — `static/upload.js` جدید: drag & drop روی input واقعی، اعتبارسنجی کلاینت (پسوند/حجم) قبل از ارسال، تشخیص خودکار مدت‌زمان صوت در مرورگر (`HTMLAudioElement`)، پیش‌نمایش کاور، و progress bar واقعی با XHR (نه صرفاً غیرفعال‌کردن دکمه). اعتبارسنجی سرور (`clean_audio`/`clean_cover`) دست‌نخورده و همچنان مرجع نهایی است. |
 | `plays` | ثبت پخش، آمار روزانه، Fraud signal، اعلان نقطه‌عطف | ✅ کامل شد (فاز حرفه‌ای) — PointLedger (با `PAYOUT_DEDUCTION` به‌عنوان delta منفی)، ۴ دروازه امنیتی، services.py، recalculate_points. **سخت‌سازی امنیتی:** `TRUST_PROXY_HEADERS` (env-gated) برای `X-Forwarded-For` پشت پراکسی قابل‌اعتماد؛ `PlayEvent` uniqueness حالا شامل `user` (دو کاربر پشت یک IP دیگه با هم تداخل نمی‌کنن). `aggregate_stats`/`DailyTrackStat` هنوز به هیچ داشبوردی وصل نشدن (خود پلی‌های روزانه مستقیماً از `PlayEvent` در `platform_dashboard` محاسبه می‌شن، نه از این جدول pre-aggregate). |
@@ -103,7 +118,7 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
 | `billing` | پلن، فاکتور، تراکنش، درخواست تسویه، **درگاه پرداخت واقعی** | ✅ کامل شد — `billing/services.py`: provider abstraction برای پرداخت (Zarinpal واقعی / Dev برای dev)، `start_payment`/`payment_callback`، `approve_payout`/`reject_payout` (کسر امتیاز واقعی از طریق PointLedger). صف `staff_payout_queue` حالا pagination + بخش «تاریخچه‌ی اخیر» (تصمیم‌های قبلی approve/reject) داره که قبلاً کاملاً غایب بود (فاز حرفه‌ای). |
 | ~~`subscriptions`~~ | ~~پلن و اشتراک (نسخه قدیمی‌تر)~~ | ✅ حذف‌شده — در `_deprecated/` آرشیو شده، هیچ referenceای در کد زنده وجود ندارد |
 | `core` | تنظیمات پلتفرم (Singleton)، **health check، backup، thumbnail pipeline، staff dashboard گرافیکی** | ✅ کامل شد (فاز حرفه‌ای) — `core/views.py::health_check`، `backup_db.py`، `core/templatetags/thumbnails.py` (حالا در `track_list`/`trending`/`library`/`playlist_detail`/پروفایل هم استفاده می‌شه، نه فقط discover). **`platform_dashboard` حالا گرافیکیه:** `static/vendor/chart.umd.min.js` (Chart.js، وندور محلی بدون CDN) + ۴ نمودار روند ۳۰روزه (پخش/درآمد/اقتصاد امتیاز/ثبت‌نام) و یک نمودار عملکرد ترک در `creator_detail`. `users_console`/`creators_console` هم حالا pagination دارن (قبلاً بدون صفحه‌بندی، همه‌ی نتایج یک‌جا). |
-| `notifications` | Notification / Activity Feed | ✅ کامل — ۸ verb، grouping ۲۴ساعته، signal-driven، API + HTML، ۴۲ تست. فن‌اوت `notify_new_track_to_followers` از طریق Celery اجرا می‌شود. |
+| `notifications` | Notification / Activity Feed + **تنظیمات کاربر** | ✅ کامل — ۹ verb، grouping ۲۴ساعته، signal-driven، API + HTML. **`NotificationPreference` (v2.0.0):** یک نقطه‌ی اعمال در `services.py::_allowed` — خاموش‌کردن واقعاً جلوی نوشتن ردیف را می‌گیرد، نه اینکه فیدِ در‌حال‌رشد را فیلتر کند. نبودن ردیف = همه روشن (حساب‌های موجود ساکت نمی‌شوند). `track_approved`/`track_rejected` عمداً قابل ساکت‌کردن نیستند. **مهم:** ترجیح باید با کوئری خوانده شود نه از `recipient.notification_preference` — آن یک reverse OneToOne است و جنگو حالت «ردیف نیست» را کش می‌کند (مورد #۴۲). |
 | `playlists` | پلی‌لیست شخصی، آیتم‌ها | ✅ کامل شد (فاز حرفه‌ای) — Rename (`api_playlist_rename`) و reorder دستی با ▲▼ (`api_playlist_reorder`، فیلد جدید `PlaylistItem.order`). **باگ واقعی رفع‌شده:** `playlist_detail` قبلاً فقط برای owner کار می‌کرد؛ حالا پلی‌لیست عمومی (`is_private=False`) برای همه قابل‌مشاهده است (دقیقاً الگوی دسترسی `track_detail`). |
 
 **زیرساخت (بدون اپ Django مجزا):** Object Storage (django-storages، S3-compatible generic — Arvan/Liara/MinIO/AWS، فقط با `USE_S3_STORAGE=1` در prod فعال می‌شه)، Celery+Redis (broker مشترک با cache)، Sentry (اختیاری، فقط با `SENTRY_DSN`)۔ همه در `config/settings/prod.py`.
@@ -161,7 +176,23 @@ Casset یک **پلتفرم ایرانی انتشار و کشف صدا/محتوا
                     + قرارداد یکسان `data-cover` (رفع باگ نمایش خراب کاور از discover). ۵۰۲ تست (از ۴۱۳)،
                     تایید کامل روی PostgreSQL واقعی، ruff تمیز. QA کامل با ۳ اکانت واقعی (شنونده/Creator/VIP)
                     در مرورگر. جزئیات کامل: `.casset/state/changelog.md`.
+فاز اول MVP (Orange Noir v2 — بازطراحی فرانت + ورود گوگل + قانون انتشاردهنده) — ✅ بسته شد
+                    (۲۰۲۶-۰۸-۲۱، تگ `v2.0.0`): موارد #۳۵ تا #۴۴ رفع شدند. بازطراحی کامل فرانت‌اند روی
+                    همان Django templates (بدون بازنویسی، بدون بیلد جدا)، ورود با گوگل (OIDC بومی با
+                    PKCE/state/nonce)، قانون انتشاردهنده (یوزرنیم + موبایل تاییدشده)، تنظیمات اعلان،
+                    بازیابی رمز، سئو (sitemap/robots/JSON-LD/عنوان یکتا)، PWA (آیکون/manifest/SW).
+                    ۵۹۱ تست سبز روی SQLite و PostgreSQL واقعی. **این نقطه‌ی پایان فاز اول است.**
+                    سند کامل: `.casset/releases/v2.0.0-mvp.md`
 ```
+
+**نقطه‌ی فعلی: فاز اول تمام است.** قدم‌های بعدی پیشنهادی، به ترتیب اهمیت برای
+۱۰۰۰ کاربر اول (جزئیات در بخش ۱۲ سند release):
+
+۱. تایید ایمیل برای ثبت‌نام با رمز — تنها شکاف باقی‌مانده‌ی هویت
+۲. اتصال بانکی تسویه — تنها فیچر نیمه‌کاره‌ای که به کاربر اعلام شده
+۳. Rate limit روی ثبت‌نام و لاگین (الان فقط OTP و جستجو دارند)
+۴. بک‌آپ خودکار زمان‌بندی‌شده (`backup_db` هست، cron ندارد)
+۵. اتصال `DailyTrackStat` به داشبوردها (الان مستقیم از `PlayEvent` می‌خوانند)
 
 سند کامل شامل جزییات هر فاز، معیار "Done" هر بخش، و ریسک‌های هر مرحله در فایل زیر است:
 **`.casset/execution/90-day-roadmap.md`**
@@ -188,6 +219,19 @@ pytest accounts/tests.py::SomeClass::test_method             # معادل با p
 pytest --cov=. --cov-report=html                # پوشش تست → htmlcov/index.html
 ```
 چک‌لیست کامل تست دستی/سناریوهای E2E مرورگر: `.casset/TESTING.md`.
+
+**QA مسیر واقعی (v2.0.0) — قبل از هر release اجرا کن:**
+```powershell
+python manage.py seed_demo --users 33 --flush-demo
+python scripts/qa/journey_qa.py     # ۶۰ ادعا روی دیتابیس زنده
+```
+این اسکریپت مسیرهایی را راه می‌رود که کاربر واقعی راه می‌رود (ثبت‌نام ← آنبوردینگ،
+گیت انتشاردهنده کامل، رد یوزرنیم رزرو/تکراری، رسیدن opt-out اعلان به نویسنده،
+مرزهای حریم خصوصی، مسیرهای staff-only، اعمال CSRF، بهداشت رندر) — نه اینکه فقط
+چک کند صفحات ۲۰۰ می‌دهند. **دو باگ واقعی را همین پیدا کرد که تست واحد نگرفته بود.**
+
+برای سرریز افقی (که روی موبایل همیشه باگ است و در RTL خودش را پنهان می‌کند):
+محتوای `scripts/qa/responsive_qa.js` را در کنسول مرورگر اجرا کن.
 
 **تست روی PostgreSQL واقعی (مهم — نه اختیاری):**
 دستورهای بالا روی SQLite اجرا می‌شن، ولی production روی Postgres است و این تفاوت تا الان **دو باگ واقعی** رو لو داده (موارد #۱۳/#۱۶ — `SUM(boolean)`). یک Postgres واقعی و محلی بدون نیاز به Docker یا دسترسی ادمین:
@@ -218,6 +262,15 @@ python manage.py makemigrations <app_name>
 python manage.py migrate
 ```
 
+**استقرار (v2.0.0): `collectstatic` حالا الزامی است.** production از
+`ManifestStaticFilesStorage` استفاده می‌کند (نام هر فایل با هش محتوا)، چون
+service worker استراتژی cache-first دارد و آن فقط وقتی امن است که تغییر فایل =
+تغییر URL باشد. یک ورودی گمشده‌ی manifest بلند و صریح فیل می‌کند، به‌جای اینکه
+بی‌صدا فایل کهنه سرو کند.
+```powershell
+python manage.py collectstatic --noinput
+```
+
 نکته تنظیمات: `manage.py` و `pyproject.toml` هر دو پیش‌فرض `DJANGO_SETTINGS_MODULE=config.settings.dev` دارند. برای prod باید `config.settings.prod` صراحتاً ست بشه و `DJANGO_SECRET_KEY`, `PLAY_IP_SALT`, `PLAY_UA_SALT`, `KAVENEGAR_API_KEY` (SMS)، `ZARINPAL_MERCHANT_ID` (پرداخت) واقعی وجود داشته باشن — وگرنه استارت‌آپ با `ImproperlyConfigured` فیل می‌کنه (عمدی، fail-fast). سوییچ دیتابیس با `DB_ENGINE=sqlite|postgresql` در `.env`. Object Storage اختیاریه: `USE_S3_STORAGE=1` + چهار متغیر `S3_*` (هر backend S3-compatible: Arvan/Liara/MinIO/AWS).
 
 Celery worker (برای فن‌اوت اعلان دنبال‌کننده‌ها؛ در dev/test بدون این هم کار می‌کنه چون eager است):
@@ -240,7 +293,11 @@ python manage.py backup_db --output-dir /path/to/backups
 - **Routing تخت:** هر اپ `urls.py` خودش را دارد و در `config/urls.py` بدون prefix با `include()` مونت می‌شود. الگوی `<slug:handle>/` (پروفایل عمومی) عمداً آخرین pattern است — هر URL جدید باید **قبل از آن** در `config/urls.py` یا در `urls.py` یکی از اپ‌ها اضافه بشه، وگرنه این الگو مسیر جدید رو قورت می‌ده. `staff/` پیشوند مشترک صفحات داخلی staff است: `core.staff_urls` (`platform_dashboard`, `users_console`, `creators_console`, `creator_detail`) و `billing.staff_urls` (`payout_queue` و اکشن‌هاش) هر دو زیر همین پیشوند مونت شدن. **هشدار تاریخی:** `core.staff_urls` از قبل روی دیسک بود ولی تا ۲۰۲۶-۰۸-۲۰ هیچ‌وقت `include()` نشده بود — قبل از اضافه‌کردن یک `urls.py` جدید به هر اپی، حتماً چک کن که واقعاً در `config/urls.py` مونت شده، نه فقط اینکه فایل وجود داره.
 - **Celery:** `config/celery.py` (app instance) + `config/__init__.py` آن را import می‌کند. `CELERY_TASK_ALWAYS_EAGER` در `config/settings/base.py` به‌طور خودکار بر اساس وجود `REDIS_URL` تنظیم می‌شود (بدون Redis = eager/سینک، برای dev/test بدون نیاز به worker). Task جدید برای اپی بساز در `<app>/tasks.py` با دکوریتور `@shared_task`، مثل `notifications/tasks.py`.
 - **لایه Service/Domain** طبق قانون بخش ۲ باید منطق کسب‌وکار رو از `views.py` جدا نگه داره؛ فعلاً فقط `plays/services.py` و `notifications/services.py` این الگو را کامل پیاده کرده‌اند (نمونه‌ی مرجع برای سرویس جدید). بقیه‌ی اپ‌ها (`accounts`, `tracks`, `billing`, ...) هنوز بخشی از منطق را مستقیم در `views.py` دارند — وقتی منطق غیرپیش‌پاافتاده به یکی از این اپ‌ها اضافه می‌کنی، آن را در یک ماژول `services.py` مشابه بنویس، نه مستقیم در view.
+- **قانون انتشاردهنده (v2.0.0).** `UserProfile.can_publish` = یوزرنیم عمومی + شماره‌ی موبایل تاییدشده. گیت روی **ارسال برای بررسی** (`uploads/views.py::submit_track`) است، نه روی آپلود پیش‌نویس — پیش‌نویس خصوصی و بی‌ضرر است، و گیت‌کردن در زمان آپلود آدم‌ها را از آماده‌کردن کارشان منع می‌کرد بدون سود امنیتی. تعریف در یک جا زندگی می‌کند (`can_publish`/`publish_blockers`)؛ تست‌ها از `core.test_utils.make_publisher` استفاده کنند نه از بازسازی دستی شرایط.
 - **گراف اصلی کسب‌وکار:** User → Creator (`accounts`) → Track/Album (`tracks`) → PlaybackSession/Event → QualifiedPlay (`plays`) → `PointLedger` (`plays/models.py`, نوشتن فقط از طریق `plays/services.py`) → Notification (`notifications`, signal-driven از `notifications/signals.py`) → Dashboard/Analytics.
-- **بدون فرانت‌اند بیلد جدا.** `static/app.js` + `static/app.css` دستی نوشته شدن (بدون bundler/`package.json`)؛ رندر سمت سرور با Django templates در `templates/`.
+- **بدون فرانت‌اند بیلد جدا** — و این یک تصمیم آگاهانه‌ی v2.0.0 است، نه یک بدهی. Vite/Alpine/htmx در سند طراحی پیشنهاد شده بودند و **عمداً اضافه نشدند**: وابستگی Node روی سرور production و یک مرحله‌ی build در CI، برای سایتی با دو فایل استاتیک دستی، ریسک عملیاتی است بدون سود کاربری. چیزی که Vite قرار بود بدهد از راه ارزان‌تر گرفته شد — cache-busting از `ManifestStaticFilesStorage` خودِ جنگو، سازمان‌دهی از تفکیک لایه‌های CSS. دلیل کامل: `.casset/releases/v2.0.0-mvp.md` بخش ۵.۱.
+- **لایه‌های CSS (ترتیب لود مهم است):** `css/fonts.css` (فونت self-host) ← `app.css` (توکن‌ها + پایه) ← `css/casset-ui.css` (کامپوننت) ← `css/cassette.css` (هویت پلیر). **`app.css` تنها منبع حقیقت رنگ است.** دو نکته که شکستنشان آسان است: (۱) «رنگ به‌عنوان fill» (`--accent`) و «رنگ به‌عنوان متن» (`--accent-text`) دو توکن جداگانه‌اند — قاطی‌کردنشان کنتراست تم روشن را می‌شکند؛ (۲) هر گرید باید `minmax(0, 1fr)` باشد، نه `1fr` خام.
+- **JS در دو فایل:** `static/app.js` مالک پلیر/صف/فراخوان‌های API است؛ `static/js/casset-ui.js` مالک پوسته (تم، منو، مودال تایید، فرم‌ها، درگ). هر `fetch` باید هدر `X-Requested-With` بفرستد — چند endpoint بر اساس آن بین JSON و redirect تصمیم می‌گیرند.
+- **قالب‌ها بدون `style=`.** تنها استثنای مجاز، مقدار واقعاً داینامیکی است که از سرور می‌آید (مثل عرض نوار پیشرفت). هر چیز دیگری باید کلاس شود.
 - **`_deprecated/`** شامل `subscriptions` و `templates_subscriptions` آرشیوشده است — هرگز به آن‌ها ارجاع نده یا به `INSTALLED_APPS` برنگردون؛ `billing` تنها منبع حقیقت پلن/اشتراک است.
 - فایل‌های `db.sqlite3.backup*` در ریشه‌ی ریپو snapshotهای دستی محلی‌اند، نه بخشی از schema رسمی یا migration — نادیده بگیر مگر کاربر صراحتاً بهشون اشاره کنه.
