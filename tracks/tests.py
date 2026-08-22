@@ -498,6 +498,40 @@ class CanDownloadRegressionTests(TestCase):
 
 
 # ---------------------------------------------------------------------------
+# is_following regression (tracks/views.py::track_detail)
+#
+# The follow button always said "دنبال کردن" (Follow) regardless of whether
+# the visitor already followed the creator — the view never told the
+# template. See also accounts/tests_auth.py for the profile-page equivalent.
+# ---------------------------------------------------------------------------
+
+class TrackDetailFollowStateTests(TestCase):
+    def setUp(self):
+        self.creator = make_user("follow_state_creator")
+        self.listener = make_user("follow_state_listener")
+        self.track = Track.objects.create(
+            creator=self.creator, title="Followable",
+            status=Track.Status.APPROVED, visibility=Track.Visibility.PUBLIC,
+        )
+
+    def test_not_following_shows_follow_label(self):
+        self.client.login(username="follow_state_listener", password="pass12345")
+        resp = self.client.get(reverse("track_detail", args=[self.track.slug]))
+        self.assertFalse(resp.context["is_following"])
+        self.assertContains(resp, "دنبال کردن")
+        self.assertNotContains(resp, "لغو دنبال کردن")
+
+    def test_already_following_shows_unfollow_label(self):
+        from interactions.models import CreatorFollow
+
+        CreatorFollow.objects.create(user=self.listener, creator=self.creator)
+        self.client.login(username="follow_state_listener", password="pass12345")
+        resp = self.client.get(reverse("track_detail", args=[self.track.slug]))
+        self.assertTrue(resp.context["is_following"])
+        self.assertContains(resp, "لغو دنبال کردن")
+
+
+# ---------------------------------------------------------------------------
 # Show detail + podcast RSS feed (tracks/feeds.py)
 # ---------------------------------------------------------------------------
 

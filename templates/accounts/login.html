@@ -32,7 +32,7 @@
       {% endif %}
 
       <div class="form-field{% if form.username.errors %} form-field--invalid{% endif %}">
-        <label class="form-field__label" for="{{ form.username.id_for_label }}">نام کاربری</label>
+        <label class="form-field__label" for="{{ form.username.id_for_label }}">نام کاربری یا ایمیل</label>
         {{ form.username }}
         {% if form.username.errors %}
           <div class="form-field__error" role="alert">{% for e in form.username.errors %}<div>{{ e }}</div>{% endfor %}</div>

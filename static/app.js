@@ -23,6 +23,18 @@ const XHR_HEADER = { "X-Requested-With": "XMLHttpRequest" };
 function showEl(el) { if (el) el.classList.remove("hidden"); }
 function hideEl(el) { if (el) el.classList.add("hidden"); }
 function isHidden(el) { return !el || el.classList.contains("hidden"); }
+/* Track titles, playlist names, etc. are user/creator-controlled text.
+   Reading them back out of a dataset attribute decodes HTML entities, so
+   re-inserting them via innerHTML without this would be a stored-XSS path
+   (e.g. a track titled "&lt;img onerror=..&gt;"). */
+function escapeHtml(str) {
+  return String(str == null ? "" : str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 function showToast(msg, ok = true) {
   const wrap = document.getElementById("toast");
@@ -260,14 +272,25 @@ function updateQueueUI() {
     pos.textContent = (n > 0 && window.__qIndex >= 0) ? `${window.__qIndex + 1} / ${n}` : "";
   }
 
-  const shBtn = document.getElementById("pbShuffle");
-  if (shBtn) shBtn.classList.toggle("primary", window.__shuffle);
-
-  const repBtn = document.getElementById("pbRepeat");
-  if (repBtn) {
-    repBtn.classList.toggle("primary", window.__repeat !== "off");
-    repBtn.textContent = window.__repeat === "one" ? "🔂" : "🔁";
-  }
+  // Both the mini playerbar and the full-screen "Now Playing" view have
+  // their own shuffle/repeat buttons (#pbShuffle/#npShuffle,
+  // #pbRepeat/#npRepeat) — both must reflect the same state, or switching
+  // views makes it look like the setting silently reset.
+  ["pbShuffle", "npShuffle"].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.toggle("primary", window.__shuffle);
+  });
+  ["pbRepeat", "npRepeat"].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    // Never overwrite textContent here — these are <a><svg>…</svg></a>
+    // buttons, and setting textContent used to silently replace the icon
+    // with an emoji glyph, permanently destroying it (repeat looked
+    // "broken" after the first toggle even though the state itself worked).
+    btn.classList.toggle("primary", window.__repeat !== "off");
+    btn.classList.toggle("iconbtn--repeat-one", window.__repeat === "one");
+    btn.title = window.__repeat === "one" ? "تکرار: یک ترک" : (window.__repeat === "all" ? "تکرار: همه" : "تکرار");
+  });
 
   // Queue panel render (اگر بازه)
   const panel = document.getElementById("qPanel");
@@ -342,6 +365,26 @@ function openPlayerBar({ src, title, by, cover, trackId, peaks }) {
     navigator.mediaSession.setActionHandler("seekbackward", () => skipSeconds(-10));
     navigator.mediaSession.setActionHandler("seekforward", () => skipSeconds(10));
   }
+}
+
+// Dismiss the player entirely: stop playback and hide the bar (and the
+// full-screen view, if open). The queue and resume position are kept —
+// this is "close", not "clear the queue" — so pressing play on a track
+// again picks up where things were.
+function closePlayer() {
+  const audio = getAudioEl();
+  const bar = document.getElementById("playerbar");
+  if (audio) {
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+  }
+  hideEl(bar);
+  const np = document.getElementById("npView");
+  if (np && !isHidden(np) && np.__close) np.__close();
+  window.__nowTrackId = null;
+  const sidebarNP = document.getElementById("sidebarNowPlaying");
+  if (sidebarNP) sidebarNP.textContent = "—";
 }
 
 function playAt(index) {
@@ -735,6 +778,18 @@ function hookKeyboardShortcuts() {
 }
 
 // ---------- Like / Follow ----------
+function setLikeButtonState(btn, liked) {
+  // .iconbtn--primary (not the bare .primary this used to toggle — that
+  // class doesn't exist on .iconbtn, so the background never actually
+  // changed) AND the icon glyph itself: an outline heart vs. a solid one
+  // is what makes "liked" visible at a glance, a colour change alone was
+  // easy to miss.
+  btn.classList.toggle("iconbtn--primary", !!liked);
+  btn.setAttribute("aria-pressed", liked ? "true" : "false");
+  const use = btn.querySelector("svg.icon use");
+  if (use) use.setAttribute("href", liked ? "#i-heart-filled" : "#i-heart");
+}
+
 async function handleLike(btn) {
   const trackId = btn.dataset.track;
   if (!trackId) return;
@@ -742,12 +797,34 @@ async function handleLike(btn) {
   const data = await postForm("/api/v1/like/", { track_id: trackId });
   if (!data || !data.ok) return;
 
-  const countEl = document.getElementById("likeCount");
-  if (countEl) countEl.textContent = data.like_count;
+  // Every like button for this track on the current page (a card can
+  // appear more than once — e.g. "این ترک" in a queue AND in a grid) stays
+  // in sync, not just the one that was clicked.
+  document.querySelectorAll(`[data-like][data-track="${trackId}"]`).forEach((b) => {
+    setLikeButtonState(b, data.liked);
+    const countEl = b.id === "likeCount" ? null : b.querySelector(".tcard__likecount");
+    if (countEl) countEl.textContent = data.like_count;
+  });
+  const heroCount = document.getElementById("likeCount");
+  if (heroCount) heroCount.textContent = data.like_count;
 
-  btn.classList.toggle("primary", !!data.liked);
-  btn.setAttribute("aria-pressed", data.liked ? "true" : "false");
   showToast(data.liked ? "لایک شد ♥" : "آنلایک شد", true);
+}
+
+// Card grids (discover/trending/search/profile) render every like button
+// as "unliked" by default — none of those views annotate a per-user liked
+// flag onto the queryset. Fix it here with one batched call instead of
+// touching every view: see interactions/views.py::api_likes_status.
+async function hydrateLikeButtons() {
+  const buttons = Array.from(document.querySelectorAll("[data-like][data-track]"));
+  if (!buttons.length || !window.__cassetAuthed) return;
+  const ids = [...new Set(buttons.map((b) => b.dataset.track).filter(Boolean))];
+  const data = await getJSON(`/api/v1/likes/status/?track_ids=${ids.join(",")}`);
+  if (!data || !data.ok || !data.liked || !data.liked.length) return;
+  const likedSet = new Set(data.liked.map(String));
+  buttons.forEach((b) => {
+    if (likedSet.has(String(b.dataset.track))) setLikeButtonState(b, true);
+  });
 }
 
 async function handleFavorite(btn) {
@@ -903,7 +980,24 @@ async function handleFollow(btn) {
   const countEl = document.getElementById("followCount");
   if (countEl) countEl.textContent = data.follower_count;
 
-  btn.classList.toggle("primary", !!data.following);
+  // The button used to always keep saying "دنبال کردن" (Follow) after a
+  // successful follow — only a CSS class most of these buttons don't even
+  // use changed, so there was no visible way to tell it had worked, or how
+  // to undo it. Label pair is per-button (data-follow-label/-unfollow-label)
+  // so a compact "دنبال" suggestion chip and a full "دنبال کردن" profile
+  // button can each say the right thing; both default to the full form.
+  // data-follow-active-class is the accent class (btn--primary / btn--purple)
+  // this particular button used when rendered "not following" — swapped for
+  // btn--ghost instead of layered on top of it, since which of two same-
+  // specificity classes wins depends on file load order, not intent.
+  const followLabel = btn.dataset.followLabel || "دنبال کردن";
+  const unfollowLabel = btn.dataset.unfollowLabel || "لغو دنبال کردن";
+  btn.textContent = data.following ? unfollowLabel : followLabel;
+  const activeClass = btn.dataset.followActiveClass;
+  if (activeClass) {
+    btn.classList.toggle(activeClass, !data.following);
+    btn.classList.toggle("btn--ghost", !!data.following);
+  }
   btn.setAttribute("aria-pressed", data.following ? "true" : "false");
   showToast(data.following ? "فالو شد ✅" : "آنفالو شد", true);
 }
@@ -929,33 +1023,66 @@ function plModalClose() {
   hideEl(modal);
   window.__plTrackId = null;
 }
+function renderPlModalList(playlists) {
+  const list = document.getElementById("plModalList");
+  if (!list) return;
+  if (!playlists.length) {
+    list.innerHTML = `<div class="item"><span class="muted">هنوز پلی‌لیستی نداری — از بالا یکی بساز.</span></div>`;
+    return;
+  }
+  list.innerHTML = playlists.map(p => `
+    <div class="item">
+      <div style="min-width:0">
+        <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(p.name)}</div>
+        <div class="muted" style="font-size:12px">${p.item_count} ترک</div>
+      </div>
+      <button type="button" class="iconbtn${p.has_track ? " iconbtn--primary" : ""}"
+              data-pl-toggle="1" data-playlist="${p.id}"
+              aria-pressed="${p.has_track ? "true" : "false"}"
+              aria-label="${p.has_track ? "حذف از این پلی‌لیست" : "افزودن به این پلی‌لیست"}"
+              title="${p.has_track ? "حذف از این پلی‌لیست" : "افزودن به این پلی‌لیست"}">
+        <svg class="icon"><use href="#${p.has_track ? "i-check" : "i-plus"}"/></svg>
+      </button>
+    </div>
+  `).join("");
+}
 async function loadMyPlaylistsIntoModal() {
   const list = document.getElementById("plModalList");
   if (!list) return;
-  const data = await getJSON("/api/v1/playlist/mine/");
+  const trackId = window.__plTrackId;
+  const url = "/api/v1/playlist/mine/" + (trackId ? `?track_id=${encodeURIComponent(trackId)}` : "");
+  const data = await getJSON(url);
   if (!data || !data.ok) {
     list.innerHTML = `<div class="item"><span class="muted">خطا در دریافت پلی‌لیست‌ها</span></div>`;
     return;
   }
-  const pls = data.playlists || [];
-  if (!pls.length) {
-    list.innerHTML = `<div class="item"><span class="muted">پلی‌لیستی نداری. از کتابخانه بساز.</span></div>`;
-    return;
-  }
-  list.innerHTML = pls.map(p => `
-    <div class="item">
-      <div style="min-width:0">
-        <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
-        <div class="muted" style="font-size:12px">${p.item_count} tracks</div>
-      </div>
-      <a class="btn" href="#" data-pl-toggle="1" data-playlist="${p.id}">افزودن/حذف</a>
-    </div>
-  `).join("");
+  renderPlModalList(data.playlists || []);
 }
 async function toggleTrackInPlaylist(playlistId, trackId) {
   const data = await postForm("/api/v1/playlist/toggle-track/", { playlist_id: playlistId, track_id: trackId });
   if (!data || !data.ok) { showToast("انجام نشد ❌", false); return; }
   showToast(data.added ? "به پلی‌لیست اضافه شد ✅" : "از پلی‌لیست حذف شد ✅", true);
+  // Refresh so the toggle icon on every row (not just the one clicked)
+  // reflects reality — the modal may still be open with the same track.
+  if (document.getElementById("plModal") && !isHidden(document.getElementById("plModal"))) {
+    loadMyPlaylistsIntoModal();
+  }
+}
+async function handlePlModalCreatePlaylist(form) {
+  const input = form.querySelector('[name="name"]');
+  const name = (input && input.value || "").trim();
+  if (!name) return;
+  const data = await postForm("/api/v1/playlist/create/", { name });
+  if (!data || !data.ok) { showToast("ساخت پلی‌لیست انجام نشد ❌", false); return; }
+  input.value = "";
+
+  const trackId = window.__plTrackId;
+  if (trackId) {
+    await toggleTrackInPlaylist(data.playlist_id, trackId); // also refreshes the list
+  } else {
+    showToast("پلی‌لیست ساخته شد ✅", true);
+    loadMyPlaylistsIntoModal();
+  }
 }
 
 // ---------- Library page: create / delete playlist, remove item ----------
@@ -1144,12 +1271,12 @@ function renderQueuePanel() {
       <div class="item" data-q-row="1" data-q-index="${i}" style="${active ? "outline:1px solid rgba(255,255,255,.25)" : ""}">
         <div style="min-width:0;display:flex;align-items:center;gap:8px">
           <div class="q-reorder">
-            <button type="button" data-q-up="1" data-q-index="${i}" aria-label="بالا" ${i === 0 ? "disabled" : ""}>▲</button>
-            <button type="button" data-q-down="1" data-q-index="${i}" aria-label="پایین" ${i === q.length - 1 ? "disabled" : ""}>▼</button>
+            <button type="button" data-q-up="1" data-q-index="${i}" aria-label="بالا" ${i === 0 ? "disabled" : ""}><svg class="icon icon--xs"><use href="#i-up"/></svg></button>
+            <button type="button" data-q-down="1" data-q-index="${i}" aria-label="پایین" ${i === q.length - 1 ? "disabled" : ""}><svg class="icon icon--xs"><use href="#i-down"/></svg></button>
           </div>
           <div style="min-width:0">
-            <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.title || "—"}</div>
-            <div class="muted" style="font-size:12px">${it.by || ""}</div>
+            <div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(it.title) || "—"}</div>
+            <div class="muted" style="font-size:12px">${escapeHtml(it.by) || ""}</div>
           </div>
         </div>
         <a class="btn ${active ? "primary" : ""}" href="#" data-q-play="1" data-q-index="${i}">${active ? "در حال پخش" : "پخش"}</a>
@@ -1294,6 +1421,16 @@ document.addEventListener("click", (e) => {
   if (pbSpeedEl) { e.preventDefault(); cycleSpeed(); return; }
   const pbSleepEl = e.target.closest("#pbSleep");
   if (pbSleepEl) { e.preventDefault(); cycleSleepTimer(); return; }
+  const pbCloseEl = e.target.closest("#pbClose");
+  if (pbCloseEl) { e.preventDefault(); closePlayer(); return; }
+  const pbPlaylistEl = e.target.closest("#pbPlaylist, #npPlaylist");
+  if (pbPlaylistEl) {
+    e.preventDefault();
+    if (!window.__nowTrackId) { showToast("ابتدا یک ترک پخش کن", false); return; }
+    const titleEl = document.getElementById("pbTitle");
+    plModalOpen(window.__nowTrackId, titleEl ? titleEl.textContent : "");
+    return;
+  }
 
   // Volume popover toggle + outside-click close
   const volBtnEl = e.target.closest("#pbVolBtn");
@@ -1323,7 +1460,11 @@ document.addEventListener("click", (e) => {
     return;
   }
 
-  if (e.target && e.target.id === "qClose") { e.preventDefault(); qPanelClose(); return; }
+  // .closest(), not a bare e.target.id check: these buttons wrap an inner
+  // <svg><use> icon, so a click that lands on the icon (the common case —
+  // it fills almost the whole button) had e.target pointing at the SVG,
+  // never matching the button's own id, and the × silently did nothing.
+  if (e.target.closest("#qClose")) { e.preventDefault(); qPanelClose(); return; }
   const qPlay = e.target.closest("[data-q-play]");
   if (qPlay) { e.preventDefault(); const i = parseInt(qPlay.dataset.qIndex || "-1", 10); if (Number.isFinite(i) && i >= 0) playAt(i); return; }
   const qUp = e.target.closest("[data-q-up]");
@@ -1365,7 +1506,7 @@ document.addEventListener("click", (e) => {
   const embedOpenBtn = e.target.closest("[data-embed-open]");
   if (embedOpenBtn) { e.preventDefault(); embedModalOpen(embedOpenBtn.dataset.slug); return; }
 
-  if (e.target && e.target.id === "embedClose") { e.preventDefault(); embedModalClose(); return; }
+  if (e.target.closest("#embedClose")) { e.preventDefault(); embedModalClose(); return; }
   if (e.target && e.target.id === "embedCopyBtn") { e.preventDefault(); embedCopyCode(); return; }
   const embedModal = document.getElementById("embedModal");
   if (embedModal && e.target === embedModal) { e.preventDefault(); embedModalClose(); return; }
@@ -1405,7 +1546,7 @@ document.addEventListener("click", (e) => {
     return;
   }
 
-  if (e.target && e.target.id === "plClose") { e.preventDefault(); plModalClose(); return; }
+  if (e.target.closest("#plClose")) { e.preventDefault(); plModalClose(); return; }
   const plModal = document.getElementById("plModal");
   if (plModal && e.target === plModal) { e.preventDefault(); plModalClose(); return; }
 
@@ -1422,6 +1563,9 @@ document.addEventListener("submit", (e) => {
 
   const plCreateForm = e.target.closest("[data-pl-create-form]");
   if (plCreateForm) { e.preventDefault(); handlePlaylistCreate(plCreateForm); return; }
+
+  const plCreateInlineForm = e.target.closest("[data-pl-create-inline-form]");
+  if (plCreateInlineForm) { e.preventDefault(); handlePlModalCreatePlaylist(plCreateInlineForm); return; }
 
   const plDeleteForm = e.target.closest("[data-pl-delete-form]");
   if (plDeleteForm) { e.preventDefault(); handlePlaylistDelete(plDeleteForm); return; }
@@ -1458,4 +1602,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   hookSearchUI();
   hookAutoNext();
+  hydrateLikeButtons();
 });

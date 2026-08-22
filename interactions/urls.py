@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    api_likes_status,
     comment_add,
     comment_delete,
     comment_like,
@@ -13,6 +14,7 @@ from .views import (
 
 urlpatterns = [
     path("api/v1/like/", toggle_like, name="api_like"),
+    path("api/v1/likes/status/", api_likes_status, name="api_likes_status"),
     path("api/v1/follow/", toggle_follow, name="api_follow"),
     path("api/v1/comment/add/", comment_add, name="api_comment_add"),
     path("api/v1/comment/<int:comment_id>/delete/", comment_delete, name="api_comment_delete"),

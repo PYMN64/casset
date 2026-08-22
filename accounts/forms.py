@@ -30,13 +30,17 @@ class RegisterForm(UserCreationForm):
 
     class Meta:
         model = User
-        fields = ("username", "email")
+        # No "username": that field is Casset's opaque internal id
+        # (accounts/services.py::unique_username, set in register_view), not
+        # something a new user picks. Asking for it here used to mean asking
+        # for a "username" twice — once at signup, once again at the
+        # publisher gate for the real public handle
+        # (accounts/forms.py::CreatorHandleForm) — which is confusing and
+        # gets it right only the second time anyway.
+        fields = ("email",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["username"].widget.attrs.update({
-            "autocomplete": "username", "placeholder": "نام کاربری انگلیسی",
-        })
         for name in ("password1", "password2"):
             self.fields[name].widget.attrs.update({"autocomplete": "new-password"})
 
@@ -54,7 +58,13 @@ class RegisterForm(UserCreationForm):
 
 
 class LoginForm(AuthenticationForm):
-    username = forms.CharField(widget=forms.TextInput(attrs={"autocomplete": "username"}))
+    # Field name stays "username" (that's what AuthenticationForm/the auth
+    # backend expect to receive), but a password-account user's only known
+    # identifier is their e-mail — see accounts.backends.EmailOrUsernameBackend.
+    username = forms.CharField(
+        label="نام کاربری یا ایمیل",
+        widget=forms.TextInput(attrs={"autocomplete": "username", "placeholder": "ایمیل یا نام کاربری"}),
+    )
     password = forms.CharField(widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}))
 
     error_messages = {
@@ -121,6 +131,16 @@ class ProfileSettingsForm(forms.ModelForm):
             self.fields["email"].initial = self.instance.user.email
             self.fields["first_name"].initial = self.instance.user.first_name
             self.fields["last_name"].initial = self.instance.user.last_name
+
+        # Plain FileInput, not ImageField's default ClearableFileInput: that
+        # widget renders "Currently: <a href='/media/.../xyz123.jpg'>…</a>"
+        # — the raw storage path of the file, shown to the user for no
+        # reason (the preview box in settings.html already shows the image
+        # itself). sr-only because the preview box is a <label for=…> that
+        # opens the file picker on click; the input itself doesn't need to
+        # be visible.
+        for name in ("avatar", "cover"):
+            self.fields[name].widget = forms.FileInput(attrs={"class": "sr-only", "accept": "image/*"})
 
     def clean_cover(self):
         file = self.cleaned_data.get("cover")

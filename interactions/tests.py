@@ -77,6 +77,43 @@ class ToggleLikeViewTests(TestCase):
         )
 
 
+class LikesStatusViewTests(TestCase):
+    """Card grids (discover/trending/search) have no per-user context to
+    know whether the visitor already liked a track — the like button always
+    rendered "unliked" even right after a reload. This endpoint is what
+    app.js::hydrateLikeButtons calls to fix that client-side."""
+
+    def setUp(self):
+        self.creator = make_user("likestatus_creator")
+        self.liker = make_user("likestatus_liker")
+        self.track_a = make_public_track(self.creator, slug="ls-a")
+        self.track_b = make_public_track(self.creator, slug="ls-b")
+
+    def test_anonymous_gets_empty_list(self):
+        resp = self.client.get(reverse("api_likes_status"), {"track_ids": f"{self.track_a.id}"})
+        self.assertEqual(resp.json(), {"ok": True, "liked": []})
+
+    def test_reports_only_the_caller_own_likes(self):
+        TrackLike.objects.create(user=self.liker, track=self.track_a)
+        self.client.login(username="likestatus_liker", password="pass12345")
+        resp = self.client.get(
+            reverse("api_likes_status"),
+            {"track_ids": f"{self.track_a.id},{self.track_b.id}"},
+        )
+        self.assertEqual(resp.json()["liked"], [self.track_a.id])
+
+    def test_no_track_ids_returns_empty_without_querying(self):
+        self.client.login(username="likestatus_liker", password="pass12345")
+        resp = self.client.get(reverse("api_likes_status"))
+        self.assertEqual(resp.json(), {"ok": True, "liked": []})
+
+    def test_non_numeric_ids_are_ignored_not_a_500(self):
+        self.client.login(username="likestatus_liker", password="pass12345")
+        resp = self.client.get(reverse("api_likes_status"), {"track_ids": "abc,,1e5"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["liked"], [])
+
+
 class ToggleFollowViewTests(TestCase):
     def setUp(self):
         self.creator = make_user("fol_creator")

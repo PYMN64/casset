@@ -44,12 +44,58 @@
   /* ------------------------------------------------------------------
      Dropdown menus — the account chip and any [data-menu-toggle].
      ------------------------------------------------------------------ */
+  /* Dropdown panels are "portalled" to <body> while open, then moved back
+     to their original spot on close.
+
+     Why: `.card` (and a few other surfaces) use backdrop-filter, which per
+     spec creates its own stacking context. A `.menu__panel` living inside
+     one of those cards can never out-rank a later sibling card no matter
+     how high its own z-index is set — the whole card, dropdown included,
+     paints as one unit below anything that comes after it in the DOM. On
+     the track detail page this made the "⋯" menu render underneath the
+     "درباره این اثر" card. Moving the open panel to <body> and positioning
+     it with `position: fixed` (computed from the toggle button's own
+     on-screen rect) escapes every ancestor's stacking context, so this
+     fixes it everywhere a `.menu` is used, not just that one page. */
+  function positionMenuPanel(panel, toggle) {
+    var rect = toggle.getBoundingClientRect();
+    panel.style.position = "fixed";
+    panel.style.top = (rect.bottom + 6) + "px";
+    panel.style.left = "auto";
+    panel.style.right = (window.innerWidth - rect.right) + "px";
+  }
+
+  function openMenuPanel(panel, toggle) {
+    if (!panel.__homeParent) {
+      panel.__homeParent = panel.parentNode;
+      panel.__homeNext = panel.nextSibling;
+    }
+    d.body.appendChild(panel);
+    positionMenuPanel(panel, toggle);
+    panel.classList.add("open");
+    panel.__toggle = toggle;
+  }
+
+  function closeMenuPanel(panel) {
+    panel.classList.remove("open");
+    panel.style.position = "";
+    panel.style.top = "";
+    panel.style.right = "";
+    panel.style.left = "";
+    if (panel.__homeParent && panel.parentNode !== panel.__homeParent) {
+      if (panel.__homeNext && panel.__homeNext.parentNode === panel.__homeParent) {
+        panel.__homeParent.insertBefore(panel, panel.__homeNext);
+      } else {
+        panel.__homeParent.appendChild(panel);
+      }
+    }
+  }
+
   function closeAllMenus(except) {
     $$(".menu__panel.open").forEach(function (panel) {
       if (panel === except) return;
-      panel.classList.remove("open");
-      var owner = panel.closest(".menu");
-      var btn = owner && owner.querySelector("[aria-haspopup]");
+      var btn = panel.__toggle;
+      closeMenuPanel(panel);
       if (btn) btn.setAttribute("aria-expanded", "false");
     });
   }
@@ -63,8 +109,8 @@
         var panel = wrap && wrap.querySelector(".menu__panel");
         if (!panel) return;
         var willOpen = !panel.classList.contains("open");
-        closeAllMenus(panel);
-        panel.classList.toggle("open", willOpen);
+        closeAllMenus(willOpen ? panel : null);
+        if (willOpen) openMenuPanel(panel, toggle); else closeMenuPanel(panel);
         toggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
         return;
       }
@@ -74,6 +120,17 @@
     d.addEventListener("keydown", function (e) {
       if (e.key === "Escape") closeAllMenus();
     });
+
+    // A portalled panel is positioned from the toggle's rect at open time;
+    // keep it glued to the button instead of drifting off during a scroll
+    // or a viewport resize while it's open.
+    var reposition = function () {
+      $$(".menu__panel.open").forEach(function (panel) {
+        if (panel.__toggle) positionMenuPanel(panel, panel.__toggle);
+      });
+    };
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
   }
 
   /* ------------------------------------------------------------------
@@ -293,9 +350,59 @@
   }
 
   /* ------------------------------------------------------------------
-     Notification badge — unread count, polled.
+     Notification bell — unread badge + a dropdown preview of the latest
+     notifications, instead of the bell being a bare link straight to the
+     full inbox page. The count only ever moves because the server says
+     unread_count changed (i.e. something was actually marked read) — just
+     opening this dropdown does not clear it.
      ------------------------------------------------------------------ */
-  function initNotificationBadge() {
+  var NOTIF_VERB_ICON = {
+    new_follower: "i-user",
+    track_liked: "i-heart-filled",
+    comment_liked: "i-heart-filled",
+    track_comment: "i-comment",
+    track_approved: "i-check-circle",
+    track_rejected: "i-alert",
+    milestone_plays: "i-trend",
+    track_reposted: "i-repost"
+  };
+
+  function renderNotifMenuList(items) {
+    var box = $("#notifMenuList");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!items.length) {
+      var empty = d.createElement("div");
+      empty.className = "notif-menu__empty muted t-xs";
+      empty.textContent = "اعلانی نداری.";
+      box.appendChild(empty);
+      return;
+    }
+    items.forEach(function (n) {
+      var href = "#";
+      if (n.track_slug) href = "/t/" + encodeURIComponent(n.track_slug) + "/";
+      else if (n.actor_handle) href = "/" + encodeURIComponent(n.actor_handle) + "/";
+
+      var row = d.createElement("a");
+      row.href = href;
+      row.className = "notif-menu__row" + (n.is_read ? "" : " notif-menu__row--unread");
+
+      var icon = d.createElement("span");
+      icon.className = "notif__icon notif__icon--" + n.verb;
+      icon.setAttribute("aria-hidden", "true");
+      icon.innerHTML = '<svg class="icon"><use href="#' + (NOTIF_VERB_ICON[n.verb] || "i-bell") + '"/></svg>';
+
+      var text = d.createElement("span");
+      text.className = "notif-menu__text";
+      text.textContent = n.text; // textContent, never innerHTML — this is user-influenced text
+
+      row.appendChild(icon);
+      row.appendChild(text);
+      box.appendChild(row);
+    });
+  }
+
+  function initNotificationMenu() {
     var badge = $("#notifBadge");
     if (!badge || !window.__cassetAuthed) return;
 
@@ -307,11 +414,15 @@
           var n = data.unread_count || 0;
           badge.textContent = n > 99 ? "99+" : String(n);
           badge.classList.toggle("hidden", n === 0);
+          renderNotifMenuList(data.notifications || []);
         })
         .catch(function () { /* offline: leave the last known value */ });
     }
     refresh();
     setInterval(refresh, 60000);
+
+    var btn = $("#notifMenuBtn");
+    if (btn) btn.addEventListener("click", refresh);
   }
 
   /* ------------------------------------------------------------------
@@ -584,7 +695,7 @@
     initResendCountdown();
     initOtpInput();
     initTabs();
-    initNotificationBadge();
+    initNotificationMenu();
     initNotificationActions();
     initRecentSearches();
     initDragReorder();

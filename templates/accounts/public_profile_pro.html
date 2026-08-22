@@ -41,66 +41,78 @@
           {% if profile.public_handle %}@{{ profile.public_handle }}{% else %}@{{ user_obj.username }}{% endif %}
         </div>
         {% if profile.bio %}<p class="profile-bio">{{ profile.bio }}</p>{% endif %}
-
-        {% if profile.website_url or profile.instagram_url or profile.telegram_url or profile.youtube_url or profile.twitter_url %}
-          {% comment %}
-            SVG icons, not raw emoji. Emoji render differently on every
-            platform and were the one place the icon system broke down.
-            rel="nofollow" on user-supplied links so a profile page cannot
-            be used to pass link equity to arbitrary sites.
-          {% endcomment %}
-          <div class="social-links">
-            {% if profile.website_url %}<a href="{{ profile.website_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="وب‌سایت" title="وب‌سایت"><svg class="icon"><use href="#i-globe"/></svg></a>{% endif %}
-            {% if profile.instagram_url %}<a href="{{ profile.instagram_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="اینستاگرام" title="اینستاگرام"><svg class="icon"><use href="#i-instagram"/></svg></a>{% endif %}
-            {% if profile.telegram_url %}<a href="{{ profile.telegram_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="تلگرام" title="تلگرام"><svg class="icon"><use href="#i-telegram"/></svg></a>{% endif %}
-            {% if profile.youtube_url %}<a href="{{ profile.youtube_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="یوتیوب" title="یوتیوب"><svg class="icon"><use href="#i-youtube"/></svg></a>{% endif %}
-            {% if profile.twitter_url %}<a href="{{ profile.twitter_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="ایکس" title="ایکس"><svg class="icon"><use href="#i-x"/></svg></a>{% endif %}
-          </div>
-        {% endif %}
       </div>
+    </div>
+  </div>
 
-      <div class="profile-actions">
-        {% if request.user.is_authenticated and request.user.id != user_obj.id %}
-          <button class="btn btn--primary" type="button" data-follow="1" data-creator="{{ user_obj.username }}">
-            دنبال کردن
-          </button>
-        {% elif is_owner %}
-          <a class="btn btn--ghost" href="{% url 'settings' %}">
-            <svg class="icon"><use href="#i-edit"/></svg>ویرایش پروفایل
-          </a>
-        {% endif %}
+  {% comment %}
+    Below the cover, not on it. Only the name/handle/bio (right next to the
+    avatar, where the cover's own bottom gradient keeps them legible) stay
+    on the image itself — social links and the action buttons used to sit
+    on top of the cover too, i.e. directly on arbitrary creator artwork
+    with no guaranteed contrast, which is what made them look like stray
+    text floating on a photo instead of part of the page chrome.
+  {% endcomment %}
+  <div class="profile-toolbar cluster cluster--between">
+    {% if profile.website_url or profile.instagram_url or profile.telegram_url or profile.youtube_url or profile.twitter_url %}
+      {% comment %}
+        SVG icons, not raw emoji. Emoji render differently on every
+        platform and were the one place the icon system broke down.
+        rel="nofollow" on user-supplied links so a profile page cannot
+        be used to pass link equity to arbitrary sites.
+      {% endcomment %}
+      <div class="social-links">
+        {% if profile.website_url %}<a href="{{ profile.website_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="وب‌سایت" title="وب‌سایت"><svg class="icon"><use href="#i-globe"/></svg></a>{% endif %}
+        {% if profile.instagram_url %}<a href="{{ profile.instagram_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="اینستاگرام" title="اینستاگرام"><svg class="icon"><use href="#i-instagram"/></svg></a>{% endif %}
+        {% if profile.telegram_url %}<a href="{{ profile.telegram_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="تلگرام" title="تلگرام"><svg class="icon"><use href="#i-telegram"/></svg></a>{% endif %}
+        {% if profile.youtube_url %}<a href="{{ profile.youtube_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="یوتیوب" title="یوتیوب"><svg class="icon"><use href="#i-youtube"/></svg></a>{% endif %}
+        {% if profile.twitter_url %}<a href="{{ profile.twitter_url }}" target="_blank" rel="noopener noreferrer nofollow" aria-label="ایکس" title="ایکس"><svg class="icon"><use href="#i-x"/></svg></a>{% endif %}
+      </div>
+    {% endif %}
 
-        {% if tracks or podcast_tracks %}
-          <button class="btn btn--ghost" type="button" data-station="1" data-station-user="{{ user_obj.username }}">
-            <svg class="icon"><use href="#i-shuffle"/></svg>رادیو
-          </button>
-        {% endif %}
-
-        <button class="btn btn--ghost" type="button" data-share="1"
-                data-url="{{ request.build_absolute_uri }}"
-                data-title="{{ profile.public_name }} در کست">
-          <svg class="icon"><use href="#i-share"/></svg>اشتراک‌گذاری
+    <div class="profile-actions">
+      {% if request.user.is_authenticated and request.user.id != user_obj.id %}
+        <button class="btn {% if is_following %}btn--ghost{% else %}btn--primary{% endif %}" type="button"
+                data-follow="1" data-creator="{{ user_obj.username }}" data-follow-active-class="btn--primary"
+                aria-pressed="{% if is_following %}true{% else %}false{% endif %}">
+          {% if is_following %}لغو دنبال کردن{% else %}دنبال کردن{% endif %}
         </button>
+      {% elif is_owner %}
+        <a class="btn btn--ghost" href="{% url 'settings' %}">
+          <svg class="icon"><use href="#i-edit"/></svg>ویرایش پروفایل
+        </a>
+      {% endif %}
 
-        {% if request.user.is_authenticated and request.user.id != user_obj.id %}
-          <div class="menu profile-report">
-            <button class="iconbtn" type="button" data-menu-toggle aria-haspopup="true" aria-expanded="false" aria-label="گزینه‌های بیشتر">
-              <svg class="icon"><use href="#i-more"/></svg>
-            </button>
-            <div class="menu__panel" role="menu">
-              <form method="post" action="{% url 'report_profile' username=user_obj.username %}">
-                {% csrf_token %}
-                <input type="hidden" name="reason" value="impersonation">
-                <button class="menu__item menu__item--danger" type="submit" role="menuitem"
-                        data-confirm="این پروفایل برای بررسی به تیم کست گزارش می‌شود."
-                        data-confirm-title="گزارش پروفایل">
-                  <svg class="icon"><use href="#i-alert"/></svg>گزارش این پروفایل
-                </button>
-              </form>
-            </div>
+      {% if tracks or podcast_tracks %}
+        <button class="btn btn--ghost" type="button" data-station="1" data-station-user="{{ user_obj.username }}">
+          <svg class="icon"><use href="#i-shuffle"/></svg>رادیو
+        </button>
+      {% endif %}
+
+      <button class="btn btn--ghost" type="button" data-share="1"
+              data-url="{{ request.build_absolute_uri }}"
+              data-title="{{ profile.public_name }} در کست">
+        <svg class="icon"><use href="#i-share"/></svg>اشتراک‌گذاری
+      </button>
+
+      {% if request.user.is_authenticated and request.user.id != user_obj.id %}
+        <div class="menu profile-report">
+          <button class="iconbtn" type="button" data-menu-toggle aria-haspopup="true" aria-expanded="false" aria-label="گزینه‌های بیشتر">
+            <svg class="icon"><use href="#i-more"/></svg>
+          </button>
+          <div class="menu__panel" role="menu">
+            <form method="post" action="{% url 'report_profile' username=user_obj.username %}">
+              {% csrf_token %}
+              <input type="hidden" name="reason" value="impersonation">
+              <button class="menu__item menu__item--danger" type="submit" role="menuitem"
+                      data-confirm="این پروفایل برای بررسی به تیم کست گزارش می‌شود."
+                      data-confirm-title="گزارش پروفایل">
+                <svg class="icon"><use href="#i-alert"/></svg>گزارش این پروفایل
+              </button>
+            </form>
           </div>
-        {% endif %}
-      </div>
+        </div>
+      {% endif %}
     </div>
   </div>
 
@@ -255,7 +267,8 @@
             <span class="t-sm w-700 truncate">{{ u.profile.public_name }}</span>
           </a>
           {% if request.user.is_authenticated and request.user.id != u.id %}
-            <button class="btn btn--ghost btn--sm" type="button" data-follow="1" data-creator="{{ u.username }}">دنبال</button>
+            <button class="btn btn--ghost btn--sm" type="button" data-follow="1" data-creator="{{ u.username }}"
+                    data-follow-label="دنبال" data-unfollow-label="دنبال‌شده">دنبال</button>
           {% endif %}
         </div>
       {% empty %}

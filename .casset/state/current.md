@@ -1,37 +1,76 @@
 # Casset Current State
 
-> **۲۰۲۶-۰۸-۲۲ — S12 بسته شد.** طبق قانون طلایی `CLAUDE.md` بخش ۵، این بلوک
-> بعد از هر تسک/اسپرینت جایگزین می‌شود (نه اضافه، جایگزینی کامل):
+> **۲۰۲۶-۰۸-۲۲ — پس از S12: یک پاس بزرگ رفع‌باگ/UX سراسری بسته شد.** طبق
+> قانون طلایی `CLAUDE.md` بخش ۵، این بلوک بعد از هر تسک/اسپرینت جایگزین
+> می‌شود (نه اضافه، جایگزینی کامل):
 >
-> **آخرین تسک تمام‌شده:** هر ۲ آیتم S12 — breakdown جغرافیا/دستگاه برای
-> داشبورد Creator (`PlaybackSession.country_code`/`device_type` جدید،
-> `plays/geo.py`، endpoint `GET /api/v1/creator/stats/geo/`، فقط داده‌ی
-> تجمیعی هرگز hash خام) + لایه‌ی توصیه‌ی سبک روی Discover
-> (`explore/services.py::get_personalized_recommendations` — امتیاز
-> ژانر+محبوبیت+تازگی، توضیح‌پذیر نه ML، جایگزین بلوک inline قدیمی
-> `discover_view`). جزئیات کامل: `.casset/execution/logs/s12-log.md`.
-> **فایل‌های تغییریافته:** `plays/models.py`, `plays/geo.py` (جدید),
-> `plays/services.py`, `plays/views.py`, `plays/urls.py`, `plays/admin.py`,
-> `plays/migrations/0006_*`, `accounts/views.py`,
-> `templates/accounts/creator_studio.html`, `explore/services.py`,
-> `explore/views.py`, تست‌های `plays`/`explore`.
-> **تست:** ۶۹۴ تست سبز روی SQLite (از ۶۶۰)، **۶۹۵ روی PostgreSQL واقعی محلی
-> — تایید کامل این‌بار موفق شد** (S10/S11 به محدودیت محیطی خورده بودند)،
-> پوشش ۹۳٪ (از ۹۲٪)، `ruff check .` تمیز، بدون migration drift. تایید دستی
-> end-to-end در مرورگر برای هر دو تسک (پخش واقعی → PlaybackSession →
-> داشبورد؛ Discover برای کاربر با تاریخچه و کاربر ناشناس). ۵ شکست پیش‌موجود
-> و نامرتبط (`core.tests_settings_secrets`, مشکل Winsock محلی ویندوز، دوباره
-> روی `master` هم تایید شد) — جزئیات در لاگ.
-> **وضعیت commit:** روی برنچ `feature/s12-analytics-personalization`،
-> منتظر تایید کاربر برای push/PR.
-> **قدم بعدی پیشنهادی:** S13 — اتصال بانکی واقعی تسویه؛ منتظر قرارداد بانکی
-> PYMN. از نظر فنی `PointLedger`/`PayoutRequest` از قبل آماده‌اند، شروع فنی
-> نیازی به پیش‌نیاز اضافه ندارد.
-> **نکات باز:** هیچ. PostgreSQL این‌بار کامل تایید شد؛ نکته‌ی عملیاتی کشف‌شده
-> (نه باگ) در لاگ S12: `LocMemCache` به‌ازای هر پردازش جداست — `cache.clear()`
-> از `manage.py shell` کش سرور dev در حال اجرا را پاک نمی‌کند، فقط ری‌استارت
-> سرور یا اجرای دستور از همان پردازش این کار را می‌کند. در prod (Redis، کش
-> مشترک) این مسئله اصلاً وجود ندارد.
+> **آخرین تسک تمام‌شده:** یک تسک ad-hoc (خارج از شماره‌گذاری S10-S13 نقشه‌ی
+> فاز ۲؛ درخواست مستقیم PYMN) که ~۱۹ باگ/درخواست UX واقعی را در پلیر،
+> پلی‌لیست، اعلان‌ها، لایک/فالو، کارت‌های Discover، تنظیمات حساب و صفحه‌ی
+> پروفایل رفع کرد:
+> - **ثبت‌نام:** فیلد یوزرنیم از فرم ثبت‌نام رمزی حذف شد (مثل مسیر
+>   پیامک/گوگل auto-generate می‌شود) — یوزرنیم عمومی فقط یک‌بار، در گیت
+>   انتشاردهنده انتخاب می‌شود. ورود حالا با ایمیل *یا* یوزرنیم کار می‌کند
+>   (`accounts/backends.py::EmailOrUsernameBackend` جدید).
+> - **پلیر:** دکمه‌ی بستن واقعی (`#pbClose`) اضافه شد؛ باگ `qClose`/`plClose`/
+>   `embedClose` که با کلیک روی آیکون داخلی کار نمی‌کرد رفع شد (`.closest()`
+>   به‌جای `e.target.id`)؛ باگ Repeat که آیکون را با ایموجی جایگزین و برای
+>   همیشه نابود می‌کرد رفع شد؛ Shuffle بررسی و تایید شد که درست کار می‌کند؛
+>   دکمه‌ی + (افزودن به پلی‌لیست) که کلا wire نشده بود الان کار می‌کند؛
+>   آیکون‌های نوار پخش کوچک‌تر و واکنش‌گرا شدند.
+> - **پلی‌لیست:** مودال «افزودن به پلی‌لیست» حالا فرم ساخت سریع inline دارد
+>   و آیکون هر پلی‌لیست وضعیت واقعی عضویت را نشان می‌دهد (endpoint
+>   `api_playlist_mine` یک پارامتر `track_id` جدید گرفت). Toast بالای مودال
+>   نمایش داده می‌شود (z-index اصلاح شد).
+> - **لایک/فالو:** حالت لایک (پر/توخالی) و تعداد لایک حالا روی کارت‌های
+>   Discover/Trending هم درست است (endpoint جدید `api_likes_status` +
+>   hydration سبک سمت کلاینت). دکمه‌ی فالو بعد از کلیک متن و رنگش عوض
+>   می‌شود («دنبال کردن» ↔ «لغو دنبال کردن»؛ context جدید `is_following`).
+> - **منوی «⋯»:** باگ z-index که منو را زیر کارت بعدی می‌برد (تله‌ی
+>   stacking-context ناشی از backdrop-filter در `.card`) با یک fix سراسری
+>   در `casset-ui.js::initMenus` (پورتال به `<body>`) حل شد — همه‌ی صفحات.
+> - **اعلان‌ها:** دراپ‌داون واقعی زیر زنگوله (به‌جای لینک مستقیم به صفحه‌ی
+>   کامل) با پیش‌نمایش آخرین اعلان‌ها.
+> - **Discover:** کارت‌های مربعی به طرح «نوار کاست» بازطراحی شدند (بدون از
+>   دست رفتن هیچ گزینه/آیکونی).
+> - **تنظیمات حساب:** عرض فیلدها محدود شد (۶۴۰px به‌جای کل ستون محتوا)،
+>   ویجت آواتار/کاور دیگر URL خام مدیا را نشان نمی‌دهد (`ClearableFileInput`
+>   → `FileInput`)، و باکس پیش‌نمایش خودش دکمه‌ی آپلود شد (کلیک = انتخاب فایل).
+> - **صفحه‌ی پروفایل:** نوشته‌ها/دکمه‌های روی کاور (لینک‌های اجتماعی، دنبال
+>   کردن/اشتراک/گزارش) به زیر کاور منتقل شدند؛ فقط نام/هندل/بیو کنار آواتار
+>   روی خود تصویر می‌مانند.
+> - **باز مانده — نیاز به ورودی PYMN:** یک فلش جهت‌دار روی صفحه‌ی پروفایل
+>   («روبروی متن آثار، سمت چپ») که هنوز پیدا نشده — تمام آیکون‌های ▲▼ سایت
+>   بررسی شدند، تنها نامزد قابل‌مشاهده روی همه‌ی صفحات caret منوی حساب در
+>   نوار بالاست که با توضیح کاربر کاملاً جور درنمی‌آمد؛ PYMN عکس/توضیح دقیق‌تر
+>   می‌فرستد.
+> **فایل‌های تغییریافته:** `accounts/{forms,views,tests,tests_email_verification,tests_rate_limit}.py`,
+> `accounts/backends.py` (جدید), `config/settings/base.py`,
+> `interactions/{views,urls,tests}.py`, `playlists/{views,tests}.py`,
+> `tracks/{views,tests}.py`, `scripts/qa/journey_qa.py`,
+> `static/{app.css,app.js}`, `static/css/casset-ui.css`, `static/js/casset-ui.js`,
+> `templates/base.html`, `templates/accounts/{login,register,settings,public_profile_pro}.html`,
+> `templates/tracks/track_detail.html`, `templates/partials/_tcard.html`.
+> **تست:** ۷۰۸ تست سبز روی SQLite (از ۶۹۴، +۱۴)، **۷۰۹ روی PostgreSQL واقعی
+> محلی** (همان ۵ شکست پیش‌موجود و نامرتبط `core.tests_settings_secrets` —
+> مشکل Winsock محلی ویندوز، هم روی SQLite هم Postgres، هم قبل از این تسک هم
+> بعدش)، `ruff check .` تمیز، بدون migration drift،
+> `python manage.py makemigrations --check` تمیز. `scripts/qa/journey_qa.py`
+> («۶۰ ادعای مسیر واقعی») هم به‌روزرسانی شد (مسیر ثبت‌نام آن هنوز فرض می‌کرد
+> ثبت‌نام مستقیم به onboarding ریدایرکت می‌شود — یک فرض قدیمی از قبل S10 که
+> هیچ‌وقت با گیت تایید ایمیل sync نشده بود؛ الان مسیر واقعی
+> ثبت‌نام→تاییدایمیل→onboarding را طی می‌کند) — **۶۴ از ۶۴ ادعا سبز**.
+> تایید دستی end-to-end در مرورگر برای هر آیتم بالا (پلیر/پلی‌لیست/لایک/
+> فالو/منو/اعلان/کارت‌ها/تنظیمات/پروفایل) با DOM assertions مستقیم (screenshot
+> در این محیط sandbox در دسترس نبود — pane نمایش داده نمی‌شد).
+> **وضعیت commit:** در حال commit روی برنچ `feature/s12-analytics-personalization`
+> (شامل S12 قبلی + این تسک)، سپس merge به `master` و push — طبق دستور صریح
+> PYMN در همین تسک.
+> **قدم بعدی پیشنهادی:** ۱) فلش گمشده روی پروفایل با عکس/توضیح دقیق‌تر PYMN
+> رفع شود. ۲) S13 — اتصال بانکی واقعی تسویه؛ منتظر قرارداد بانکی PYMN.
+> **نکات باز:** فلش پروفایل (بالا). Notion به‌روزرسانی نشد — MCP آن در این
+> session احراز هویت نشده؛ PYMN باید از تنظیمات کانکتور claude.ai یا
+> `/mcp` وصلش کند.
 >
 > قبلی از این بلوک: `.casset/state/audit-2026-08-21.md` را بخوان، بعد
 > `.casset/releases/v2.1.0-phase2-plan.md`.
@@ -217,14 +256,24 @@ Agent system is designed but intentionally not activated as autonomous developme
 All architectural changes are recorded in `.casset/state/changelog.md`.
 Read that file at the start of every session to know what has changed and why.
 
-## Test coverage baseline (2026-08-22, post-S12, current)
-`coverage run --source=. manage.py test` → **93% overall**, 694 tests, `OK (skipped=1)`.
+## Test coverage baseline (2026-08-22, post S12-UX-pass, current)
+`coverage run --source=. manage.py test` → **93% overall**, 708 tests, `OK (skipped=1)`.
+Up from 694/93% (post-S12) after the ad-hoc UX/bugfix pass (player controls,
+playlist modal, like/follow state, the sitewide "⋯" menu z-index fix, notification
+dropdown, discover card redesign, account settings, profile page) added 14 tests
+with no coverage regression. Verified against a real local PostgreSQL server too
+(709 tests, one more than SQLite for the Postgres-only full-text-search test) —
+same 5 pre-existing unrelated failures (`core.tests_settings_secrets`, a local
+Windows Winsock issue) on both databases, before and after this pass.
+`scripts/qa/journey_qa.py` (60+ live-database assertions) also green — 64/64.
+Full HTML report regeneratable with `coverage html` (not committed, `.gitignore`d).
+
+### (superseded) 2026-08-22 post-S12 baseline
+`coverage run --source=. manage.py test` → 93% overall, 694 tests, `OK (skipped=1)`.
 Up from 660/92% (post-S11) after S12 (creator geo/device analytics breakdown +
 lightweight Discover recommendation layer) added 34 tests with no coverage regression —
-see `.casset/execution/logs/s12-log.md`. Also verified against a real local PostgreSQL
-server this time (695 tests, one more than SQLite for the Postgres-only full-text-search
-test) — S10/S11 both hit an environment limitation here; S12 didn't.
-Full HTML report regeneratable with `coverage html` (not committed, `.gitignore`d).
+see `.casset/execution/logs/s12-log.md`. Verified against a real local PostgreSQL
+server (695 tests, one more than SQLite for the Postgres-only full-text-search test).
 
 ### (superseded) 2026-08-22 post-S11 baseline
 `coverage run --source=. manage.py test` → 92% overall, 660 tests, `OK (skipped=1)`.

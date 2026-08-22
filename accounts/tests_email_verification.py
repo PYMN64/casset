@@ -26,7 +26,6 @@ from .services import (
 User = get_user_model()
 
 REGISTER_DATA = {
-    "username": "newcreator1",
     "email": "newcreator1@example.com",
     "password1": "a-strong-passw0rd!",
     "password2": "a-strong-passw0rd!",
@@ -41,7 +40,8 @@ class RegisterCreatesInactiveAccountTests(TestCase):
     def test_register_does_not_log_in_and_sends_verification_email(self):
         response = self.client.post(reverse("register"), REGISTER_DATA, follow=True)
 
-        user = User.objects.get(username="newcreator1")
+        user = User.objects.get(email="newcreator1@example.com")
+        self.assertTrue(user.username.startswith("u-"))
         self.assertFalse(user.is_active)
         self.assertFalse(user.profile.email_verified)
         self.assertEqual(user.profile.auth_provider, UserProfile.AuthProvider.PASSWORD)
@@ -57,11 +57,11 @@ class RegisterCreatesInactiveAccountTests(TestCase):
 
     def test_unverified_account_cannot_log_in(self):
         self.client.post(reverse("register"), REGISTER_DATA)
-        user = User.objects.get(username="newcreator1")
+        user = User.objects.get(email="newcreator1@example.com")
 
         response = self.client.post(
             reverse("login"),
-            {"username": "newcreator1", "password": "a-strong-passw0rd!"},
+            {"username": "newcreator1@example.com", "password": "a-strong-passw0rd!"},
         )
 
         self.assertEqual(response.status_code, 200)  # form_invalid, no redirect

@@ -204,6 +204,7 @@ img{ max-width:100%; display:block; }
   fill: currentColor;
 }
 .iconbtn{
+  position: relative; /* anchor for state badges, e.g. .iconbtn--repeat-one */
   display:inline-flex;
   align-items:center;
   justify-content:center;
@@ -217,6 +218,22 @@ img{ max-width:100%; display:block; }
   color: var(--text);
   transition: transform var(--dur), background var(--dur), border-color var(--dur);
   cursor:pointer;
+}
+/* Repeat-one indicator — a small badge, not a swapped-out icon.
+   app.js used to overwrite the repeat button's textContent with an emoji
+   to show this state, which destroyed the <svg> permanently on first use. */
+.iconbtn--repeat-one::after{
+  content:"1";
+  position:absolute;
+  bottom:1px; inset-inline-end:1px;
+  width:12px; height:12px;
+  border-radius:50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size:8px;
+  font-weight:900;
+  line-height:12px;
+  text-align:center;
 }
 .iconbtn:hover{ background: rgb(var(--text-rgb) / .04); transform: translateY(-1px); }
 .iconbtn:active{ transform: translateY(0px); }
@@ -550,7 +567,13 @@ label{ font-weight: 800; }
   left: 12px;
   right: 12px;
   bottom: 86px;
-  z-index: 120;
+  /* Above every overlay (.overlay-panel: 130, the portalled .menu__panel:
+     145, #npView: 140) — a toast is feedback for whatever the visitor just
+     did, which is very often an action taken *inside* one of those, e.g.
+     "به پلی‌لیست اضافه شد" from the add-to-playlist modal. It used to sit
+     at z-index 120, below the modal it was reporting on, so it rendered
+     invisibly behind it. */
+  z-index: 200;
   display:flex;
   justify-content:center;
 }
@@ -670,11 +693,27 @@ label{ font-weight: 800; }
 .playerbar__controls, .playerbar__tools{
   display:flex;
   align-items:center;
-  gap: 6px;
+  gap: 4px;
 }
-.playerbar__controls .iconbtn{ height:36px; min-width:36px; padding:0 8px; }
-.playerbar__controls .iconbtn--primary{ height:44px; min-width:44px; }
+/* Sized down from the original 36/44px: with cover + title/creator name on
+   one side and 5 transport + 7 tool buttons on the other, the buttons were
+   winning the fight for space and the track title/creator name — the thing
+   a listener actually needs to read — got squeezed into an ellipsis. */
+.playerbar__controls .iconbtn{ height:32px; min-width:32px; padding:0 6px; }
+.playerbar__controls .iconbtn--primary{ height:40px; min-width:40px; }
 .playerbar__controls .iconbtn--primary:active{ transform: scale(.92); }
+.playerbar__controls .icon, .playerbar__tools .icon{ width:17px; height:17px; }
+.playerbar__tools .iconbtn{ height:32px; min-width:32px; padding:0 6px; }
+.playerbar__close{ flex: none; margin-inline-start: 2px; }
+/* Progressively shed the least-essential tools before the title starts
+   truncating, instead of jumping straight from "everything" to "nothing"
+   at 720px. */
+@media (max-width: 1080px){
+  .playerbar__tools #pbSpeed, .playerbar__tools #pbSleep{ display:none; }
+}
+@media (max-width: 900px){
+  .playerbar__wave{ display:none; }
+}
 @media (max-width: 720px){
   .playerbar__tools{ display:none; }
 }
@@ -895,6 +934,11 @@ label{ font-weight: 800; }
 }
 .q-reorder button:hover{ background: rgb(var(--text-rgb) / .06); color: var(--text); }
 .q-reorder button:disabled{ opacity:.3; cursor:default; }
+.q-reorder button .icon{ width:12px; height:12px; }
+
+/* Add-to-playlist modal's inline "create new" row (#plModal, base.html) */
+.pl-modal-create{ display:flex; gap:8px; align-items:center; }
+.pl-modal-create .input{ flex:1; height:40px; }
 
 /* Bottom nav */
 .bottomnav{

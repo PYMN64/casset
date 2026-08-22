@@ -79,7 +79,7 @@
                     data-like="1" data-track="{{ track.id }}"
                     aria-pressed="{% if is_liked %}true{% else %}false{% endif %}"
                     aria-label="پسندیدن">
-              <svg class="icon"><use href="#i-heart"/></svg>
+              <svg class="icon"><use href="#{% if is_liked %}i-heart-filled{% else %}i-heart{% endif %}"/></svg>
               <span class="num" id="likeCount">{{ track.like_count }}</span>
             </button>
 
@@ -255,8 +255,10 @@
 
       <div class="cluster mt-3">
         {% if request.user.is_authenticated and request.user.id != track.creator_id %}
-          <button class="btn btn--purple btn--sm" type="button" data-follow="1" data-creator="{{ track.creator.username }}">
-            دنبال کردن
+          <button class="btn {% if is_following %}btn--ghost{% else %}btn--purple{% endif %} btn--sm" type="button"
+                  data-follow="1" data-creator="{{ track.creator.username }}" data-follow-active-class="btn--purple"
+                  aria-pressed="{% if is_following %}true{% else %}false{% endif %}">
+            {% if is_following %}لغو دنبال کردن{% else %}دنبال کردن{% endif %}
           </button>
         {% endif %}
         <a class="btn btn--ghost btn--sm" href="{{ track.creator.profile.profile_url }}">صفحه سازنده</a>

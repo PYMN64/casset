@@ -82,11 +82,13 @@ def track_detail(request, slug):
     is_favorited = False
     is_reposted = False
     is_liked = False
+    is_following = False
     can_download = False
     if request.user.is_authenticated:
         is_favorited = track.favorited_by.filter(user=request.user).exists()
         is_reposted = track.reposts.filter(user=request.user).exists()
         is_liked = track.likes.filter(user=request.user).exists()
+        is_following = request.user.following.filter(creator_id=track.creator_id).exists()
         # Regression fix: this context key was referenced by the template's
         # {% if can_download %} but never set, so the download button (and
         # the whole point of the VIP download_track view) never rendered.
@@ -114,6 +116,7 @@ def track_detail(request, slug):
         "repost_count": track.reposts.count(),
         "is_reposted": is_reposted,
         "is_liked": is_liked,
+        "is_following": is_following,
         "can_download": can_download,
         "more_from_creator": more_from_creator,
         "jsonld": build_track_jsonld(request, track),

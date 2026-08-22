@@ -43,6 +43,38 @@ def toggle_like(request):
     return JsonResponse({"ok": True, "liked": liked, "like_count": track.like_count})
 
 
+def api_likes_status(request):
+    """Which of these tracks has the current visitor liked?
+
+    Card grids (discover/trending/search/profile) render the like button
+    the same for every visitor — they have no per-user context to know
+    whether *this* visitor already liked *this* track, so the button always
+    looked "unliked" even right after a page reload. Rather than threading
+    a liked-set through every view that renders `_tcard.html`
+    (discover_view, trending_view, search, playlist_detail, profile
+    tracks…), the page hydrates it client-side with one batched call —
+    see static/app.js::hydrateLikeButtons.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": True, "liked": []})
+
+    raw_ids = (request.GET.get("track_ids") or "").split(",")
+    ids = []
+    for raw in raw_ids:
+        raw = raw.strip()
+        if raw.isdigit():
+            ids.append(int(raw))
+        if len(ids) >= 200:
+            break
+    if not ids:
+        return JsonResponse({"ok": True, "liked": []})
+
+    liked = list(
+        TrackLike.objects.filter(user=request.user, track_id__in=ids).values_list("track_id", flat=True)
+    )
+    return JsonResponse({"ok": True, "liked": liked})
+
+
 @require_POST
 def toggle_follow(request):
     if not request.user.is_authenticated:

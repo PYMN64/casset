@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Max
+from django.db.models import Count, Exists, Max, OuterRef
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -291,10 +291,26 @@ def api_playlist_reorder(request):
 
 @login_required
 def api_playlist_mine(request):
-    qs = (
-        Playlist.objects.filter(owner=request.user)
-        .annotate(item_count=Count("items"))
-        .order_by("-created_at")[:200]
-        .values("id", "name", "item_count")
-    )
-    return JsonResponse({"ok": True, "playlists": list(qs)})
+    """List the caller's playlists.
+
+    An optional ``track_id`` adds a ``has_track`` flag per playlist so the
+    add-to-playlist modal (app.js::loadMyPlaylistsIntoModal) can render a
+    toggle that already reflects membership instead of a blind "add/remove"
+    button — the caller has to click twice to even find out which one it
+    (silently) needed.
+    """
+    qs = Playlist.objects.filter(owner=request.user).annotate(item_count=Count("items"))
+
+    track_id = request.GET.get("track_id")
+    if track_id and str(track_id).isdigit():
+        qs = qs.annotate(
+            has_track=Exists(
+                PlaylistItem.objects.filter(playlist=OuterRef("pk"), track_id=int(track_id))
+            )
+        )
+        values = ("id", "name", "item_count", "has_track")
+    else:
+        values = ("id", "name", "item_count")
+
+    playlists = list(qs.order_by("-created_at")[:200].values(*values))
+    return JsonResponse({"ok": True, "playlists": playlists})

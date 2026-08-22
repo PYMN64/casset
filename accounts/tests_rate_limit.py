@@ -95,7 +95,6 @@ class RegisterRateLimitTests(TestCase):
 
     def _submit(self, i):
         return self.client.post(reverse("register"), {
-            "username": f"ratelimituser{i}",
             "password1": "V3ryStr0ngPass!",
             "password2": "V3ryStr0ngPass!",
             "email": f"ratelimituser{i}@example.com",
@@ -110,4 +109,4 @@ class RegisterRateLimitTests(TestCase):
         blocked = self._submit(999)
         self.assertEqual(blocked.status_code, 429)
         self.assertContains(blocked, "درخواست‌های زیادی", status_code=429)
-        self.assertFalse(User.objects.filter(username="ratelimituser999").exists())
+        self.assertFalse(User.objects.filter(email="ratelimituser999@example.com").exists())

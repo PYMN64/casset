@@ -51,16 +51,23 @@ class RegisterViewTests(TestCase):
         """Registration creates the account inactive and renders the
         "check your inbox" page directly (200), not a redirect into a
         logged-in session — the account isn't usable until the e-mail
-        verification link is redeemed (see accounts/tests_email_verification.py)."""
+        verification link is redeemed (see accounts/tests_email_verification.py).
+
+        No "username" is posted: signup no longer asks for one (S12 UX
+        pass) — it's auto-generated (accounts.services.unique_username),
+        the same opaque `u-xxxxxxxxxx` scheme phone/Google sign-up already
+        use, so the user is never asked to pick a "username" twice (once
+        here, once again at the publisher gate for the real public handle).
+        """
         resp = self.client.post(reverse("register"), {
-            "username": "newuser1",
             "password1": "V3ryStr0ngPass!",
             "password2": "V3ryStr0ngPass!",
             "email": "new@example.com",
             "accept_terms": "on",
         })
         self.assertEqual(resp.status_code, 200)
-        user = User.objects.get(username="newuser1")
+        user = User.objects.get(email="new@example.com")
+        self.assertTrue(user.username.startswith("u-"))
         self.assertTrue(UserProfile.objects.filter(user=user).exists())
         self.assertEqual(user.profile.auth_provider, UserProfile.AuthProvider.PASSWORD)
         self.assertFalse(user.is_active)
@@ -69,27 +76,25 @@ class RegisterViewTests(TestCase):
     def test_registration_refused_without_accepting_terms(self):
         """The consent checkbox is a gate, not decoration."""
         resp = self.client.post(reverse("register"), {
-            "username": "noterms",
             "password1": "V3ryStr0ngPass!",
             "password2": "V3ryStr0ngPass!",
             "email": "noterms@example.com",
         })
         self.assertEqual(resp.status_code, 200)
-        self.assertFalse(User.objects.filter(username="noterms").exists())
+        self.assertFalse(User.objects.filter(email="noterms@example.com").exists())
 
     def test_duplicate_email_rejected(self):
         """One account per address — Google sign-in matches on email, so a
         duplicate would make that match ambiguous."""
         User.objects.create_user(username="first", email="dupe@example.com", password="pass12345")
         resp = self.client.post(reverse("register"), {
-            "username": "second",
             "password1": "V3ryStr0ngPass!",
             "password2": "V3ryStr0ngPass!",
             "email": "dupe@example.com",
             "accept_terms": "on",
         })
         self.assertEqual(resp.status_code, 200)
-        self.assertFalse(User.objects.filter(username="second").exists())
+        self.assertEqual(User.objects.filter(email__iexact="dupe@example.com").count(), 1)
 
     def test_authenticated_user_redirected_away(self):
         _make_user("existing1")
@@ -105,6 +110,8 @@ class RegisterViewTests(TestCase):
 class LoginViewTests(TestCase):
     def setUp(self):
         self.user = _make_user("loginuser")
+        self.user.email = "loginuser@example.com"
+        self.user.save(update_fields=["email"])
         UserProfile.objects.get_or_create(user=self.user)
 
     def test_get_renders_form(self):
@@ -117,6 +124,33 @@ class LoginViewTests(TestCase):
             "password": "pass12345",
         })
         self.assertEqual(resp.status_code, 302)
+
+    def test_valid_login_with_email_redirects(self):
+        """A password account's username is now an opaque internal id the
+        user never sees (S12 UX pass) — login must accept the e-mail they
+        actually know. See accounts.backends.EmailOrUsernameBackend."""
+        resp = self.client.post(reverse("login"), {
+            "username": "loginuser@example.com",
+            "password": "pass12345",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.user.pk)
+
+    def test_login_with_email_wrong_case_still_matches(self):
+        resp = self.client.post(reverse("login"), {
+            "username": "LoginUser@Example.com",
+            "password": "pass12345",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.user.pk)
+
+    def test_login_with_unknown_email_stays_on_page(self):
+        resp = self.client.post(reverse("login"), {
+            "username": "nobody@example.com",
+            "password": "pass12345",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_wrong_password_stays_on_page(self):
         resp = self.client.post(reverse("login"), {
@@ -227,6 +261,26 @@ class PublicProfileViewTests(TestCase):
     def test_404_for_unknown_user(self):
         resp = self.client.get(reverse("public_profile", args=["doesnotexist"]))
         self.assertEqual(resp.status_code, 404)
+
+    def test_is_following_reflects_real_state(self):
+        """Regression: the follow button always said "دنبال کردن" (Follow)
+        even for a creator the visitor already followed — the view never
+        told the template which state it was in."""
+        from core.test_utils import make_user
+        from interactions.models import CreatorFollow
+
+        follower = make_user("profile_follower")
+        self.client.login(username="profile_follower", password="pass12345")
+
+        resp = self.client.get(reverse("public_profile", args=["publicuser"]))
+        self.assertFalse(resp.context["is_following"])
+        self.assertContains(resp, "دنبال کردن")
+        self.assertNotContains(resp, "لغو دنبال کردن")
+
+        CreatorFollow.objects.create(user=follower, creator=self.user)
+        resp = self.client.get(reverse("public_profile", args=["publicuser"]))
+        self.assertTrue(resp.context["is_following"])
+        self.assertContains(resp, "لغو دنبال کردن")
 
     def test_likes_stat_reflects_real_track_likes(self):
         """Regression: this view used to hardcode stats['likes'] = 0
@@ -726,3 +780,57 @@ class SmsProviderTests(TestCase):
         called_phone, called_code = mock_send.call_args.args
         self.assertEqual(called_phone, "09121234567")
         self.assertEqual(len(called_code), 6)
+
+
+# ---------------------------------------------------------------------------
+# Settings: avatar/cover widget (S12 UX pass)
+#
+# ImageField's default ClearableFileInput renders "Currently: <a
+# href='/media/.../xyz.jpg'>xyz.jpg</a>" — the raw storage path, shown to
+# the user for no reason (settings.html already shows the image itself in
+# a preview box). ProfileSettingsForm swaps in a plain FileInput.
+# ---------------------------------------------------------------------------
+
+def _make_image_file(name="avatar.png", size=(64, 64), color=(10, 20, 30)):
+    import io
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", size, color=color).save(buf, format="PNG")
+    buf.seek(0)
+    return SimpleUploadedFile(name, buf.read(), content_type="image/png")
+
+
+class SettingsAvatarWidgetTests(TestCase):
+    def setUp(self):
+        from core.test_utils import make_user
+
+        self.user = make_user("avatarwidget_user")
+        self.client.login(username="avatarwidget_user", password="pass12345")
+
+    def test_settings_page_never_leaks_the_raw_media_path(self):
+        self.user.profile.avatar = _make_image_file()
+        self.user.profile.save(update_fields=["avatar"])
+
+        resp = self.client.get(reverse("settings"))
+        self.assertEqual(resp.status_code, 200)
+        # ClearableFileInput's default markup, if it were still in use. The
+        # image URL itself legitimately appears once, inside the preview
+        # box's background-image style — that's not what's being guarded
+        # against here, a visible "here's the raw file" link/checkbox is.
+        self.assertNotContains(resp, "Currently:")
+        self.assertNotContains(resp, 'type="checkbox" name="avatar-clear"')
+
+    def test_avatar_upload_still_works_through_the_new_widget(self):
+        resp = self.client.post(reverse("settings"), {
+            "section": "profile",
+            "email": "avatarwidget_user@example.com",
+            "display_name": "Avatar Widget User",
+            "bio": "",
+            "avatar": _make_image_file(),
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.user.profile.refresh_from_db()
+        self.assertTrue(self.user.profile.avatar)

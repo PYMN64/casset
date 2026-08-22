@@ -187,6 +187,23 @@ class PlaylistToggleTrackApiTests(TestCase):
         data = resp.json()["playlists"]
         self.assertEqual(data[0]["item_count"], 1)
 
+    def test_api_mine_with_track_id_reports_membership(self):
+        """The add-to-playlist modal needs to know, per playlist, whether the
+        track is already in it — otherwise the toggle button can't show its
+        current state without a second, blind click."""
+        other_pl = Playlist.objects.create(owner=self.user, name="Other")
+        PlaylistItem.objects.create(playlist=self.pl, track=self.track)
+
+        resp = self.client.get(reverse("api_playlist_mine"), {"track_id": self.track.id})
+        data = {row["id"]: row["has_track"] for row in resp.json()["playlists"]}
+        self.assertTrue(data[self.pl.id])
+        self.assertFalse(data[other_pl.id])
+
+    def test_api_mine_without_track_id_omits_has_track(self):
+        resp = self.client.get(reverse("api_playlist_mine"))
+        data = resp.json()["playlists"]
+        self.assertNotIn("has_track", data[0])
+
 
 class ApiPlaylistRenameTests(TestCase):
     def setUp(self):

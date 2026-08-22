@@ -73,15 +73,49 @@ def fresh_user(username, **profile_kwargs):
 print("\n=== Journey 1: sign up -> onboarding -> discover ===")
 # ===========================================================================
 c = client()
-User.objects.filter(username="qa_signup").delete()
+User.objects.filter(email="qa_signup@example.com").delete()
 
+# No "username": registration no longer asks for one (S12 UX pass) — it's
+# auto-generated (accounts.services.unique_username), same as the phone/
+# Google sign-up paths already did, so the account is found by email from
+# here on, not by a username the visitor never chose.
 resp = c.post("/register/", {
-    "username": "qa_signup", "email": "qa_signup@example.com",
+    "email": "qa_signup@example.com",
     "password1": "V3ryStr0ngPass!", "password2": "V3ryStr0ngPass!",
     "accept_terms": "on",
 })
-check("registration redirects to onboarding", resp.status_code == 302 and resp.url == "/onboarding/", resp.get("Location", ""))
-check("account exists", User.objects.filter(username="qa_signup").exists())
+# Registration renders "check your inbox" directly (200) — the account
+# stays inactive until the e-mail link is redeemed (S10), so it does not
+# redirect into onboarding the way it did before that gate existed.
+check("registration renders check-your-inbox, account inactive", resp.status_code == 200 and not resp.wsgi_request.user.is_authenticated)
+check("account exists", User.objects.filter(email="qa_signup@example.com").exists())
+new_user = User.objects.get(email="qa_signup@example.com")
+check("account got an auto-generated username, not a chosen one", new_user.username.startswith("u-"))
+check("account is inactive pending verification", not new_user.is_active)
+
+# Redeem the verification link the way a real click would — mint the same
+# shape of token issue_email_verification() would (hash stored, plaintext
+# only ever in the URL) rather than fabricating a fake `request` just to
+# reuse that function's own email-sending side effect.
+import secrets as _secrets  # noqa: E402
+
+from django.utils import timezone  # noqa: E402
+from django.utils.encoding import force_bytes  # noqa: E402
+from django.utils.http import urlsafe_base64_encode  # noqa: E402
+
+from accounts.models import EmailVerification  # noqa: E402
+from accounts.services import EMAIL_VERIFICATION_TTL, _hash_email_token  # noqa: E402
+
+verify_token = _secrets.token_urlsafe(32)
+EmailVerification.objects.create(
+    user=new_user, token_hash=_hash_email_token(verify_token),
+    expires_at=timezone.now() + EMAIL_VERIFICATION_TTL,
+)
+uidb64 = urlsafe_base64_encode(force_bytes(new_user.pk))
+resp = c.get(f"/verify-email/{uidb64}/{verify_token}/", follow=True)
+check("verification link logs the user in", resp.wsgi_request.user.is_authenticated)
+new_user.refresh_from_db()
+check("account active after verification", new_user.is_active)
 
 resp = c.post("/onboarding/", {
     "email": "qa_signup@example.com", "first_name": "سارا", "last_name": "احمدی",
@@ -89,7 +123,7 @@ resp = c.post("/onboarding/", {
     "next_action": "viewer",
 }, follow=True)
 check("listener path lands on discover", resp.request["PATH_INFO"] == "/discover/", resp.request["PATH_INFO"])
-profile = User.objects.get(username="qa_signup").profile
+profile = User.objects.get(email="qa_signup@example.com").profile
 check("onboarding recorded", profile.onboarding_complete)
 check("interests saved", set(profile.interests) == {"music", "podcast"}, profile.interests)
 check("display name saved", profile.display_name == "سارا احمدی")

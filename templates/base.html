@@ -98,10 +98,22 @@
         </button>
 
         {% if request.user.is_authenticated %}
-          <a class="iconbtn iconbtn--ghost topbar__bell" href="{% url 'notification_list' %}" aria-label="اعلان‌ها" title="اعلان‌ها">
-            <svg class="icon"><use href="#i-bell"/></svg>
-            <span id="notifBadge" class="notif-badge hidden" aria-live="polite"></span>
-          </a>
+          <div class="menu" id="notifMenu">
+            <button class="iconbtn iconbtn--ghost topbar__bell" type="button" id="notifMenuBtn"
+                    data-menu-toggle aria-haspopup="true" aria-expanded="false" aria-label="اعلان‌ها" title="اعلان‌ها">
+              <svg class="icon"><use href="#i-bell"/></svg>
+              <span id="notifBadge" class="notif-badge hidden" aria-live="polite"></span>
+            </button>
+            <div class="menu__panel menu__panel--notif" id="notifMenuPanel" role="menu" aria-label="اعلان‌ها">
+              <div class="notif-menu__head">
+                <b>اعلان‌ها</b>
+                <a href="{% url 'notification_list' %}">مشاهده همه</a>
+              </div>
+              <div id="notifMenuList" class="notif-menu__list">
+                <div class="notif-menu__empty muted t-xs">در حال بارگذاری…</div>
+              </div>
+            </div>
+          </div>
 
           <div class="menu" id="accountMenu">
             <button class="chip" type="button" id="accountMenuBtn" aria-haspopup="true" aria-expanded="false">
@@ -250,9 +262,13 @@
           <button class="iconbtn" type="button" id="pbSleep" aria-label="تایمر خواب" title="تایمر خواب"><svg class="icon"><use href="#i-moon"/></svg></button>
           <a class="iconbtn" href="#" id="pbShuffle" aria-label="پخش تصادفی" title="پخش تصادفی"><svg class="icon"><use href="#i-shuffle"/></svg></a>
           <a class="iconbtn" href="#" id="pbRepeat" aria-label="تکرار" title="تکرار"><svg class="icon"><use href="#i-repeat"/></svg></a>
+          <button class="iconbtn" type="button" id="pbPlaylist" aria-label="افزودن به پلی‌لیست" title="افزودن به پلی‌لیست"><svg class="icon"><use href="#i-plus"/></svg></button>
           <a class="iconbtn" href="#" id="pbQueue" aria-label="صف پخش" title="صف پخش"><svg class="icon"><use href="#i-queue"/></svg></a>
           <button class="iconbtn" type="button" id="pbExpand" aria-label="نمایش کامل پخش‌کننده" title="نمایش کامل"><svg class="icon"><use href="#i-expand"/></svg></button>
         </div>
+        <button class="iconbtn playerbar__close" type="button" id="pbClose" aria-label="بستن پخش‌کننده" title="بستن">
+          <svg class="icon"><use href="#i-close"/></svg>
+        </button>
       </div>
 
       <div class="playerbar__scrub">
@@ -360,10 +376,15 @@
         <button id="plClose" class="iconbtn" type="button" aria-label="بستن"><svg class="icon"><use href="#i-close"/></svg></button>
       </div>
       <div id="plModalTrack" class="muted t-xs mt-2 mb-3"></div>
-      <div id="plModalList" class="list"></div>
-      <div class="cluster cluster--start mt-3">
-        <a class="btn btn--ghost btn--sm" href="{% url 'library' %}"><svg class="icon"><use href="#i-plus"/></svg>ساخت پلی‌لیست جدید</a>
-      </div>
+
+      <form id="plModalCreateForm" class="pl-modal-create" data-pl-create-inline-form="1">
+        <input type="text" name="name" class="input" placeholder="نام پلی‌لیست جدید…" maxlength="80" required>
+        <button class="btn btn--primary btn--sm" type="submit">
+          <svg class="icon"><use href="#i-plus"/></svg>ساخت
+        </button>
+      </form>
+
+      <div id="plModalList" class="list mt-3"></div>
     </div>
   </div>
 

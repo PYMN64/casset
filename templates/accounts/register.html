@@ -23,8 +23,7 @@
         </div>
       {% endif %}
 
-      {% include "partials/_field.html" with field=form.username hint="فقط حروف انگلیسی، عدد و @ . + - _" %}
-      {% include "partials/_field.html" with field=form.email hint="برای بازیابی رمز و گزارش‌های عملکرد لازم است." %}
+      {% include "partials/_field.html" with field=form.email hint="برای ورود، بازیابی رمز و گزارش‌های عملکرد لازم است." %}
 
       <div class="form-field{% if form.password1.errors %} form-field--invalid{% endif %}">
         <label class="form-field__label" for="{{ form.password1.id_for_label }}">رمز عبور</label>

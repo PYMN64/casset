@@ -241,6 +241,12 @@ def register_view(request):
         # and every other entry point already checks is_active explicitly).
         # No login() call here: a password account isn't usable yet.
         user = form.save(commit=False)
+        # Opaque internal id, same generator the phone/Google sign-up paths
+        # already use — the user never picks or sees this. They log back in
+        # with their e-mail (accounts.backends.EmailOrUsernameBackend); a
+        # public *handle* is chosen once, later, only if they publish
+        # (CreatorHandleForm).
+        user.username = unique_username()
         user.is_active = False
         user.save()
         profile, _ = UserProfile.objects.get_or_create(user=user)
@@ -878,7 +884,9 @@ def _public_profile_context(request, user_obj, profile, canonical_handle=False):
     following_count = user_obj.following.count() if hasattr(user_obj, "following") else 0
 
     suggested = User.objects.all().exclude(id=user_obj.id)
+    is_following = False
     if request.user.is_authenticated and hasattr(request.user, "following"):
+        is_following = request.user.following.filter(creator_id=user_obj.id).exists()
         suggested = suggested.exclude(
             id__in=request.user.following.values_list("creator_id", flat=True)
         )
@@ -901,6 +909,7 @@ def _public_profile_context(request, user_obj, profile, canonical_handle=False):
         "suggested_creators": suggested,
         "canonical_handle": canonical_handle,
         "is_owner": request.user.is_authenticated and request.user.id == user_obj.id,
+        "is_following": is_following,
         "jsonld": build_profile_jsonld(
             request, user_obj, profile,
             {"followers": followers_count, "following": following_count},

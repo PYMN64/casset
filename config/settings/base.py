@@ -209,15 +209,19 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# AllowAllUsersModelBackend (not the default ModelBackend): the default
-# backend silently folds "wrong password" and "suspended account" into the
-# same generic error, because it refuses to even return a User object for
-# an inactive account — AuthenticationForm.confirm_login_allowed() (where
-# accounts.forms.LoginForm's clear "این حساب تعلیق شده است" message lives)
-# never gets a user to check. This backend still authenticates by password
-# first; confirm_login_allowed() is what actually blocks the inactive user,
-# same enforcement, better message.
-AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.AllowAllUsersModelBackend"]
+# accounts.backends.EmailOrUsernameBackend (not the default ModelBackend):
+# subclasses AllowAllUsersModelBackend for the same reason the old comment
+# here explained — the default backend silently folds "wrong password" and
+# "suspended account" into the same generic error, because it refuses to
+# even return a User object for an inactive account —
+# AuthenticationForm.confirm_login_allowed() (where accounts.forms.LoginForm's
+# clear "این حساب تعلیق شده است" message lives) never gets a user to check.
+# This backend still authenticates by password first; confirm_login_allowed()
+# is what actually blocks the inactive user, same enforcement, better message.
+# On top of that it also matches by e-mail: registration (S12 UX pass) no
+# longer asks a new user to pick a username, so login must accept the one
+# identifier a password-account user actually knows.
+AUTHENTICATION_BACKENDS = ["accounts.backends.EmailOrUsernameBackend"]
 
 # ---------------------------------------------------------------------------
 # Internationalisation

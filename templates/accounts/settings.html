@@ -21,6 +21,7 @@
     {% csrf_token %}
     <input type="hidden" name="section" value="profile">
 
+    <div class="settings-panel">
     <div class="card">
       <div class="card__title">هویت</div>
       <div class="grid-3">
@@ -28,26 +29,32 @@
         {% include "partials/_field.html" with field=form.last_name %}
         {% include "partials/_field.html" with field=form.display_name hint="نامی که روی آثارت دیده می‌شود" %}
       </div>
-      {% include "partials/_field.html" with field=form.email %}
+      <div class="grid-3">
+        {% include "partials/_field.html" with field=form.email %}
+      </div>
       {% include "partials/_field.html" with field=form.bio hint="حداکثر ۱۶۰ کاراکتر" %}
     </div>
 
     <div class="card mt-4">
       <div class="card__title">تصاویر</div>
-      <p class="card__sub">تصویر پروفایل مربع و کاور افقی بهترین نتیجه را می‌دهد.</p>
+      <p class="card__sub">تصویر پروفایل مربع و کاور افقی بهترین نتیجه را می‌دهد. برای تغییر، روی تصویر بزن.</p>
       <div class="grid-3">
         <div>
           <div class="form-field__label">تصویر پروفایل</div>
-          <div class="avatar-preview cover-preview--visible" data-preview-for="{{ form.avatar.id_for_label }}"
-               {% if profile.avatar %}style="background-image:url('{{ profile.avatar|thumbnail_url:'240x240' }}')"{% endif %}></div>
+          <label class="avatar-preview img-upload cover-preview--visible" for="{{ form.avatar.id_for_label }}" data-preview-for="{{ form.avatar.id_for_label }}"
+                 {% if profile.avatar %}style="background-image:url('{{ profile.avatar|thumbnail_url:'240x240' }}')"{% endif %}>
+            <span class="img-upload__badge" aria-hidden="true"><svg class="icon"><use href="#i-camera"/></svg></span>
+          </label>
           {{ form.avatar }}
           <div class="form-field__hint">مربع، حداقل ۴۰۰×۴۰۰ پیکسل</div>
           {% if form.avatar.errors %}<div class="form-field__error">{{ form.avatar.errors }}</div>{% endif %}
         </div>
         <div>
           <div class="form-field__label">کاور صفحه</div>
-          <div class="cover-preview cover-preview--wide cover-preview--visible" data-preview-for="{{ form.cover.id_for_label }}"
-               {% if profile.cover %}style="background-image:url('{{ profile.cover|thumbnail_url:'800x340' }}')"{% endif %}></div>
+          <label class="cover-preview cover-preview--wide img-upload cover-preview--visible" for="{{ form.cover.id_for_label }}" data-preview-for="{{ form.cover.id_for_label }}"
+                 {% if profile.cover %}style="background-image:url('{{ profile.cover|thumbnail_url:'800x340' }}')"{% endif %}>
+            <span class="img-upload__badge" aria-hidden="true"><svg class="icon"><use href="#i-camera"/></svg></span>
+          </label>
           {{ form.cover }}
           <div class="form-field__hint">افقی، پیشنهادی ۱۲۰۰×۵۰۰ پیکسل</div>
           {% if form.cover.errors %}<div class="form-field__error">{{ form.cover.errors }}</div>{% endif %}
@@ -70,6 +77,7 @@
       <button class="btn btn--primary" type="submit">ذخیره تغییرات</button>
       <a class="btn btn--ghost" href="{{ profile.profile_url }}">مشاهده پروفایل عمومی</a>
     </div>
+    </div>
   </form>
 </section>
 
@@ -79,6 +87,7 @@
     {% csrf_token %}
     <input type="hidden" name="section" value="notifications">
 
+    <div class="settings-panel">
     <div class="card">
       <div class="card__title">چه اعلان‌هایی دریافت کنم؟</div>
       <p class="card__sub">
@@ -110,11 +119,13 @@
     <div class="cluster cluster--start mt-4">
       <button class="btn btn--primary" type="submit">ذخیره تنظیمات اعلان</button>
     </div>
+    </div>
   </form>
 </section>
 
 <!-- ================= Security ================= -->
 <section data-tab-panel="security" class="hidden">
+  <div class="settings-panel">
   <div class="card">
     <div class="card__title">روش‌های ورود</div>
 
@@ -198,10 +209,12 @@
       {% endif %}
     </div>
   </div>
+  </div>
 </section>
 
 <!-- ================= Danger zone ================= -->
 <section data-tab-panel="danger" class="hidden" id="danger">
+  <div class="settings-panel">
   <div class="card card--danger">
     <div class="card__title">غیرفعال‌سازی حساب</div>
     <p class="muted t-sm lh-body">
@@ -225,6 +238,7 @@
         <svg class="icon"><use href="#i-alert"/></svg>غیرفعال‌سازی حساب من
       </button>
     </form>
+  </div>
   </div>
 </section>
 {% endblock %}
